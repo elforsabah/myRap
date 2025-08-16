@@ -1,28 +1,26 @@
-managed implementation in class zbp_i_wr_weighingsession unique;
-strict;
-
-with draft;
-
 define behavior for ZI_WR_WEIGHINGSESSION alias WeighingSession
-persistent table zwr_weighsession
+persistent table ZWR_WEIGHSESSION
 lock master
-total etag Grossweight
-authorization master ( instance )
-etag master Grossweight
 {
-create; 
-update; 
-delete;
+  " Keys must be readonly in strict draft
+  field (readonly) Vbeln, Sessionid;   " <-- use your exact CDS element names
 
-draft action Edit; 
-draft action Activate; 
-draft action Discard;
+  create;
+  update;
+  delete;
 
-action NextStep result [1] $self; // server validates & increments Step 
-action Submit result [1] $self; // final checks; printing trigger optional
+  " Mandatory draft actions in strict mode
+  draft action Edit;
+  draft action Activate;
+  draft action Discard;
+  draft action Resume;                 " <-- required
+  draft determine action Prepare;      " <-- required
 
-validation validateStep1 on save { field Vbeln, Sessionid; } // Identification 
-validation validateStep2 on save { field LoadType; } // Load type 
-determination calcNet on modify { field Grossweight, Tareweight; } // Weighing math
-  
+  " Your custom actions / logic
+  action NextStep  result [1] $self;
+  action Submit    result [1] $self;
+
+  validation validateStep1 on save { field Vbeln, Sessionid; }
+  validation validateStep2 on save { field LoadType; }
+  determination calcNet on modify { field Grossweight, Tareweight; }
 }
