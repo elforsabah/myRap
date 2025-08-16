@@ -1,8 +1,12 @@
- // Actions visible/enabled rules (bound actions from RAP)
-  @UI: { OperationGrouping: #CHANGE_SET, Importance: #HIGH, Position: 10 }
-  @UI.operationAvailable: : ( Step = 1 and Step1Ok = true ) or ( Step = 2 and Step2Ok = true )
-  action NextStep;
+create; update; delete;
 
-  @UI: { Importance: #HIGH, Criticality: #Positive, Position: 20 }
-  @UI.operationAvailable: : Step = 3 and Netweight ne null and IsSummited = false
-  action Submit;
+  draft action Edit;
+  draft action Activate;
+  draft action Discard;
+
+  action NextStep  result [1] $self;   // server validates & increments Step
+  action Submit    result [1] $self;   // final checks; printing trigger optional
+
+  validation validateStep1 on save { field Vbeln, Sessionid; }    // Identification
+  validation validateStep2 on save { field LoadType; }            // Load type
+  determination calcNet on modify { field Grossweight, Tareweight; } // Weighing math
