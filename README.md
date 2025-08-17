@@ -1,1 +1,12 @@
-Log-dbg.js:497 2025-08-17 23:02:16.867000 [FUTURE FATAL] The registered Event Listener 'onInit' must not have a return value. - com.example.weighingsessionwizard.controller.CustomPage 
+_onObjectMatched: function () {
+    var oModel = this.getView().getModel();
+    var oListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION");
+    var oNewContext = oListBinding.create({});  // Create new entity context (active, no draft)
+
+    this.getView().setBindingContext(oNewContext);
+
+    // Pre-request the property to initialize it (avoids "must not change before read")
+    oNewContext.requestProperty("Vbeln").catch(function () {
+        // Ignore if needed
+    });
+}
