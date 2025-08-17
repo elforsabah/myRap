@@ -1,1 +1,2 @@
-action identifyCard parameter struct { CardId : abap.char(40); } result [1] $self;
+METHODS identifycard FOR MODIFY
+      IMPORTING keys FOR ACTION session~identifycard RESULT result.
