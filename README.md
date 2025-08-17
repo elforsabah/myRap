@@ -1,8 +1,4 @@
- @Consumption.valueHelpDefinition: [{
-      valueList: 'ZI_WR_LOADTYPE',
-      valueListType: #STANDARD,
-      labelElement: 'StatusText',
-      additionalBinding: [
-        { localElement: 'LoadType', valueListProperty: 'Status' }
-      ]
-  }]
+ @Consumption.valueHelpDefinition: [{ entity: {
+      name: 'I_CustomerReferenceVH',  //  /SIEC/SD_I_SALESDOCUMENTVH
+      element: 'CustomerReference'
+      }}]
