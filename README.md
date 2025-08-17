@@ -1,11 +1,20 @@
-<!-- Step 2: Position Vehicle and Select Load Type -->
-<WizardStep id="step2" title="Choose Load Type" validated="false">
-<VBox id="vb1">
-<Label id="lb1" text="Position vehicle on weighbridge" />
-<Label text="Load Type" />
-<HBox width="10rem" justifyContent="Start">
-<macros:Field metaPath="LoadType" id="loadTypeField" readOnly="false" />
-</HBox>
-</VBox>
-<Button id="btn2" text="Next" press="onNextStep" />
-</WizardStep>
+<Annotations Target="your.namespace.ZI_WR_WEIGHINGSESSION/LoadType">  <!-- Replace with your actual entity/property path -->
+                <Annotation Term="Common.ValueList">
+                    <Record>
+                        <PropertyValue Property="Label" String="Load Type"/>
+                        <PropertyValue Property="CollectionPath" String="LoadTypeValueHelpEntity"/>  <!-- Replace with your actual value help entity name from CDS, e.g., I_LoadTypeVH -->
+                        <PropertyValue Property="ValueListWithFixedValues" Bool="true"/>  <!-- This forces dropdown rendering -->
+                        <PropertyValue Property="Parameters">
+                            <Collection>
+                                <Record Type="Common.ValueListParameterOut">
+                                    <PropertyValue Property="LocalDataProperty" PropertyPath="LoadType"/>
+                                    <PropertyValue Property="ValueListProperty" String="LoadTypeKey"/>  <!-- Key field in VH -->
+                                </Record>
+                                <Record Type="Common.ValueListParameterDisplayOnly">
+                                    <PropertyValue Property="ValueListProperty" String="LoadTypeDescription"/>  <!-- Text field in VH -->
+                                </Record>
+                            </Collection>
+                        </PropertyValue>
+                    </Record>
+                </Annotation>
+            </Annotations>
