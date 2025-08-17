@@ -1,25 +1,20 @@
 @AbapCatalog.viewEnhancementCategory: [#NONE]
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 @Metadata.ignorePropagatedAnnotations: true
-@EndUserText.label: 'VH: Status from domain Load_type'
+@EndUserText.label: 'VH: Load Type (logon language)'
 @ObjectModel.dataCategory: #VALUE_HELP
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity ZI_WR_LOADTYPE 
+@ObjectModel.usageType: { serviceQuality: #X, sizeCategory: #S, dataClass: #MIXED }
+define view entity ZI_WR_LOADTYPE
   as select from I_DomainFixedValue as domainv
-  
-  association [0..*] to I_DomainFixedValueText as _DomainFixedValueText on  domainv.SAPDataDictionaryDomain = _DomainFixedValueText.SAPDataDictionaryDomain                                                                       
-                                                                         and _DomainFixedValueText.Language  = $session.system_language
+    // to-one association to the language-dependent text
+    left outer to one association [0..1] to I_DomainFixedValueText as _Text
+      on  _Text.SAPDataDictionaryDomain = domainv.SAPDataDictionaryDomain
+      and _Text.DomainValue             = domainv.DomainValue
+      and _Text.Language                = $session.system_language
 {
-  key domainv.DomainValue  as Status,
-      domainv._DomainFixedValueText.DomainText   as StatusText
+  key domainv.DomainValue as Status,
+      _Text.DomainText     as StatusText
 }
-where
-  domainv.SAPDataDictionaryDomain = 'LOAD_TYPE' 
-  
+where domainv.SAPDataDictionaryDomain = 'LOAD_TYPE';
 
-  
   
