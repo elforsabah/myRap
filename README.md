@@ -1,18 +1,41 @@
-  this.editFlow.invokeAction("identifycard", {
-                    contexts: [oContext],
-                    parameterValues: [{ name: "Vbeln", value: sContractId }]  // Array of {name, value} objects
-                }).then(function () {
-                    // On success: Show message and advance
-                    MessageToast.show("Contract validated successfully.");
-                    this.oWizard.validateStep(this.byId(sStepId));  // Pass step object by ID (fix here)
-                    this.oWizard.nextStep();
-                }.bind(this)).catch(function (oError) {
-                    // On error: Show message and stay
-                    MessageToast.show("Invalid Contract. Please try again.");
-                    // Optional: Log error details - console.error(oError);
-                }.bind(this));
-            } else {
-                // For other steps: Simply advance (add logic as needed)
-                this.oWizard.nextStep();
-            }
-        },
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Weighing Session'
+@Metadata.ignorePropagatedAnnotations: true
+@Metadata.allowExtensions: true
+define root view entity ZI_WR_WEIGHINGSESSION
+  as select from zwr_weighsession
+{
+  key vbeln           as Vbeln,
+  key sessionid       as Sessionid,
+  
+      @Consumption.valueHelpDefinition: [{ 
+      entity: {
+      name: 'ZI_WR_LOADTYPEVH',  
+      element: 'LoadType'
+      }}]
+//      
+      loadtype       as LoadType,
+      @Semantics.quantity.unitOfMeasure: 'Grossweightunit'
+      grossweight     as Grossweight,
+      @Consumption.valueHelpDefinition: [{
+      entity: { name: 'I_UnitOfMeasure', element: 'UnitOfMeasure' }
+      }]
+      grossweightunit as Grossweightunit,
+      @Semantics.quantity.unitOfMeasure: 'Tareweightunit'
+      tareweight      as Tareweight,
+      @Consumption.valueHelpDefinition: [{
+      entity: { name: 'I_UnitOfMeasure', element: 'UnitOfMeasure' }
+      }]
+      tareweightunit  as Tareweightunit,
+      @Semantics.quantity.unitOfMeasure: 'Netweightunit'
+      
+      netweight       as Netweight,
+      @Consumption.valueHelpDefinition: [{
+      entity: { name: 'I_UnitOfMeasure', element: 'UnitOfMeasure' }
+      }]
+      netweightunit   as Netweightunit,
+      step            as Step,
+      step1ok        as Step1Ok,
+      step2ok        as Step2Ok,
+      issummited     as IsSummited
+} 
