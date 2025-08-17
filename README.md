@@ -1,19 +1,3 @@
-<!-- Step 3: Initiate Weighing (Gross Weight) -->
-<WizardStep id="step3" title="Weighing" validated="false">
-  <Input id="ip2" value="{path: 'GrossWeight', targetType: 'any'}" description="{path: 'GrossWeightUnit', targetType: 'any'}" />
-  <!-- Use Fiori Elements Building Block for quantity if needed: <macros:Field definition="{path: 'GrossWeight'}" /> -->
-  <Button id="btn3" text="Capture Weight" press="onCaptureWeight" />
-</WizardStep> 
-
-<!-- Step 4: Receive Weighing Slip (Printing) -->
-<WizardStep id="step6" title="Complete and Print" validated="false">
-  <Text id="tx1" text="Session Summary: {path: 'SessionId', targetType: 'any'}" />
-  <Button id="btn6" text="Print Slip" press="onPrintSlip" />
-  <Button id="btn7" text="Submit" press="onSubmit" />
-</WizardStep>
-
-
-
 sap.ui.define([
     "sap/fe/core/PageController",
     "sap/m/MessageToast"
@@ -45,11 +29,11 @@ sap.ui.define([
             var oModel = this.getView().getModel();
             var oListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION");
             var oNewContext = oListBinding.create({
-                SessionId: this.generateUUID()  // Generate valid UUID for SessionId
+                Sessionid: this.generateUUID()  // Generate valid UUID for Sessionid
             });
             this.getView().setBindingContext(oNewContext);
             // Request all bound properties to initialize and include in queries
-            oNewContext.requestProperty(["Vbeln", "GrossWeight", "GrossWeightUnit", "SessionId"]).catch(function () {
+            oNewContext.requestProperty(["Vbeln", "Grossweight", "Grossweightunit", "Sessionid"]).catch(function () {
                 // Ignore if needed
             });
         },
@@ -72,7 +56,7 @@ sap.ui.define([
                 // Invoke the RAP action 'identifycard' with parameter (adjust action name/namespace if needed)
                 this.editFlow.invokeAction("identifycard", {
                     contexts: [oContext],
-                    parameterValues: [{ name: "CardId", value: sContractId }]  // Array of {name, value} objects
+                    parameterValues: [{ name: "Vbeln", value: sContractId }]  // Array of {name, value} objects
                 }).then(function () {
                     // On success: Show message and advance
                     MessageToast.show("Contract validated successfully.");
@@ -99,14 +83,14 @@ sap.ui.define([
 
         onCaptureWeight: function () {
             // Simulate weighing: Update model with gross weight
-            this.getView().getModel().setProperty("/GrossWeight", 1000);  // Replace with actual API call if integrated with hardware
+            this.getView().getModel().setProperty("/Grossweight", 1000);  // Replace with actual API call if integrated with hardware
         },
 
         onCaptureFinalWeight: function () {
             // Calculate net weight: Net = Gross - Tare
             var oModel = this.getView().getModel();
-            var fGross = oModel.getProperty("/GrossWeight");
-            var fTare = oModel.getProperty("/TareWeight");
+            var fGross = oModel.getProperty("/Grossweight");
+            var fTare = oModel.getProperty("/Tareweight");
             oModel.setProperty("/NetWeight", fGross - fTare);
         },
 
