@@ -1,26 +1,16 @@
-// Disable input initially to prevent sets before read
-            this.byId("ip11").setEnabled(false);
-            // Create a new draft context if none exists
-            this._createInitialContext();
-        },
+Log-dbg.js:499 2025-08-17 16:08:30.059699 Cannot read properties of undefined (reading 'getEditFlow') - TypeError: Cannot read properties of undefined (reading 'getEditFlow')  
+ TypeError: Cannot read properties of undefined (reading 'getEditFlow')
+    at c._createInitialContext (Main.controller.js:16:31)
+    at c.onInit (Main.controller.js:12:18)
+    at t.<computed> (ControllerExtension-dbg.js:191:14)
+    at t.<computed> (ControllerExtension-dbg.js:191:14)
+    at t.<computed> (ControllerExtension-dbg.js:191:14)
+    at t.<computed> (ControllerExtension-dbg.js:191:14)
+    at t.<computed> (ControllerExtension-dbg.js:191:14)
+    at t.<computed> (ControllerExtension-dbg.js:191:14)
+    at t.<computed> (ControllerExtension-dbg.js:191:14)
+    at t.<computed> [as onInit] (ControllerExtension-dbg.js:191:14)
 
-        _createInitialContext: function () {
-            var that = this;
-            this.extensionAPI.getEditFlow().createDocument({
-                creationMode: "NewPage"  // Or "Inline" depending on your flow
-            }).then(function (oNewContext) {
-                that.getView().setBindingContext(oNewContext);
-                // Get the input's value binding and request the value to initialize (read) it
-                var oInput = that.byId("ip11");
-                var oBinding = oInput.getBinding("value");
-                oBinding.requestValue().then(function () {
-                    // On successful read (even if null for new entity), enable the input
-                    oInput.setEnabled(true);
-                }).catch(function (oError) {
-                    MessageToast.show("Failed to initialize property.");
-                    console.error(oError);
-                });
-            }).catch(function (oError) {
-                MessageToast.show("Failed to create session context.");
-            });
-        },
+Log-dbg.js:499 2025-08-17 16:08:30.065199 this.oView.setModel is not a function - TypeError: this.oView.setModel is not a function  
+ TypeError: this.oView.setModel is not a function
+    at TemplatedViewServiceFactory.ts:402:19
