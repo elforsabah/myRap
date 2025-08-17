@@ -1,5 +1,6 @@
-onInit: function() {
-    var oModel = this.getOwnerComponent().getModel();
-    var oContext = oModel.createEntry("/ZI_WR_WEIGHINGSESSION");  // Entity set name
-    this.getView().setBindingContext(oContext);
+onInit: function () {
+var oModel = this.getOwnerComponent().getModel();
+var oListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION");
+var oNewContext = oListBinding.create();
+this.getView().setBindingContext(oNewContext);
 },
