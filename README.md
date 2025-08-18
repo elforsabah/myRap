@@ -962,8 +962,8 @@ draft determine action Prepare;      //<-- required
 action NextStep result [1] $self; // server validates & increments Step
 action Submit result [1] $self; // final checks; printing trigger optional
 
-action identifyCard parameter ZAE_WR_WEIHINGSESSION result [1] $self;
-action setloadType parameter ZAE_WR_WEIHINGSESSION  result [1] $self;
+action identifyCard parameter ZAE_WR_WEIGHINGSESSION result [1] $self;
+action setloadType parameter ZAE_WR_WEIGHINGSESSION  result [1] $self;
 
 validation validateStep1 on save { field Vbeln, Sessionid; } // Identification
 validation validateStep2 on save { field Loadtype; } // Load type
@@ -972,6 +972,16 @@ validation ValidateLoadType on save { field LoadType; } // Calls a method to che
 determination calcNet on modify { field Grossweight, Tareweight; } // Weighing math
 
 
+}
+
+The abstract view 
+@EndUserText.label: 'Abstract View for Identification'
+define abstract entity ZAE_WR_WEIGHINGSESSION
+  
+{
+    vbeln : vbeln_va;
+    loadtype : load_type;
+    
 }
 
 The cds view
