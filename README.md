@@ -1,41 +1,15 @@
-const sMessageHeader = oResponse.headers["sap-message"];
-                            let disableUpload = false;
+Main.controller.js:83 Error: Accessed value is not primitive: /ZI_WR_WEIGHINGSESSION(Vbeln='',Sessionid=00000000-0000-0000-0000-000000000000,IsActiveEntity=true)/SAP__Messages
+    at Context-dbg.js:711:14
+    at SyncPromise-dbg.js:314:14
+    at e (SyncPromise-dbg.js:63:4)
+    at new r (SyncPromise-dbg.js:230:3)
+    at r.then (SyncPromise-dbg.js:313:7)
+    at a.fetchPrimitiveValue (Context-dbg.js:706:37)
+    at a.getProperty (Context-dbg.js:1016:23)
+    at c.<anonymous> (Main.controller.js:73:65)
 
-                            if (sMessageHeader) {
-                                const oMessage = JSON.parse(sMessageHeader);
+﻿
 
-                                // Collect all messages in an array
-                                const aAllMessages = [];
-
-                                // Add the main message
-                                if (oMessage.message) {
-                                    aAllMessages.push(oMessage.message);
-                                }
-
-                                // Add any details (bound or extra messages)
-                                if (Array.isArray(oMessage.details)) {
-                                    oMessage.details.forEach(detail => {
-                                        if (detail.message) {
-                                            aAllMessages.push(detail.message);
-                                        }
-                                    });
-                                }
-
-                                //  Check for "no upload" message
-                                if (aAllMessages.some(msg => msg.toLowerCase().includes("no upload"))) {
-                                    // Disable upload button if no results
-                                    const oUploadButton = sap.ui.core.Fragment.byId("FileUploadDialog2Fragment", "UploadConfirmButton");
-                                    if (oUploadButton) {
-                                        oUploadButton.setEnabled(false);
-                                    }
-                                    disableUpload = true;
-                                }
-                                // Show all messages in a single MessageBox (or you could use MessageToast or popover)
-                                if (!disableUpload) {
-                                    ;
-                                    MessageBox.success(aAllMessages.join("\n")); // shows in one popup
-                                }
-                            }
-
-                            resolve(); // allow SmartTable to rebind
-                        },
+  MessageToast.show("Contract validated successfully.");
+                        console.log("Entity Data:", oResult.getObject())
+                        console.log("Entity Messages:", oResult.getProperty("SAP__Messages").all)
