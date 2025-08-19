@@ -1,157 +1,108 @@
-sap.ui.define([
-    "sap/fe/core/PageController",
-    "sap/m/MessageToast",
-    "sap/ui/core/Messaging",  // Import the Messaging module
-    "sap/m/MessageBox"        // Optional for displaying messages
+CLASS lhc_WeighingSession DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
 
-], function (PageController, MessageToast, Messaging, MessageBox) {
-    "use strict";
-    return PageController.extend("com.example.weighingsessionwizard.controller.CustomPage", {
-        onInit: function () {
-            var parentReturn = PageController.prototype.onInit.apply(this);
-            // Register the view with Messaging (replaces oMessageManager.registerObject)
-            Messaging.registerObject(this.getView(), true);
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR WeighingSession RESULT result.
 
-            // Set the message model 
-            this.getView().setModel(Messaging.getMessageModel(), "message");
+    METHODS NextStep FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~NextStep RESULT result.
 
-            // Initialize wizard
-            this.oWizard = this.byId("weighingWizard");
+    METHODS Submit FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~Submit RESULT result.
 
-            // Attach to route pattern matched
-            var oRouter = this.getAppComponent().getRouter();
-            oRouter.getRoute("ZI_WR_WEIGHINGSESSIONMain").attachPatternMatched(this._onObjectMatched, this);
+    METHODS calcNet FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR WeighingSession~calcNet.
 
-            return parentReturn;
-        },
+    METHODS validateStep1 FOR VALIDATE ON SAVE
+      IMPORTING keys FOR WeighingSession~validateStep1.
 
-        generateUUID: function () {
-            // Standard UUID v4 generator for backend compatibility
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
-        },
+    METHODS validateStep2 FOR VALIDATE ON SAVE
+      IMPORTING keys FOR WeighingSession~validateStep2.
+    METHODS identifycard FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~identifycard RESULT result.
 
-        _onObjectMatched: function () {
-            var oModel = this.getView().getModel();
-            var oListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION");
-            var oNewContext = oListBinding.create({
-                Sessionid: this.generateUUID()  // Generate valid UUID for Sessionid (adjusted case to match CDS)
-            });
-            this.getView().setBindingContext(oNewContext);
-            // Request all bound properties to initialize and include in queries
-            oNewContext.requestProperty(["Vbeln", "Grossweight", "Grossweightunit", "Sessionid"]).catch(function () {
-                // Ignore if needed
-            });
-        },
+    METHODS setloadType FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~setloadType RESULT result.
+
+     METHODS ValidateLoadType FOR VALIDATE ON SAVE
+      IMPORTING keys FOR WeighingSession~ValidateLoadType.
+
+ENDCLASS.
+
+CLASS lhc_WeighingSession IMPLEMENTATION.
+
+  METHOD get_instance_authorizations.
+  ENDMETHOD.
+
+  METHOD NextStep.
+  ENDMETHOD.
+
+  METHOD Submit.
+  ENDMETHOD.
+
+  METHOD calcNet.
+  ENDMETHOD.
+
+  METHOD validateStep1.
+  ENDMETHOD.
+
+  METHOD validateStep2.
+  ENDMETHOD.
+
+  METHOD ValidateLoadType.
+  ENDMETHOD.
+
+***********************************************************************************************************************
+* Identification
+***********************************************************************************************************************
+  METHOD identifycard.
+    READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+     ENTITY WeighingSession
+     ALL FIELDS WITH CORRESPONDING #( keys ) RESULT DATA(lt_sessions).
+
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_session>).
+      " TODO: look up driver/contract by vbeln (from keys[ 1 ]-%param-vbeln)
+      SELECT SINGLE * FROM zwr_weighsession WHERE vbeln = @<ls_session>-%param-Vbeln INTO @DATA(ls_weighsessions).
 
 
-        onNextStep: function () {
-            var oCurrentStep = this.oWizard.getCurrentStep();
-            var sStepId = oCurrentStep.split("--").pop();
-            if (sStepId === "step1") {
-                var sContractId = this.byId("ip11").getValue();
-                if (!sContractId) {
-                    MessageToast.show("Please enter a Contract ID.");
-                    return;
-                }
-                var oContext = this.getView().getBindingContext();
-                if (!oContext) {
-                    MessageToast.show("No session context available.");
-                    return;
-                }
-                oContext.setProperty("Vbeln", sContractId);  // Still update the property if needed
+      IF sy-subrc = 0.
+*        <ls_session>-step1ok = abap_true.
 
-                // Alternative invocation without EditFlow
-                var oModel = this.getView().getModel();  // Get the OData V4 model
-                var sActionPath = "com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)";  // Adjust namespace if different
-                var oActionBinding = oModel.bindContext(sActionPath, oContext);  // Bind the action to the entity context
+        APPEND VALUE #(
+         %msg = new_message(
+           id       = 'ZWR_WEIGHBRIGE_MESS'
+           number   = '000'
+           severity = if_abap_behv_message=>severity-success
 
-                // Set parameters (required for your action)
-                oActionBinding.setParameter("vbeln", sContractId);
-                //oActionBinding.setParameter("loadtype", "");  // Empty or default value, as before
+           v1       = 'Contract is Valid'
 
-                // Invoke the action
-                oActionBinding.invoke().then(
-                    function (oResult) {
-                        // Do not clear here; new messages are already in the model from the response
+         )
+       ) TO reported-weighingsession.
 
-                        // Get messages from Messaging
-                        var aMessages = Messaging.getMessageModel().getData();
-                        var aOrest = oResult.getMessage()
-                        console.log("All Messages:", aMessages);
-                        console.log("All Messages:", aOrest );
+      ENDIF.
 
-                        if (aMessages.length > 0) {
-                            var oMsg = aMessages[0];  // Assuming first message; iterate if multiple
-                            console.log("Message Type:", oMsg.getType(), "Text:", oMsg.getMessage(), "Target:", oMsg.getTarget());
+      MODIFY ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+        ENTITY WeighingSession UPDATE FIELDS ( step1ok ) WITH VALUE #( ( %tky = <ls_session>-%tky step1ok = abap_true ) ).
+      result = VALUE #( ( %tky = <ls_session>-%tky ) ).
+    ENDLOOP.
+  ENDMETHOD.
 
-                            var oErrorMsg = aMessages.find(function (oMsg) { return oMsg.getType() === "Error"; });
-                            if (oErrorMsg) {
-                                MessageBox.error(oErrorMsg.getMessage());
-                                return;
-                            }
+***********************************************************************************************************************
+* Selection of Load type
+***********************************************************************************************************************
+  METHOD setloadType.
 
-                            // Handle success message (e.g., "Contract is Valid")
-                            // Example: Show as toast
-                            MessageToast.show(aMessages[0].getMessage());
+*   READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+*      ENTITY WeighingSession FIELDS ( loadtype ) WITH CORRESPONDING #( keys )
+*      RESULT DATA(lt_sessions).
+*    LOOP AT lt_sessions ASSIGNING FIELD-SYMBOL(<ls_session>).
+*      <ls_session>-loadtype = keys[ sy-tabix ]-%param-LoadType.
+*      <ls_session>-step2ok  = abap_true.
+*      MODIFY ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+*        ENTITY WeighingSession UPDATE FIELDS ( loadtype step2ok )
+*        WITH VALUE #( ( %tky = <ls_session>-%tky loadtype = <ls_session>-loadtype step2ok = abap_true ) ).
+*      result = VALUE #( ( %tky = <ls_session>-%tky ) ).
+*    ENDLOOP.
 
-                            // Continue with your wizard logic
-                            this.oWizard.validateStep(this.byId("stepId"));  // Adjust as per your app
-                            this.oWizard.nextStep();
-                            // Optional: Refresh bindings if side effects occurred
-                            oContext.refresh();
-                        } else {
-                            console.log("No messages Returned.");
-                        }
-                    }.bind(this),
-                    function (oError) {
-                        // Handle invocation errors (e.g., network or backend failure)
-                        console.error("Action Invoke Error:", oError);
-                        MessageToast.show("Invalid Contract. Please try again.");
-                    }.bind(this)
-                );
-            } else {
-                //this.oWizard.nextStep();
-            }
-        },
-        onStepActivate: function (oEvent) {
-            // Custom logic per step, e.g., fetch data from CDS
-        },
-        validateStep: function (oStep) {
-            // Add validation logic, e.g., check required fields
-            return true;  // Placeholder
-        },
-
-        onCaptureWeight: function () {
-            // Simulate weighing: Update model with gross weight
-            this.getView().getModel().setProperty("/Grossweight", 1000);  // Adjusted case
-        },
-
-        onCaptureFinalWeight: function () {
-            // Calculate net weight: Net = Gross - Tare
-            var oModel = this.getView().getModel();
-            var fGross = oModel.getProperty("/Grossweight");  // Adjusted case
-            var fTare = oModel.getProperty("/TareWeight");
-            oModel.setProperty("/NetWeight", fGross - fTare);
-        },
-
-        onSubmit: function () {
-            // Submit to backend via OData create/update
-            this.getView().getModel().submitChanges({
-                success: function () {
-                    MessageToast.show("Weighing session submitted.");
-                }
-            });
-        },
-
-        onPrintSlip: function () {
-            // Integrate printing, e.g., via sap.m.Print or external service
-        },
-
-        onWizardComplete: function () {
-            // Final actions on wizard completion
-        }
-    });
-});
+  ENDMETHOD.
+ENDCLASS.
