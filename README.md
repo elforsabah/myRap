@@ -79,7 +79,9 @@ sap.ui.define([
 
                         // Get messages from Messaging
                         var aMessages = Messaging.getMessageModel().getData();
+                        var aOrest = oResult.getMessage()
                         console.log("All Messages:", aMessages);
+                        console.log("All Messages:", aOrest );
 
                         if (aMessages.length > 0) {
                             var oMsg = aMessages[0];  // Assuming first message; iterate if multiple
