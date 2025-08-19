@@ -1,3 +1,10 @@
+.myApp .myCustomFormElement.sapMLabel {
+    font-size: 1.9rem !important;
+    font-weight: bold !important;
+    color: red !important;
+}
+
+
 <mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:macros="sap.fe.macros" xmlns:f="sap.ui.layout.form"
 xmlns:html="http://www.w3.org/1999/xhtml" controllerName="com.prologa.zwrweighbrige.ext.main.Main"
 height="100%">
@@ -13,7 +20,7 @@ height="100%">
 <f:formContainers>
 <f:FormContainer id="fc1">
 <f:formElements>
-<f:FormElement label="Please Enter your Contract ID" id="fe1" >
+<f:FormElement label="Please Enter your Contract ID" id="fe1" class="myCustomFormElement" >
 <f:fields>
 <Input id="ip11" value="{Vbeln}" width="12rem" maxLength="15" /> <!-- Bound to CDS view field -->
 </f:fields>
