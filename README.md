@@ -1,108 +1,54 @@
-CLASS lhc_WeighingSession DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
+onNextStep: function () {
+    var oCurrentStep = this.oWizard.getCurrentStep();
+    var sStepId = oCurrentStep.split("--").pop();
+    if (sStepId === "step1") {
+        var sContractId = this.byId("ip11").getValue();
+        if (!sContractId) {
+            MessageToast.show("Please enter a Contract ID.");
+            return;
+        }
+        var oContext = this.getView().getBindingContext();
+        if (!oContext) {
+            MessageToast.show("No session context available.");
+            return;
+        }
+        oContext.setProperty("Vbeln", sContractId);
 
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR WeighingSession RESULT result.
+        // Use EditFlow for Fiori Elements
+        this.editFlow.invokeAction("identifyCard", {
+            model: this.getView().getModel(),
+            contexts: oContext,  // Single context for bound action
+            parameterMap: {
+                CardId: sContractId  // Correct parameter name
+            }
+        }).then(function (oResult) {
+            // Messages should now be in model automatically
+            var aMessages = Messaging.getMessageModel().getData();
+            console.log("All Messages:", aMessages);
 
-    METHODS NextStep FOR MODIFY
-      IMPORTING keys FOR ACTION WeighingSession~NextStep RESULT result.
+            // Handle unbound success (filter if needed)
+            var aUnboundSuccess = aMessages.filter(function (oMsg) {
+                return oMsg.getTarget() === "" && oMsg.getType() === "Success";
+            });
+            if (aUnboundSuccess.length > 0) {
+                MessageToast.show(aUnboundSuccess[0].getMessage());
+            }
 
-    METHODS Submit FOR MODIFY
-      IMPORTING keys FOR ACTION WeighingSession~Submit RESULT result.
+            // Bound messages from result
+            if (oResult && oResult.context && oResult.context.getMessages) {
+                var aBoundMessages = oResult.context.getMessages();
+                if (aBoundMessages.length > 0) {
+                    console.log("Bound Messages:", aBoundMessages);
+                }
+            }
 
-    METHODS calcNet FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR WeighingSession~calcNet.
-
-    METHODS validateStep1 FOR VALIDATE ON SAVE
-      IMPORTING keys FOR WeighingSession~validateStep1.
-
-    METHODS validateStep2 FOR VALIDATE ON SAVE
-      IMPORTING keys FOR WeighingSession~validateStep2.
-    METHODS identifycard FOR MODIFY
-      IMPORTING keys FOR ACTION WeighingSession~identifycard RESULT result.
-
-    METHODS setloadType FOR MODIFY
-      IMPORTING keys FOR ACTION WeighingSession~setloadType RESULT result.
-
-     METHODS ValidateLoadType FOR VALIDATE ON SAVE
-      IMPORTING keys FOR WeighingSession~ValidateLoadType.
-
-ENDCLASS.
-
-CLASS lhc_WeighingSession IMPLEMENTATION.
-
-  METHOD get_instance_authorizations.
-  ENDMETHOD.
-
-  METHOD NextStep.
-  ENDMETHOD.
-
-  METHOD Submit.
-  ENDMETHOD.
-
-  METHOD calcNet.
-  ENDMETHOD.
-
-  METHOD validateStep1.
-  ENDMETHOD.
-
-  METHOD validateStep2.
-  ENDMETHOD.
-
-  METHOD ValidateLoadType.
-  ENDMETHOD.
-
-***********************************************************************************************************************
-* Identification
-***********************************************************************************************************************
-  METHOD identifycard.
-    READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-     ENTITY WeighingSession
-     ALL FIELDS WITH CORRESPONDING #( keys ) RESULT DATA(lt_sessions).
-
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_session>).
-      " TODO: look up driver/contract by vbeln (from keys[ 1 ]-%param-vbeln)
-      SELECT SINGLE * FROM zwr_weighsession WHERE vbeln = @<ls_session>-%param-Vbeln INTO @DATA(ls_weighsessions).
-
-
-      IF sy-subrc = 0.
-*        <ls_session>-step1ok = abap_true.
-
-        APPEND VALUE #(
-         %msg = new_message(
-           id       = 'ZWR_WEIGHBRIGE_MESS'
-           number   = '000'
-           severity = if_abap_behv_message=>severity-success
-
-           v1       = 'Contract is Valid'
-
-         )
-       ) TO reported-weighingsession.
-
-      ENDIF.
-
-      MODIFY ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-        ENTITY WeighingSession UPDATE FIELDS ( step1ok ) WITH VALUE #( ( %tky = <ls_session>-%tky step1ok = abap_true ) ).
-      result = VALUE #( ( %tky = <ls_session>-%tky ) ).
-    ENDLOOP.
-  ENDMETHOD.
-
-***********************************************************************************************************************
-* Selection of Load type
-***********************************************************************************************************************
-  METHOD setloadType.
-
-*   READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-*      ENTITY WeighingSession FIELDS ( loadtype ) WITH CORRESPONDING #( keys )
-*      RESULT DATA(lt_sessions).
-*    LOOP AT lt_sessions ASSIGNING FIELD-SYMBOL(<ls_session>).
-*      <ls_session>-loadtype = keys[ sy-tabix ]-%param-LoadType.
-*      <ls_session>-step2ok  = abap_true.
-*      MODIFY ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-*        ENTITY WeighingSession UPDATE FIELDS ( loadtype step2ok )
-*        WITH VALUE #( ( %tky = <ls_session>-%tky loadtype = <ls_session>-loadtype step2ok = abap_true ) ).
-*      result = VALUE #( ( %tky = <ls_session>-%tky ) ).
-*    ENDLOOP.
-
-  ENDMETHOD.
-ENDCLASS.
+            // Proceed
+            this.oWizard.validateStep(this.byId("step1"));  // Use actual ID
+            this.oWizard.nextStep();
+            oContext.refresh();  // Refresh for side effects like step1ok
+        }.bind(this)).catch(function (oError) {
+            console.error("Action Error:", oError);
+            MessageToast.show("Invalid Contract. Please try again.");
+        });
+    }
+},
