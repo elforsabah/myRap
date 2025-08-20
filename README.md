@@ -1,3 +1,9 @@
+**The functional requirement**
+
+There will be a new Fiori tile called “List blocked vehicles” within the Fiori page “Planning and Dispatching” 
+ 
+Clicking on the Fiori tile opens a Fiori list application that displays the table “ZTPDMAVEHICLERES”. If the user has the “view” assigned to their Fiori role, this will only display the contents of the table. If the user does not have the “view” restriction, there will be an action called “Delete” in the Fiori list application that deletes the marked entries in the list. When this action is taken, a warning is displayed that reads “Deleting this entry comes with a risk of losing confirmation data from the driver. Do you want to delete this entry?”. This could look like the following mock up: 
+
 
 **The CDS View**
 
