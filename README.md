@@ -81,6 +81,42 @@ authorization master ( instance )
   delete;
 
 }
+**This is the Behavior Implementation **
+
+CLASS lhc_ZI_PDMA_BLOCKEDVEHICLE DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR zi_pdma_blockedvehicle RESULT result.
+
+ENDCLASS.
+
+CLASS lhc_ZI_PDMA_BLOCKEDVEHICLE IMPLEMENTATION.
+
+  METHOD get_instance_authorizations.
+    DATA lv_can_delete TYPE char5.
+    " 1. Read the needed field(s) for the requested keys
+    READ ENTITIES OF zi_pdma_blockedvehicle IN LOCAL MODE
+        ENTITY zi_pdma_blockedvehicle
+        ALL FIELDS WITH CORRESPONDING #( keys ) RESULT DATA(lt_data).
+
+*Check for role  T_PROLOGA_CONFIRMATION -> enable Delete
+    SELECT SINGLE * FROM agr_users WHERE agr_name = 'T_PROLOGA_CONFIRMATION' AND uname = @sy-uname INTO @DATA(ls_users1).
+
+    LOOP AT lt_data INTO DATA(ls_data) .
+      APPEND VALUE #(
+        %tky = ls_data-%tky
+        %delete =  COND #(
+
+                       WHEN ls_users1 IS NOT INITIAL
+                       THEN if_abap_behv=>auth-allowed
+                             ELSE if_abap_behv=>auth-unauthorized
+                        )
+                ) TO result.
+    ENDLOOP.
+  ENDMETHOD.
+
+ENDCLASS.
 
 **The service Defination**
 
