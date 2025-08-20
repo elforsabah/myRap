@@ -1,20 +1,41 @@
-@AbapCatalog.viewEnhancementCategory: [#NONE]
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Materials of Contract'
-@ObjectModel.dataCategory: #VALUE_HELP
+@EndUserText.label: 'Weighing Session'
 @Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity ZI_WR_SALESITEM_CONTRACTVH as select from I_SalesOrderItem as salesitem  
-   inner join I_MaterialText as _text on salesitem.Material = _text.Material
-                                      and _text.Language = $session.system_language
+@Metadata.allowExtensions: true
+define root view entity ZI_WR_WEIGHINGSESSION
+  as select from zwr_weighsession
 {
-    key salesitem.SalesOrder as SalesOrder,
-    key salesitem.SalesOrderItem as SalesOrderitem,
-    _text.Material as Material,
-    _text.MaterialName,
-    _text.Language      
+  key vbeln           as Vbeln,
+  key sessionid       as Sessionid,
+  
+      @Consumption.valueHelpDefinition: [{ 
+      entity: {
+      name: 'ZI_WR_SALESITEM_CONTRACTVH',  
+      element: 'LoadType'
+      }}]
+//      
+      loadtype       as LoadType,
+      @Semantics.quantity.unitOfMeasure: 'Grossweightunit'
+      grossweight     as Grossweight,
+      @Consumption.valueHelpDefinition: [{
+      entity: { name: 'I_UnitOfMeasure', element: 'UnitOfMeasure' }
+      }]
+      grossweightunit as Grossweightunit,
+      @Semantics.quantity.unitOfMeasure: 'Tareweightunit'
+      tareweight      as Tareweight,
+      @Consumption.valueHelpDefinition: [{
+      entity: { name: 'I_UnitOfMeasure', element: 'UnitOfMeasure' }
+      }]
+      tareweightunit  as Tareweightunit,
+      @Semantics.quantity.unitOfMeasure: 'Netweightunit'
+      
+      netweight       as Netweight,
+      @Consumption.valueHelpDefinition: [{
+      entity: { name: 'I_UnitOfMeasure', element: 'UnitOfMeasure' }
+      }]
+      netweightunit   as Netweightunit,
+      step            as Step,
+      step1ok        as Step1Ok,
+      step2ok        as Step2Ok,
+      issummited     as IsSummited
 } 
