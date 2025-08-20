@@ -1,3 +1,6 @@
+
+**The CDS View**
+
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 @EndUserText.label: 'Blocked Vehicles Interface View'
 @Metadata.ignorePropagatedAnnotations: true
@@ -19,3 +22,82 @@ define root view entity ZI_PDMA_BLOCKEDVEHICLE as select from ztpdmavehicleres
       @Semantics.systemDateTime.lastChangedAt: true
       last_changed_at       as LastChangedAtwhat    
 }
+
+
+**The  metadata extension**
+
+@Metadata.layer: #CORE
+annotate entity ZI_PDMA_BLOCKEDVEHICLE
+    with 
+{
+
+
+    @UI.facet: [{ id: 'General', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE,
+    label: 'Vehicle Details',  position: 10  }]
+    @UI: { lineItem: [{ position: 10 }], selectionField: [{ position: 10 }] }
+    @EndUserText.label: 'Vehicle Id' 
+    @UI.identification: [{ position: 10 }]
+    VehicleId;
+    @UI: { lineItem: [{ position: 20 }], selectionField: [{ position: 20  }] }
+    @EndUserText.label: 'Driver Resource Id' 
+    @UI.identification: [{ position: 20 }]
+    DriverResourceId;
+    @EndUserText.label: 'Created By' 
+    @UI: { lineItem: [{ position: 30 }] }
+    @UI.identification: [{ position: 30 }]
+    CreatedBy;
+    @EndUserText.label: 'Created At' 
+    @UI: { lineItem: [{ position: 40 }] }
+    @UI.identification: [{ position: 40 }]
+    CreatedAt;
+    @EndUserText.label: 'Last Changed By'   
+    @UI: { lineItem: [{ position: 50 }] }
+    @UI.identification: [{ position: 50 }]
+    LastChangedBy;
+    @UI.identification: [{ position: 60 }]
+    @EndUserText.label: 'Last Changed At'
+    @UI: { lineItem: [{ position: 60 }] }
+    lastchangedat;
+}
+
+**The behavior defination**
+managed implementation in class zbp_i_pdma_blockedvehicle unique;
+strict ( 2 );
+
+define behavior for ZI_PDMA_BLOCKEDVEHICLE
+persistent table ztpdmavehicleres
+lock master
+authorization master ( instance )
+//etag master <field_name>
+{
+//  create;
+//  update;
+  delete;
+
+}
+
+**The service Defination**
+
+@EndUserText.label: 'Blocked vehicle Service Definition'
+define service ZSB_PDMA_BLOCKEDVEHICLE {
+  expose ZI_PDMA_BLOCKEDVEHICLE;
+}
+
+**The service binding (Odata Service )**
+ZSB_PDMA_BLOCKEDVEHICLE
+
+**Changes made on the UI in Business Application Studio**
+# This is the resource bundle for com.prologa.zpdmablockedvehicle
+
+#Texts for manifest.json
+
+#XTIT: Application name
+appTitle=Manually throw a driver off a blocked truck
+
+#YDES: Application description
+appDescription=Manually throw a driver off a blocked truck
+
+ST_GENERIC_DELETE_SELECTED=Deleting this entry comes with a risk of losing confirmation data from the driver. Do you want to delete this entry?
+ST_GENERIC_DELETE_CONFIRMATION=Deleting this entry comes with a risk of losing confirmation data from the driver. Do you want to delete this entry?
+
+
