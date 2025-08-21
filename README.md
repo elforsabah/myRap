@@ -1,10 +1,13 @@
-<!-- Inside step1Panel content, near ipContract -->
-<HBox id="step1ScanRow" width="100%" justifyContent="SpaceBetween" class="sapUiMediumMarginTop">
-  <Button id="btnScanCard"
-          width="12rem"
-          type="Emphasized"
-          icon="sap-icon://id-card"
-          text="Scan Card"
-          press=".onScanCard"/>
-  <!-- You still have: <Input id="ipContract" value="{Vbeln}" .../> -->
-</HBox>
+init: function () {
+  sap.ui.core.UIComponent.prototype.init.apply(this, arguments);
+
+  // Hide the FLP shell header when running in Launchpad
+  if (sap.ushell && sap.ushell.Container && sap.ushell.Container.getRenderer) {
+    try {
+      var oRenderer = sap.ushell.Container.getRenderer();
+      oRenderer.setHeaderVisibility(false, false); // (visible, animate)
+    } catch (e) {
+      // ignore if not in FLP
+    }
+  }
+}
