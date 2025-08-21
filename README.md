@@ -1,2 +1,1 @@
-  var oIp = this.byId("ipContract");
-  if (oIp) { oIp.focus(); }
+?sap-ushell-config=headerless (or &sap-ushell-config=headerless
