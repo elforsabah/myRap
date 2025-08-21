@@ -1,14 +1,8 @@
-init: function () {
-  sap.ui.core.UIComponent.prototype.init.apply(this, arguments);
-  // Hide the FLP shell header when running in Launchpad
-  if (sap.ushell && sap.ushell.Container) {
-    try {
-      /** @type {any} */
-      var containerAny = sap.ushell.Container;
-      var oRenderer = containerAny.getRenderer("fiori2");
-      oRenderer.setHeaderVisibility(false, false); // (visible, animate)
-    } catch (e) {
-      // ignore if not in FLP
-    }
-  }
-}
+Renderer' is deprecated.ts(6385)
+sap.ushell.d.ts(7477, 12): The declaration was marked as deprecated here.
+class sap.ushell.renderers.fiori2.Renderer
+The SAPUI5 component of SAP Fiori Launchpad renderer for the Unified Shell.
+
+@since — 1.15.0
+
+@deprecated — (since 1.120.0) - Please use sap.ushell.services.Extension instead.
