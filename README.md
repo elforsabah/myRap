@@ -1,3 +1,6 @@
+***********************************************************************************************************************
+* Identification
+***********************************************************************************************************************
   METHOD identifycard.
     READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
      ENTITY WeighingSession
@@ -27,7 +30,7 @@
            %msg = new_message(
              id       = 'ZWR_WEIGHBRIGE_MESS'
              number   = '000'
-             severity = if_abap_behv_message=>severity-success
+             severity = if_abap_behv_message=>severity-error
 
              v1       = 'Contract is not valid'
 
@@ -41,39 +44,3 @@
         result = VALUE #( ( %tky = <ls_session>-%tky ) ).
       ENDLOOP.
     ENDMETHOD.
-
-                // FE EditFlow bound action call
-                this.editFlow.invokeAction("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)", {
-                    model: this.getView().getModel(),
-                    contexts: oContext,
-                    parameterMap: { vbeln: sContractId }
-                }).then(function (oResult) {
-                    // optional: surface success messages
-                    var aMsgs = Messaging.getMessageModel().getData() || [];
-                    var aUnboundSuccess = aMsgs.filter(function (oMsg) {
-                        return oMsg.getTarget && oMsg.getTarget() === "" &&
-                               oMsg.getType && oMsg.getType() === "Success";
-                    });
-                    if (aUnboundSuccess.length > 0) {
-                        MessageToast.show(aUnboundSuccess[0].getMessage());
-                    }
-
-                    // advance wizard
-                    this.oWizard.validateStep(this.byId("step1"));
-                    this.oWizard.nextStep();
-
-                    // IMPORTANT: do NOT call oContext.refresh() (would clear inputs)
-                    // Pull only what backend changed (safe if the paths exist)
-                    oContext.requestSideEffects([
-                        { $PropertyPath: "Vbeln" },
-                        { $PropertyPath: "CustomerName" }, // adjust to your real fields
-                        { $PropertyPath: "Step1Ok" }       // optional boolean flag if you have it
-                    ]).catch(function () { /* ignore */ });
-
-                }.bind(this)).catch(function (oError) {
-                    // keep user input; just show message
-                    console.error("Action Error:", oError);
-                    MessageToast.show("Invalid Contract. Please try again.");
-                });
-            }
-        },
