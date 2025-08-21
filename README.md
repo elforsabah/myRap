@@ -1,17 +1,22 @@
-/* Responsive panel for tablet */
-.stepPanel {
-  width: 90% !important;     /* take most of the tablet width */
-  max-width: 40rem;          /* but don’t get too wide */
-  margin: 1rem;              /* breathing space */
-}
-
-/* Bigger touch buttons */
-.loadTypeBtn {
-  margin: 0.5rem 0;
-  padding: 1.5rem 1rem;      /* taller for finger tap */
-  border: 1px solid #d0d5db;
-  border-radius: 0.5rem;
-  text-align: left;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
+Uncaught TypeError: Cannot read properties of undefined (reading 'getValue')
+    at c.onNextStep (Main.controller.js:54:52)
+    at PageController.ts:108:54
+    at m.runWithOwner (ManagedObject-dbg.js:1216:14)
+    at k.runAsOwner (Component-dbg.js:800:24)
+    at c.ye [as onNextStep] (PageController.ts:108:30)
+    at r.fireEvent (EventProvider-dbg.js:240:38)
+    at m.fireEvent (Element-dbg.js:798:44)
+    at c.firePress (ManagedObjectMetadata-dbg.js:826:49)
+    at S.ontap (Button-dbg.js:599:9)
+    at S.ontouchend (Button-dbg.js:556:9)Understand this error
+2Main.controller.js:54 Uncaught TypeError: Cannot read properties of undefined (reading 'getValue')
+    at c.onNextStep (Main.controller.js:54:52)
+    at PageController.ts:108:54
+    at m.runWithOwner (ManagedObject-dbg.js:1216:14)
+    at k.runAsOwner (Component-dbg.js:800:24)
+    at c.ye [as onNextStep] (PageController.ts:108:30)
+    at r.fireEvent (EventProvider-dbg.js:240:38)
+    at m.fireEvent (Element-dbg.js:798:44)
+    at c.firePress (ManagedObjectMetadata-dbg.js:826:49)
+    at S.ontap (Button-dbg.js:599:9)
+    at m._handleEvent (Element-dbg.js:361:10)
