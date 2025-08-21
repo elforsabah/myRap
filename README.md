@@ -1,14 +1,26 @@
+/* Solid green button */
 .loadTypeBtn .sapMBtnInner {
-  background-color: var(--sapButton_Reject_Background);
-  border-color: var(--sapButton_Reject_BorderColor);
-  color: var(--sapButton_Reject_TextColor);
+  background-color: #309968;     /* base */
+  border-color: #309968;
+  color: #ffffff;                /* white label */
 }
+
+/* Hover (lighter) */
 .loadTypeBtn.sapMBtn:hover .sapMBtnInner {
-  background-color: var(--sapButton_Reject_Hover_Background);
-  border-color: var(--sapButton_Reject_Hover_BorderColor);
+  background-color: #3ab87d;     /* +~8% light */
+  border-color: #3ab87d;
 }
+
+/* Active/pressed (darker) */
 .loadTypeBtn.sapMBtn:active .sapMBtnInner,
 .loadTypeBtn.sapMBtnActive .sapMBtnInner {
-  background-color: var(--sapButton_Reject_Active_Background);
-  border-color: var(--sapButton_Reject_Active_BorderColor);
+  background-color: #24724e;     /* -~10% dark */
+  border-color: #24724e;
+}
+
+/* Disabled (muted) */
+.loadTypeBtn.sapMBtnDisabled .sapMBtnInner {
+  background-color: #75d4a7;
+  border-color: #75d4a7;
+  color: #ffffff;
 }
