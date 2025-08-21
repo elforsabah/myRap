@@ -1,22 +1,11 @@
-Uncaught TypeError: Cannot read properties of undefined (reading 'getValue')
-    at c.onNextStep (Main.controller.js:54:52)
-    at PageController.ts:108:54
-    at m.runWithOwner (ManagedObject-dbg.js:1216:14)
-    at k.runAsOwner (Component-dbg.js:800:24)
-    at c.ye [as onNextStep] (PageController.ts:108:30)
-    at r.fireEvent (EventProvider-dbg.js:240:38)
-    at m.fireEvent (Element-dbg.js:798:44)
-    at c.firePress (ManagedObjectMetadata-dbg.js:826:49)
-    at S.ontap (Button-dbg.js:599:9)
-    at S.ontouchend (Button-dbg.js:556:9)Understand this error
-2Main.controller.js:54 Uncaught TypeError: Cannot read properties of undefined (reading 'getValue')
-    at c.onNextStep (Main.controller.js:54:52)
-    at PageController.ts:108:54
-    at m.runWithOwner (ManagedObject-dbg.js:1216:14)
-    at k.runAsOwner (Component-dbg.js:800:24)
-    at c.ye [as onNextStep] (PageController.ts:108:30)
-    at r.fireEvent (EventProvider-dbg.js:240:38)
-    at m.fireEvent (Element-dbg.js:798:44)
-    at c.firePress (ManagedObjectMetadata-dbg.js:826:49)
-    at S.ontap (Button-dbg.js:599:9)
-    at m._handleEvent (Element-dbg.js:361:10)
+onNextStep: function () {
+  const oCtx = this.getView().getBindingContext();  // default V4 model context
+  const sVbeln = oCtx && oCtx.getProperty("Vbeln"); // case-sensitive!
+
+  if (!sVbeln) {
+    sap.m.MessageToast.show("Please enter Contract ID.");
+    return;
+  }
+
+  this.byId("wiz").nextStep();
+}
