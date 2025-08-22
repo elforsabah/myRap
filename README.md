@@ -1,20 +1,23 @@
-The goal is to:
+Zielsetzung:
 
-Focus the input field when the "Scan Card" button is pressed.
-Let the scanner input the Vbeln automatically.
-Optionally auto-trigger the next step if the scanner appends a special character (like Enter).
+Das Eingabefeld fokussieren, sobald der Button „Scan Card“ gedrückt wird.
 
-Your existing code already has good foundations: the input field (ipContract), a button (btnScanCard) wired to onScanCard, and Enter key handling (onsapenter) on the input to call onNextStep. We'll build on that.
-Step 1: Understand the Hardware and Environment Setup
+Den Scanner die Vbeln automatisch eingeben lassen.
 
-RFID Scanner Configuration:
+Optional den nächsten Schritt automatisch auslösen, wenn der Scanner ein Sonderzeichen (z. B. Enter) anhängt.
 
-Ensure the RFID scanner is connected to the device running the UI5 app (e.g., via USB, Bluetooth, or integrated into the kiosk as shown in the screenshot).
-Configure the scanner to output in "keyboard wedge" mode (emulate keystrokes). Most scanners (e.g., from Honeywell, Zebra, or similar) have a configuration sheet or software to set this.
+Ihr vorhandener Code hat bereits eine gute Basis: das Eingabefeld (ipContract), ein Button (btnScanCard), der mit onScanCard verknüpft ist, und die Enter-Tastenbehandlung (onsapenter) am Input, um onNextStep aufzurufen. Darauf bauen wir auf.
 
-Set the output format to: Scan the RFID tag's data (which should contain the Vbeln), optionally prefixed/suffixed with characters.
-Common: Append a "suffix" like Enter (ASCII 13) or Tab (ASCII 9) after the data. This auto-submits the form or triggers events.
-Example: If the card's RFID tag encodes "1234567890" as the Vbeln, the scanner should output "1234567890" followed by Enter.
+Schritt 1: Hardware- und Umgebungs-Setup verstehen
 
+RFID-Scanner-Konfiguration:
 
-Test this outside the app: Open a text editor on the device, focus it, and scan a card. It should type the Vbeln automatically.
+Stellen Sie sicher, dass der RFID-Scanner mit dem Gerät verbunden ist, auf dem die UI5-App läuft (z. B. über USB, Bluetooth oder in den Kiosk integriert, wie im Screenshot gezeigt).
+
+Konfigurieren Sie den Scanner auf „Keyboard-Wedge“-Modus (Tastaturemulation). Die meisten Scanner (z. B. von Honeywell, Zebra o. ä.) verfügen über ein Konfigurationsblatt oder eine Software dafür.
+
+Legen Sie das Ausgabeformat fest: Der RFID-Tag wird ausgelesen (sollte die Vbeln enthalten) und optional mit Präfix-/Suffix-Zeichen versehen. Üblich ist das Anhängen eines „Suffix“ wie Enter (ASCII 13) oder Tab (ASCII 9) nach den Daten. Das sorgt für ein automatisches Absenden des Formulars bzw. löst Events aus.
+Beispiel: Wenn der RFID der Karte „1234567890“ als Vbeln codiert, sollte der Scanner „1234567890“ gefolgt von Enter ausgeben.
+
+Test außerhalb der App:
+Öffnen Sie einen Texteditor auf dem Gerät, fokussieren Sie ihn und scannen Sie eine Karte. Die Vbeln sollte automatisch geschrieben werden.
