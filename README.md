@@ -1,1 +1,1 @@
-,21.07.202513:34:08,7780000
+Invalid values can result when rounding from type "TIMESTAMPL" to type "TIMESTAMP".
