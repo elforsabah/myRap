@@ -1,1 +1,1 @@
-lv_readable = |{ lv_timestampl TIMESTAMP = USER }|.
+,21.07.202513:34:08,7780000
