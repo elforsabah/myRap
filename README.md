@@ -1,6 +1,5 @@
- data(lv_date)  = |{ lv_date_time(8) DATE = USER }|.
-          data(lv_time)  = |{ lv_date_time+8(6) Time = USER } |.
-          APPEND |{ lv_date } { lv_time }| TO lt_parts_image.
+ATA: lv_d TYPE d,
+      lv_t TYPE t.
 
-
-          Format directive "DATE" cannot be applied to the embedded expression.
+CONVERT TIME STAMP lv_date_time TIME ZONE sy-zonlo INTO DATE lv_d TIME lv_t.
+APPEND |{ lv_d DATE = USER } { lv_t TIME = USER }| TO lt_parts_image.
