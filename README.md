@@ -1,19 +1,15 @@
-DATA(lv_image_data) = ``.
+DATA: lt_parts TYPE TABLE OF string.
 
-IF condense( val = ls_wr_doc_result-comments ) IS NOT INITIAL.
-  lv_image_data = ls_wr_doc_result-comments.
+IF ls_wr_doc_result-comments IS NOT INITIAL.
+  APPEND ls_wr_doc_result-comments TO lt_parts.
 ENDIF.
 
-IF condense( val = ls_wr_doc_result-created_by ) IS NOT INITIAL.
-  lv_image_data = COND string(
-                     WHEN lv_image_data IS INITIAL
-                     THEN ls_wr_doc_result-created_by
-                     ELSE |{ lv_image_data }, { ls_wr_doc_result-created_by }| ).
+IF ls_wr_doc_result-created_by IS NOT INITIAL.
+  APPEND ls_wr_doc_result-created_by TO lt_parts.
 ENDIF.
 
-IF condense( val = ls_wr_doc_result-timestamp ) IS NOT INITIAL.
-  lv_image_data = COND string(
-                     WHEN lv_image_data IS INITIAL
-                     THEN ls_wr_doc_result-timestamp
-                     ELSE |{ lv_image_data }, { ls_wr_doc_result-timestamp }| ).
+IF ls_wr_doc_result-timestamp IS NOT INITIAL.
+  APPEND ls_wr_doc_result-timestamp TO lt_parts.
 ENDIF.
+
+DATA(lv_image_data) = concat_lines_of( table = lt_parts sep = `, ` ).
