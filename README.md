@@ -1,1 +1,1 @@
-PROLOGAPM,21.07.202513:34:08
+Format directive "DATE" cannot be applied to the embedded expression.
