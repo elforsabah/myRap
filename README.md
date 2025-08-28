@@ -1,16 +1,12 @@
 DATA: lv_timestampl TYPE timestampl VALUE '20250721133408.7780000',
-      lv_date       TYPE d,
-      lv_time       TYPE t,
-      lv_fs         TYPE p LENGTH 7 DECIMALS 7,
+      lv_str        TYPE string,
       lv_timestamp  TYPE timestamp,
       lv_readable   TYPE string.
 
-CONVERT TIME STAMP lv_timestampl
-  TIME ZONE 'UTC'
-  INTO DATE lv_date
-       TIME lv_time
-       FRACTIONAL SECONDS lv_fs.
+lv_str = |{ lv_timestampl }|.
 
-lv_timestamp = lv_date && lv_time.
+lv_str = substring_before( val = lv_str sub = '.' ).  " Or use off=0 len=14 if fixed format
+
+lv_timestamp = lv_str.
 
 lv_readable = |{ lv_timestamp TIMESTAMP = USER }|.
