@@ -1,8 +1,1 @@
-
-        IF lv_tidnr <> ''.
-         data(lv_tidnr_temp)  =  lv_tidnr.
-         REPLACE all OCCURRENCES OF SPACE in lv_tidnr_temp with ''.
-          IF lv_tidnr_temp <> ''.
-           lv_html &&= |<br>{ lv_tidnr }|.
-          ENDIF.
-        ENDIF.
+<b>Service Image</b><hr><br>Pizzaria Odense<br>REMOVE_CONTAINER<br>PROLOGADL<br>17.07.2025 10:03:07<br>11.934336331991<br>51.493919892320
