@@ -1,2 +1,1 @@
-Description	Resource	Path	Location	Type
-CAST  of type CHAR to type RAW is not possible	ZI_WR_WEIGHBRIDGE (Data Definition)
+cast( X'00000000000000000000000000000000' as zwr_sessionid ) as SESSIONID,
