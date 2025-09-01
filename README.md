@@ -1,4 +1,3 @@
- //These are calculated values and can only be seen at run time on the UI
-      @ObjectModel.virtualElement: true
-      @ObjectModel.virtualElementCalculatedBy: 'ABAP:/SIEC/CL_HELPER_LTO_DAMEX'
-      cast( '' as abap.char(20) )                  as ComposedSystemID,
+Multiple markers at this line:
+    - The key field "SESSIONID" should be flagged as "readonly" or "readonly:update".
+    - The type of "SESSIONID" must be compatible with the type(s) of "ABP_BEHV_PID".
