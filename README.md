@@ -13,15 +13,17 @@
 
         <!-- STEP 1: Identification -->
         <WizardStep id="step1" title="Identification">
-          <HBox width="100%" justifyContent="Center">
-            <Panel class="stepPanel" expandable="false">
+          <HBox id="step1HBox" width="100%" justifyContent="Center">
+            <Panel id="step1Panel" class="stepPanel" expandable="false">
               <content>
                 <f:Form id="step1Form" editable="true">
-                  <f:layout><f:ResponsiveGridLayout/></f:layout>
+                  <f:layout>
+                    <f:ResponsiveGridLayout id="step1FormLayout"/>
+                  </f:layout>
                   <f:formContainers>
-                    <f:FormContainer>
+                    <f:FormContainer id="step1FormContainerMain">
                       <f:formElements>
-                        <f:FormElement label="Please Enter your Contract ID">
+                        <f:FormElement id="feContractId" label="Please Enter your Contract ID">
                           <f:fields>
 
                             <!-- bind to local JSON model, not to computed SalesDocument -->
@@ -34,7 +36,7 @@
                                    class="sapUiSizeCompact"
                                    change=".onContractChange"/>
 
-                            <HBox width="100%" justifyContent="SpaceBetween" class="sapUiMediumMarginTop">
+                            <HBox id="hbScanRow" width="100%" justifyContent="SpaceBetween" class="sapUiMediumMarginTop">
                               <Button id="btnScanCard"
                                       width="12rem"
                                       type="Emphasized"
@@ -50,7 +52,7 @@
                   </f:formContainers>
                 </f:Form>
 
-                <HBox justifyContent="Start" width="100%" class="sapUiMediumMarginTop">
+                <HBox id="step1ActionBar" justifyContent="Start" width="100%" class="sapUiMediumMarginTop">
                   <Button id="btnStep1Next" text="Next" type="Emphasized" press="onNextStep" visible="false"/>
                 </HBox>
               </content>
@@ -60,10 +62,10 @@
 
         <!-- STEP 2: Choose Load Type -->
         <WizardStep id="step2" title="Choose Load Type">
-          <HBox width="100%" justifyContent="Center">
-            <Panel class="stepPanel" expandable="false">
+          <HBox id="step2HBox" width="100%" justifyContent="Center">
+            <Panel id="step2Panel" class="stepPanel" expandable="false">
               <content>
-                <VBox>
+                <VBox id="step2ContentBox">
 
                   <!-- ValueHelp entity read-only list -->
                   <VBox id="ltContainer"
