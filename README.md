@@ -1,6 +1,2 @@
-// Keys must be readonly in strict managed draft
-  field ( numbering : managed
-          readonly
-          semantic  : uuid ) SessionUUID;  " <-- RAW16 UUID key
-
-  field ( readonly ) IsActiveEntity, HasActiveEntity, HasDraftEntity;
+- The include "SYCH_BDL_DRAFT_ADMIN_INC" of the table "ZWR_WEIGHSESSI_D" should have the group name "%ADMIN".
+    - "ZWR_WEIGHSESSI_D", as draft persistency for "ZI_WR_WEIGHBRIDGE", must have a key field "SESSIONID" in position 2.
