@@ -1,69 +1,51 @@
-managed implementation in class zbp_i_wr_weighbridge unique;
-strict( 2 );
+<mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:macros="sap.fe.macros"
+    xmlns:html="http://www.w3.org/1999/xhtml" controllerName="com.prologa.zwrweighbrigefinal.ext.main.Main">
+    <Page id="Main" title="{i18n>MainTitle}" class="myApp" >
+    <content>
+     <Wizard id="weighingWizard" complete="onWizardComplete" >
+           <!-- STEP 1: Identification -->
+      <WizardStep id="step1" title="Identification" validated="{= ${viewModel>/step1_ok} ? true : false }">
+        <HBox id="step1HBox" width="100%" justifyContent="Center">
+          <Panel id="step1Panel" class="stepPanel" expandable="false"> <!-- headerText="1. Identification"> -->
+            <content>
+              <f:Form id="step1Form" editable="true">
+                <f:layout><f:ResponsiveGridLayout id="tgrid"/></f:layout>
+                <f:formContainers>
+                  <f:FormContainer id="step1FormContainer">
+                    <f:formElements>
+                      <f:FormElement id="step1FormElementContract" label="Please Enter your Contract ID">
+                        <f:fields>
+                         <Input id="ipContract" value="{Vbeln}" width="80%" maxLength="10" required="true" placeholder="Scan or enter Contract ID" class="sapUiSizeCompact" change=".onContractChange"/>   
+                         <!--  <Input id="ipContract" 
+                          value="{ path: '/Vbeln',type: 'sap.ui.model.type.Integer',constraints: 
+                                 { minimum: 1, maximum: 999999 } }" maxLength="10" required="true"/>
+                           -->
+                          <!-- <macros:Field id="ipContract" contextPath="/ZI_WR_WEIGHINGSESSION" metaPath="Vbeln" readOnly="false"  /> -->
+                          <HBox id="step1ScanRow" width="100%" justifyContent="SpaceBetween" class="sapUiMediumMarginTop">
+                            <Button id="btnScanCard"
+                                    width="12rem"
+                                    type="Emphasized"
+                                    icon="sap-icon://business-card"
+                                    text="Scan Card"
+                                    press="onScanCard"/>
+                          </HBox>
+                        </f:fields>
+                      </f:FormElement>
+                    </f:formElements>
+                  </f:FormContainer>
+                </f:formContainers>
+              </f:Form>
+              <HBox id="step1Buttons" justifyContent="Start" width="100%" class="sapUiMediumMarginTop">
+                <Button id="btnStep1Next" text="Next" type="Emphasized" press="onNextStep" visible="false"/>
+              </HBox>
+            </content>
+          </Panel>
+        </HBox>
+      </WizardStep>
+</Wizard>
+</content>
+    </Page>
+</mvc:View>
 
-with draft;
-
-define behavior for ZI_WR_WEIGHBRIDGE  alias WeighingSession
-persistent table vbak
-draft table ZWR_WEIGHSESSI_D
-lock master
-total etag SalesDocument
-authorization master ( instance )
-etag master SalesDocument
-
-{
-//  Keys must be readonly in strict draft
-  field (readonly) SalesDocument; // <-- use your exact CDS element names
-  field (numbering: managed )  SESSIONID;
-create;
-update;
-delete;
-
-draft action Edit;
-draft action Activate;
-draft action Discard;
-draft action Resume;                 // <-- required
-draft determine action Prepare;      //<-- required
-
-action NextStep result [1] $self; // server validates & increments Step
-action Submit result [1] $self; // final checks; printing trigger optional
-
-action identifyCard parameter ZAE_WR_WEIGHINGSESSION result [1] $self;
-action setloadType parameter ZAE_WR_WEIGHINGSESSION  result [1] $self;
-}
-
-
-
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Interface View for weighbridge'
-@Metadata.ignorePropagatedAnnotations: true
-@Metadata.allowExtensions: true
-define root view entity ZI_WR_WEIGHBRIDGE
-  as select from I_SalesDocument
-{
-  key SalesDocument               as SalesDocument,
-      //These are calculated values and can only be seen at run time on the UI
-      @ObjectModel.virtualElement: true
-      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZWR_CL_HELPER'
-      
-      cast(' ' as abap.char(16) ) as SESSIONID,
-      SDDocumentCategory          as SDDocumentCategory,
-      SalesDocumentType           as SalesDocumentType,
-      SalesDocumentProcessingType as SalesDocumentProcessingType,
-      CreatedByUser               as CreatedByUser,
-      LastChangedByUser           as LastChangedByUser,
-      CreationDate                as CreationDate,
-      CreationTime                as CreationTime,
-      LastChangeDate              as LastChangeDate,
-      LastChangeDateTime          as LastChangeDateTime,
-      LastCustomerContactDate     as LastCustomerContactDate
-}
-where
-      SalesDocumentType = 'ZKM'
-
-
-Description	Resource	Path	Location	Type
-The type of "SESSIONID" must be compatible with the type(s) of "ABP_BEHV_PID".	ZI_WR_WEIGHBRIDGE (Behavior Definition)	/S4D_100_prologaefo_en/.adt/wbobj2/bo/bdef/zi_wr_weighbridge	line 17	ABAP Syntax Check Problem
-
-
-      
+A technical error has occurred.
+failed to load 'null/f:Form.js' from ../resources/null/f:Form.js: script load error
