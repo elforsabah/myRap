@@ -45,6 +45,10 @@
 </Wizard>
 </content>
     </Page>
+
+
+A technical error has occurred.
+failed to load 'null/f:Form.js' from ../resources/null/f:Form.js: script load error
 </mvc:View>
 
 A technical error has occurred.
