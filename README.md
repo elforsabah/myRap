@@ -1,98 +1,294 @@
-2025-09-03 09:59:19.662100 Failed to request side effects - Error: Expected 1 row(s), but instead saw 0
-    at /resources/sap/ui/core/library-preload.js:2304:36623 sap.ui.model.odata.v4.ODataListBinding
-u @ Log-dbg.js:497
-n.error @ Log-dbg.js:247
-k.reportError @ ODataModel-dbg.js:2507
-(anonymous) @ ODataListBinding-dbg.js:4189
-Promise.catch
-f @ ODataListBinding-dbg.js:4188
-y.requestSideEffects @ ODataListBinding-dbg.js:4232
-a.requestSideEffectsInternal @ Context-dbg.js:2004
-(anonymous) @ Context-dbg.js:1925
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-a.requestSideEffects @ Context-dbg.js:1920
-t @ SideEffectsServiceFactory.ts:552
-z @ facade.ts:2228
-S @ facade.ts:1965
-t @ facade.ts:2038
-(anonymous) @ facade.ts:2054
-await in (anonymous)
-T @ facade.ts:2052
-(anonymous) @ facade.ts:2074
-K @ facade.ts:1883
-(anonymous) @ facade.ts:530
-R @ facade.ts:318
-B @ facade.ts:188
-await in B
-e @ TransactionHelper.ts:1053
-t @ EditFlow.ts:2187
-await in t
-(anonymous) @ ControllerExtension-dbg.js:105
-onNextStep @ Main.controller.js:140
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-(anonymous) @ Main.controller.js:69
-r @ Element-dbg.js:345
-m._handleEvent @ Element-dbg.js:365
-N._handleEvent @ UIArea-dbg.js:1056
-dispatch @ jquery-dbg.js:5430
-y.handle @ jquery-dbg.js:5234Understand this error
-Log-dbg.js:497 2025-09-03 09:59:19.662900 Error while requesting side effects - Error: Expected 1 row(s), but instead saw 0  
- Error: Expected 1 row(s), but instead saw 0
-    at _Cache-dbg.js:3583:12
-u @ Log-dbg.js:497
-n.error @ Log-dbg.js:247
-z @ facade.ts:2244
-await in z
-S @ facade.ts:1965
-t @ facade.ts:2038
-(anonymous) @ facade.ts:2054
-await in (anonymous)
-T @ facade.ts:2052
-(anonymous) @ facade.ts:2074
-K @ facade.ts:1883
-(anonymous) @ facade.ts:530
-R @ facade.ts:318
-B @ facade.ts:188
-await in B
-e @ TransactionHelper.ts:1053
-t @ EditFlow.ts:2187
-await in t
-(anonymous) @ ControllerExtension-dbg.js:105
-onNextStep @ Main.controller.js:140
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-(anonymous) @ Main.controller.js:69
-r @ Element-dbg.js:345
-m._handleEvent @ Element-dbg.js:365
-N._handleEvent @ UIArea-dbg.js:1056
-dispatch @ jquery-dbg.js:5430
-y.handle @ jquery-dbg.js:5234Understand this error
-assert-dbg.js:33 Assertion failed: ManagedObject.apply: encountered unknown setting 'class' for class 'sap.m.Button' (value:'loadTypeBtn')
-n @ assert-dbg.js:33
-m.applySettings @ ManagedObject-dbg.js:1406
-(anonymous) @ ManagedObject-dbg.js:537
-constructor @ ManagedObject-dbg.js:515
-constructor @ Element-dbg.js:218
-constructor @ Control-dbg.js:187
-c @ Metadata-dbg.js:504
-(anonymous) @ Main.controller.js:160
-Promise.then
-onNextStep @ Main.controller.js:145
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-(anonymous) @ Main.controller.js:69
-r @ Element-dbg.js:345
-m._handleEvent @ Element-dbg.js:365
-N._handleEvent @ UIArea-dbg.js:1056
-dispatch @ jquery-dbg.js:5430
-y.handle @ jquery-dbg.js:5234Understand this error
+sap.ui.define([
+    "sap/fe/core/PageController",
+    "sap/m/MessageToast",
+    "sap/ui/core/Messaging",
+    "sap/m/MessageBox",
+    "sap/ui/core/message/Message",
+    "sap/ui/core/library",
+    "sap/ui/model/Filter",
+    "sap/ui/model/FilterOperator",
+    "sap/m/Button"
+],
+    function (PageController, MessageToast, Messaging, MessageBox, Message, coreLibrary, Filter, FilterOperator, Button) {
+        "use strict";
+        return PageController.extend("com.example.weighingsessionwizard.controller.CustomPage", {
+            formatter: {
+                concatMaterialText: function (sMaterial, sMaterialText) {
+                    return (sMaterial || '') + ' - ' + (sMaterialText || '');
+                }
+            },
+
+            onInit: function () {
+               var superResult =  PageController.prototype.onInit.apply(this);
+
+                // Messaging
+                Messaging.registerObject(this.getView(), true);
+                this.getView().setModel(Messaging.getMessageModel(), "message");
+
+                // Wizard
+                this.oWizard = this.byId("weighingWizard");
+
+                // Router
+                var oRouter = this.getAppComponent().getRouter();
+                oRouter.getRoute("ZI_WR_WEIGHINGSESSIONMain").attachPatternMatched(this._onObjectMatched, this);
+
+                this._enterWired = false; // guard so we wire Enter only once
+                this._isFromScan = true;
+                return superResult
+            },
+
+            generateUUID: function () {
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            },
+
+            _onObjectMatched: function () {
+                var oModel = this.getView().getModel();
+                var oListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION");
+                var oNewContext = oListBinding.create({
+                    Sessionid: this.generateUUID()
+                });
+                this.getView().setBindingContext(oNewContext);
+                oNewContext.requestProperty(["Vbeln", "Grossweight", "Grossweightunit", "Sessionid"]).catch(function () { });
+            },
+
+            // === ENTER wiring (ADDED) ===
+            _setupEnterToNext: function () {
+                if (this._enterWired) { return; }
+                this._enterWired = true;
+
+                // Step 1: Enter on Contract input -> reuse existing onNextStep
+                var oIp = this.byId("step1InputContract");
+                if (oIp) {
+                    oIp.addEventDelegate({
+                        onsapenter: function (oEvent) {
+                            oEvent.preventDefault();
+                            oEvent.stopPropagation();
+                            this.onNextStep();
+                        }.bind(this)
+                    }, oIp);
+                }
+
+                // Step 3: Enter on Gross/Tare inputs -> compute & advance
+                var aStep3Ids = ["ipGrossWeight", "ipTareWeight"];
+                aStep3Ids.forEach(function (sId) {
+                    var oCtrl = this.byId(sId);
+                    if (oCtrl) {
+                        oCtrl.addEventDelegate({
+                            onsapenter: function (oEvent) {
+                                oEvent.preventDefault();
+                                oEvent.stopPropagation();
+                                this._onStep3Enter();
+                            }.bind(this)
+                        }, oCtrl);
+                    }
+                }.bind(this));
+            },
+
+            // Step 3 Enter handler (ADDED)
+            _onStep3Enter: function () {
+                var oGW = this.byId("ipGrossWeight");
+                var oTW = this.byId("ipTareWeight");
+                var oNW = this.byId("ipNetWeight");
+
+                var gw = oGW ? parseFloat(oGW.getValue()) : NaN;
+                var tw = oTW ? parseFloat(oTW.getValue()) : NaN;
+
+                if (isNaN(gw) || isNaN(tw)) {
+                    MessageToast.show("Enter valid numbers for Gross and Tare.");
+                    return;
+                }
+
+                // persist to bound context so rebinds won't clear
+                var oCtx = this.getView().getBindingContext();
+                if (oCtx) {
+                    oCtx.setProperty("Grossweight", gw);
+                    oCtx.setProperty("TareWeight", tw);
+                    oCtx.setProperty("NetWeight", gw - tw);
+                }
+                if (oNW) { oNW.setValue(gw - tw); }
+
+                this.oWizard.validateStep(this.byId("step3"));
+                this.oWizard.nextStep();
+            },
+
+            onNextStep: function () {
+                var oContext = this.getView().getBindingContext();
+                var oCurrentStep = this.oWizard.getCurrentStep();
+                var sStepId = oCurrentStep.split("--").pop();
+
+                if (sStepId === "step1") {
+                    var sContractId = this.byId("step1InputContract").getValue();
+                    if (!sContractId) {
+                        MessageToast.show("Please enter a Contract ID.");
+                        return;
+                    }
+                    if (!oContext) {
+                        MessageToast.show("No session context available.");
+                        return;
+                    }
+
+                    // Pad with leading zeros for internal format
+                    sContractId = sContractId.padStart(10, '0');
+
+                    // write user entry to model before action
+                    oContext.setProperty("Vbeln", sContractId);
+
+                    // FE EditFlow bound action call
+                    this.editFlow.invokeAction("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)", {
+                        model: this.getView().getModel(),
+                        contexts: oContext,
+                        parameterValues: [{ name: "vbeln", value: sContractId }],
+                        skipParameterDialog: true
+                    }).then(function (oResult) {
+                        // optional: surface success messages
+                        var aMsgs = Messaging.getMessageModel().getData() || [];
+                        var aUnboundSuccess = aMsgs.filter(function (oMsg) {
+                            return oMsg.getTarget && oMsg.getTarget() === "" &&
+                                oMsg.getType && oMsg.getType() === "Success";
+                        });
+                        if (aUnboundSuccess.length > 0) {
+                            MessageBox.show(aUnboundSuccess[0].getMessage(), {
+                                title: "Success"
+                            });
+                        }
+                        // Bind step 2 dynamically
+                        var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')";
+                        var oVBox = this.byId("step2LtContainer");
+                        var oTemplate = new Button({
+                            text: {
+                                parts: [
+                                    {path: 'Material', targetType: 'any'},
+                                    {path: 'MaterialText', targetType: 'any'}
+                                ],
+                                formatter: '.formatter.concatMaterialText'
+                            },
+                            press: [this.onChooseLoadType, this],
+                            width: "100%"
+                        });
+                        oTemplate.addStyleClass("loadTypeBtn");
+                        oVBox.bindItems({
+                            path: sPath,
+                            parameters: {
+                                $select: "SalesOrder,SalesOrderitem,Material,MaterialText,Language",
+                                $orderby: "SalesOrder,SalesOrderitem"
+                            },
+                            template: oTemplate,
+                            templateShareable: false
+                        });
+                        // advance wizard
+                        this._clearContractInlineError();
+                        this.oWizard.validateStep(this.byId("step1"));
+                        
+                        this.oWizard.nextStep();
+
+                    }.bind(this)).catch(function (oError) {
+
+                        // ✅ inline on the field instead:
+                        this._setContractInlineError("Invalid Contract. Please try again.");
+                        // MessageBox.error("Invalid Contract. Please try again.");
+                    }.bind(this));
+                }
+            },
+            onScanCard: function () {
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.focus();  // Focus the input so the scanner's "keystrokes" go here
+                    //oInput.setValue("");  // Optional: Clear any existing value to avoid appending
+                    this._isFromScan = true;
+                    MessageToast.show("Please scan the RFID card now.");  // User prompt (shows a toast message)
+                }
+            },
+            onContractChange: function (oEvent) {
+                var oInput = oEvent.getSource();
+                var sValue = oInput.getValue();
+                if (sValue.length > 10) {
+                    oInput.setValueState("Error");
+                    oInput.setValueStateText("Contract ID cannot exceed 10 characters.");
+                } else {
+                    oInput.setValueState("None");
+                }
+            },
+            onAfterRendering: function () {
+                var oIp = this.byId("step1InputContract");
+                if (oIp) { oIp.focus(); }
+                this._setupEnterToNext(); // wire Enter once
+            },
+
+            onChooseLoadType: function (oEvent) {
+                const sLoadType = oEvent.getSource().getBindingContext().getProperty("Material");
+                const oSessionCtx = this.getView().getBindingContext();
+                if (!oSessionCtx) { return; }
+
+                oSessionCtx.setProperty("LoadType", sLoadType);
+                this.oWizard.validateStep(this.byId("step2"));
+                this.oWizard.nextStep();
+            },
+
+            onStepActivate: function () { /* optional per-step hooks */ },
+            validateStep: function () { /* return true; */ },
+
+            onCaptureWeight: function () {
+                this.getView().getModel().setProperty("/Grossweight", 1000);
+            },
+
+            onCaptureFinalWeight: function () {
+                var oModel = this.getView().getModel();
+                var fGross = oModel.getProperty("/Grossweight");
+                var fTare = oModel.getProperty("/TareWeight");
+                oModel.setProperty("/NetWeight", fGross - fTare);
+            },
+
+            onSubmit: function () {
+                this.getView().getModel().submitChanges({
+                    success: function () { MessageToast.show("Weighing session submitted."); }
+                });
+            },
+
+            _setContractInlineError: function (sText) {
+                // Inline on the input
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.setValueState("Error");
+                    oInput.setValueStateText(sText);
+                    oInput.focus();
+                }
+
+                // Optional: also add a field-bound message (shows in FE message popover / keeps state on rebind)
+                var oCtx = this.getView().getBindingContext();
+                var oModel = this.getView().getModel();
+                if (oCtx && oModel) {
+                    var sTarget = oCtx.getPath() + "/Vbeln"; // property bound to the input
+                    var aAll = Messaging.getMessageModel().getData() || [];
+                    var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+                    if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
+                    Messaging.addMessages(new Message({
+                        message: sText,
+                        type: coreLibrary.MessageType.Error,
+                        target: sTarget,
+                        processor: oModel
+                    }));
+                }
+            },
+
+            _clearContractInlineError: function () {
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.setValueState("None");
+                    oInput.setValueStateText("");
+                }
+                var oCtx = this.getView().getBindingContext();
+                if (oCtx) {
+                    var sTarget = oCtx.getPath() + "/Vbeln";
+                    var aAll = Messaging.getMessageModel().getData() || [];
+                    var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+                    if (aForField.length) { Messaging.removeMessages(aForField); }
+                }
+            },
+
+            onPrintSlip: function () { },
+            onWizardComplete: function () { }
+        });
+    });
