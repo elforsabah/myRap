@@ -1,11 +1,23 @@
-<VBox id="step2LtContainer"
-                            items="{
-                              path: {= '/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder=%27' + ${Vbeln} + '%27)' },
-                              parameters: { $select: 'SalesOrder,SalesOrderitem,Material,MaterialText,Language', $orderby: 'SalesOrder,SalesOrderitem' }
-                            }">
-                        <Button id="step2LtButton"
-                                class="loadTypeBtn"
-                                width="100%"
-                                text="{= ${Material} + ' - ' + ${MaterialText} }"
-                                press=".onChooseLoadType"/>
-                      </VBox>
+            _bindStep2: function () {
+                var oVBox = this.byId("step2LtContainer");
+                var aItems = oVBox.getItems();
+                var oTemplate;
+                if (aItems.length > 0) {
+                    oTemplate = aItems[0].clone();
+                    oVBox.removeAllItems();
+                } else {
+                    return; // no template
+                }
+                var sVbeln = this.getView().getBindingContext().getProperty("Vbeln");
+                if (sVbeln) {
+                    oVBox.bindItems({
+                        path: "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sVbeln + "')",
+                        parameters: {
+                            $select: "SalesOrder,SalesOrderitem,Material,MaterialText,Language",
+                            $orderby: "SalesOrder,SalesOrderitem"
+                        },
+                        template: oTemplate,
+                        templateShareable: true
+                    });
+                }
+            },
