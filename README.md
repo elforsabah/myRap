@@ -1,1197 +1,294 @@
-Log-dbg.js:497 2025-09-03 09:39:06.681399 Failed to enhance query options for auto-$expand/$select as the path '/ZI_WR_WEIGHINGSESSION($uid=id-1756885146677-44)/Material' does not point to a property -  sap.ui.model.odata.v4.ODataParentBinding
-u @ Log-dbg.js:497
-n.error @ Log-dbg.js:247
-(anonymous) @ ODataParentBinding-dbg.js:901
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-s.fetchIfChildCanUseCache @ ODataParentBinding-dbg.js:839
-h.fetchOrGetQueryOptionsForOwnCache @ ODataBinding-dbg.js:685
-h.fetchCache @ ODataBinding-dbg.js:518
-l.setContext @ ODataPropertyBinding-dbg.js:706
-(anonymous) @ CompositeBinding-dbg.js:241
-l.setContext @ CompositeBinding-dbg.js:232
-updateBindingContext @ ManagedObjectBindingSupport-dbg.js:549
-m._propagateProperties @ ManagedObject-dbg.js:4336
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m.setBindingContext @ ManagedObject-dbg.js:4059
-_onObjectMatched @ Main.controller.js:52
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-r.fireEvent @ EventProvider-dbg.js:240
-(anonymous) @ Route-dbg.js:178
-Promise.then
-_routeMatched @ Route-dbg.js:134
-(anonymous) @ Route-dbg.js:205
-execute @ signals-dbg.js:93
-dispatch @ signals-dbg.js:384
-dispatch @ signals-dbg.js:187
-parse @ crossroads-dbg.js:186
-parse @ Router-dbg.js:377
-initialize @ Router-dbg.js:451
-(anonymous) @ AppComponent.ts:417
-Promise.then
-o @ AppComponent.ts:413
-(anonymous) @ AppComponent.ts:440
-Promise.then
-t @ AppComponent.ts:438
-await in t
-(anonymous) @ AsyncComponentServiceFactory.ts:50
-Promise.then
-t @ AsyncComponentServiceFactory.ts:47
-constructor @ Service-dbg.js:101
-e @ AsyncComponentServiceFactory.ts:8
-t @ AsyncComponentServiceFactory.ts:61
-(anonymous) @ Component-dbg.js:1235
-(anonymous) @ ui5loader-dbg.js:2163
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-r @ ui5loader-dbg.js:2159
-(anonymous) @ Component-dbg.js:1220
-k.getService @ Component-dbg.js:1218
-(anonymous) @ Component-dbg.js:1296
-D @ Component-dbg.js:1292
-p @ Component-dbg.js:2752
-(anonymous) @ Component-dbg.js:2836
-m.runWithOwner @ ManagedObject-dbg.js:1216
-(anonymous) @ Component-dbg.js:2835
-Promise.then
-(anonymous) @ Component-dbg.js:2794
-Promise.then
-z @ Component-dbg.js:2779
-k.create @ Component-dbg.js:2531
-i @ utils-dbg.js:72
-instantiateComponent @ Ui5ComponentLoader-dbg.js:281
-(anonymous) @ Ui5ComponentLoader-dbg.js:134
-Promise.then
-createComponent @ Ui5ComponentLoader-dbg.js:133
-(anonymous) @ Application-dbg.js:383
-Promise.then
-createComponent @ Application-dbg.js:382
-(anonymous) @ AppLifeCycle-dbg.js:1047
-Promise.then
-E.createComponent @ AppLifeCycle-dbg.js:1046
-(anonymous) @ Shell-dbg.controller.js:1213
-Promise.then
-(anonymous) @ Shell-dbg.controller.js:1212
-Promise.then
-(anonymous) @ Shell-dbg.controller.js:1161
-(anonymous) @ jquery-compat-dbg.js:725
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ Shell-dbg.controller.js:1444
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ NavTargetResolutionInternal-dbg.js:465
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-(anonymous) @ jquery-dbg.js:4013
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ NavTargetResolutionInternal-dbg.js:142
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ ClientSideTargetResolution-dbg.js:243
-Promise.then
-R.resolveHashFragment @ ClientSideTargetResolution-dbg.js:242
-(anonymous) @ NavTargetResolutionInternal-dbg.js:135
-Promise.then
-_resolveHashFragmentClientSideAndFixApplicationType @ NavTargetResolutionInternal-dbg.js:134
-_resolveHashFragmentClientSide @ NavTargetResolutionInternal-dbg.js:118
-(anonymous) @ NavTargetResolutionInternal-dbg.js:70
-_nextResolveHashFragment @ NavTargetResolutionInternal-dbg.js:97
-_nextResolveHashFragment @ NavTargetResolutionInternal-dbg.js:100
-_invokeResolveHashChain @ NavTargetResolutionInternal-dbg.js:479
-(anonymous) @ NavTargetResolutionInternal-dbg.js:437
-u @ jquery-dbg.js:3500
-add @ jquery-dbg.js:3559
-resolveHashFragment @ NavTargetResolutionInternal-dbg.js:412
-(anonymous) @ Shell-dbg.controller.js:1433
-Promise.then
-_resolveHashFragment @ Shell-dbg.controller.js:1432
-_doHashChange @ Shell-dbg.controller.js:1138
-doHashChange @ Shell-dbg.controller.js:1075
-S.treatHashChanged @ ShellNavigationHashChanger-dbg.js:945
-S.initShellNavigation @ ShellNavigationHashChanger-dbg.js:701
-init @ ShellNavigationInternal-dbg.js:358
-(anonymous) @ Shell-dbg.controller.js:314
-(anonymous) @ Shell-dbg.controller.js:336
-Promise.then
-onInit @ Shell-dbg.controller.js:331
-n @ Controller-dbg.js:766
-r.fireEvent @ EventProvider-dbg.js:240
-m.fireEvent @ Element-dbg.js:798
-(anonymous) @ ManagedObjectMetadata-dbg.js:826
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-p @ View-dbg.js:594
-(anonymous) @ View-dbg.js:631
-Promise.then
-g._initCompositeSupport @ View-dbg.js:630
-(anonymous) @ ManagedObject-dbg.js:528
-constructor @ ManagedObject-dbg.js:515
-constructor @ Element-dbg.js:218
-constructor @ Control-dbg.js:187
-c @ Metadata-dbg.js:504
-c @ Metadata-dbg.js:504
-_ @ View-dbg.js:1334
-I @ View-dbg.js:1266
-o @ View-dbg.js:1088
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-(anonymous) @ View-dbg.js:1108
-Promise.then
-g.create @ View-dbg.js:1097
-D.createContent @ Renderer-dbg.js:530
-(anonymous) @ UIComponent-dbg.js:394
-m.runWithPreprocessors @ ManagedObject-dbg.js:1189
-(anonymous) @ UIComponent-dbg.js:393
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-p.init @ UIComponent-dbg.js:392
-init @ Renderer-dbg.js:299
-(anonymous) @ ManagedObject-dbg.js:533
-constructor @ ManagedObject-dbg.js:515
-constructor @ Component-dbg.js:354
-constructor @ UIComponent-dbg.js:89
-c @ Metadata-dbg.js:504
-(anonymous) @ Container-dbg.js:409
-(anonymous) @ ui5loader-dbg.js:2163
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-r @ ui5loader-dbg.js:2159
-(anonymous) @ Container-dbg.js:403
-c @ Container-dbg.js:402
-T.createRenderer @ Container-dbg.js:486
-init @ init.js:284
-await in init
-(anonymous) @ init.js:289
-c @ ui5loader-dbg.js:1984
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-Me @ ui5loader-dbg.js:2022
-(anonymous) @ ui5loader-dbg.js:1374
-process @ ui5loader-dbg.js:1372
-r @ ui5loader-dbg.js:1471
-script
-Le @ ui5loader-dbg.js:1454
-Ie @ ui5loader-dbg.js:1718
-Oe @ ui5loader-dbg.js:1888
-r @ ui5loader-dbg.js:2159
-setTimeout
-$ @ Core-dbg.js:261
-J._executeInitialization @ Core-dbg.js:1414
-J.init @ Core-dbg.js:1297
-(anonymous) @ Core-dbg.js:733
-r @ Core-dbg.js:366
-W.finishTask @ Core-dbg.js:360
-(anonymous) @ Core-dbg.js:756
-(anonymous) @ Core-dbg.js:1128
-Promise.then
-J._boot @ Core-dbg.js:1127
-(anonymous) @ Core-dbg.js:755
-r @ Core-dbg.js:366
-W.finishTask @ Core-dbg.js:360
-P.g.get.name @ Core-dbg.js:824
-Promise.then
-P @ Core-dbg.js:823
-boot @ Core-dbg.js:798
-(anonymous) @ Object-dbg.js:282
-(anonymous) @ sap-ui-core.js:2Understand this error
-Log-dbg.js:497 2025-09-03 09:39:06.685599 Failed to enhance query options for auto-$expand/$select as the path '/ZI_WR_WEIGHINGSESSION($uid=id-1756885146677-44)/MaterialText' does not point to a property -  sap.ui.model.odata.v4.ODataParentBinding
-u @ Log-dbg.js:497
-n.error @ Log-dbg.js:247
-(anonymous) @ ODataParentBinding-dbg.js:901
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-s.fetchIfChildCanUseCache @ ODataParentBinding-dbg.js:839
-h.fetchOrGetQueryOptionsForOwnCache @ ODataBinding-dbg.js:685
-h.fetchCache @ ODataBinding-dbg.js:518
-l.setContext @ ODataPropertyBinding-dbg.js:706
-(anonymous) @ CompositeBinding-dbg.js:241
-l.setContext @ CompositeBinding-dbg.js:232
-updateBindingContext @ ManagedObjectBindingSupport-dbg.js:549
-m._propagateProperties @ ManagedObject-dbg.js:4336
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m.setBindingContext @ ManagedObject-dbg.js:4059
-_onObjectMatched @ Main.controller.js:52
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-r.fireEvent @ EventProvider-dbg.js:240
-(anonymous) @ Route-dbg.js:178
-Promise.then
-_routeMatched @ Route-dbg.js:134
-(anonymous) @ Route-dbg.js:205
-execute @ signals-dbg.js:93
-dispatch @ signals-dbg.js:384
-dispatch @ signals-dbg.js:187
-parse @ crossroads-dbg.js:186
-parse @ Router-dbg.js:377
-initialize @ Router-dbg.js:451
-(anonymous) @ AppComponent.ts:417
-Promise.then
-o @ AppComponent.ts:413
-(anonymous) @ AppComponent.ts:440
-Promise.then
-t @ AppComponent.ts:438
-await in t
-(anonymous) @ AsyncComponentServiceFactory.ts:50
-Promise.then
-t @ AsyncComponentServiceFactory.ts:47
-constructor @ Service-dbg.js:101
-e @ AsyncComponentServiceFactory.ts:8
-t @ AsyncComponentServiceFactory.ts:61
-(anonymous) @ Component-dbg.js:1235
-(anonymous) @ ui5loader-dbg.js:2163
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-r @ ui5loader-dbg.js:2159
-(anonymous) @ Component-dbg.js:1220
-k.getService @ Component-dbg.js:1218
-(anonymous) @ Component-dbg.js:1296
-D @ Component-dbg.js:1292
-p @ Component-dbg.js:2752
-(anonymous) @ Component-dbg.js:2836
-m.runWithOwner @ ManagedObject-dbg.js:1216
-(anonymous) @ Component-dbg.js:2835
-Promise.then
-(anonymous) @ Component-dbg.js:2794
-Promise.then
-z @ Component-dbg.js:2779
-k.create @ Component-dbg.js:2531
-i @ utils-dbg.js:72
-instantiateComponent @ Ui5ComponentLoader-dbg.js:281
-(anonymous) @ Ui5ComponentLoader-dbg.js:134
-Promise.then
-createComponent @ Ui5ComponentLoader-dbg.js:133
-(anonymous) @ Application-dbg.js:383
-Promise.then
-createComponent @ Application-dbg.js:382
-(anonymous) @ AppLifeCycle-dbg.js:1047
-Promise.then
-E.createComponent @ AppLifeCycle-dbg.js:1046
-(anonymous) @ Shell-dbg.controller.js:1213
-Promise.then
-(anonymous) @ Shell-dbg.controller.js:1212
-Promise.then
-(anonymous) @ Shell-dbg.controller.js:1161
-(anonymous) @ jquery-compat-dbg.js:725
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ Shell-dbg.controller.js:1444
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ NavTargetResolutionInternal-dbg.js:465
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-(anonymous) @ jquery-dbg.js:4013
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ NavTargetResolutionInternal-dbg.js:142
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ ClientSideTargetResolution-dbg.js:243
-Promise.then
-R.resolveHashFragment @ ClientSideTargetResolution-dbg.js:242
-(anonymous) @ NavTargetResolutionInternal-dbg.js:135
-Promise.then
-_resolveHashFragmentClientSideAndFixApplicationType @ NavTargetResolutionInternal-dbg.js:134
-_resolveHashFragmentClientSide @ NavTargetResolutionInternal-dbg.js:118
-(anonymous) @ NavTargetResolutionInternal-dbg.js:70
-_nextResolveHashFragment @ NavTargetResolutionInternal-dbg.js:97
-_nextResolveHashFragment @ NavTargetResolutionInternal-dbg.js:100
-_invokeResolveHashChain @ NavTargetResolutionInternal-dbg.js:479
-(anonymous) @ NavTargetResolutionInternal-dbg.js:437
-u @ jquery-dbg.js:3500
-add @ jquery-dbg.js:3559
-resolveHashFragment @ NavTargetResolutionInternal-dbg.js:412
-(anonymous) @ Shell-dbg.controller.js:1433
-Promise.then
-_resolveHashFragment @ Shell-dbg.controller.js:1432
-_doHashChange @ Shell-dbg.controller.js:1138
-doHashChange @ Shell-dbg.controller.js:1075
-S.treatHashChanged @ ShellNavigationHashChanger-dbg.js:945
-S.initShellNavigation @ ShellNavigationHashChanger-dbg.js:701
-init @ ShellNavigationInternal-dbg.js:358
-(anonymous) @ Shell-dbg.controller.js:314
-(anonymous) @ Shell-dbg.controller.js:336
-Promise.then
-onInit @ Shell-dbg.controller.js:331
-n @ Controller-dbg.js:766
-r.fireEvent @ EventProvider-dbg.js:240
-m.fireEvent @ Element-dbg.js:798
-(anonymous) @ ManagedObjectMetadata-dbg.js:826
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-p @ View-dbg.js:594
-(anonymous) @ View-dbg.js:631
-Promise.then
-g._initCompositeSupport @ View-dbg.js:630
-(anonymous) @ ManagedObject-dbg.js:528
-constructor @ ManagedObject-dbg.js:515
-constructor @ Element-dbg.js:218
-constructor @ Control-dbg.js:187
-c @ Metadata-dbg.js:504
-c @ Metadata-dbg.js:504
-_ @ View-dbg.js:1334
-I @ View-dbg.js:1266
-o @ View-dbg.js:1088
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-(anonymous) @ View-dbg.js:1108
-Promise.then
-g.create @ View-dbg.js:1097
-D.createContent @ Renderer-dbg.js:530
-(anonymous) @ UIComponent-dbg.js:394
-m.runWithPreprocessors @ ManagedObject-dbg.js:1189
-(anonymous) @ UIComponent-dbg.js:393
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-p.init @ UIComponent-dbg.js:392
-init @ Renderer-dbg.js:299
-(anonymous) @ ManagedObject-dbg.js:533
-constructor @ ManagedObject-dbg.js:515
-constructor @ Component-dbg.js:354
-constructor @ UIComponent-dbg.js:89
-c @ Metadata-dbg.js:504
-(anonymous) @ Container-dbg.js:409
-(anonymous) @ ui5loader-dbg.js:2163
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-r @ ui5loader-dbg.js:2159
-(anonymous) @ Container-dbg.js:403
-c @ Container-dbg.js:402
-T.createRenderer @ Container-dbg.js:486
-init @ init.js:284
-await in init
-(anonymous) @ init.js:289
-c @ ui5loader-dbg.js:1984
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-Me @ ui5loader-dbg.js:2022
-(anonymous) @ ui5loader-dbg.js:1374
-process @ ui5loader-dbg.js:1372
-r @ ui5loader-dbg.js:1471
-script
-Le @ ui5loader-dbg.js:1454
-Ie @ ui5loader-dbg.js:1718
-Oe @ ui5loader-dbg.js:1888
-r @ ui5loader-dbg.js:2159
-setTimeout
-$ @ Core-dbg.js:261
-J._executeInitialization @ Core-dbg.js:1414
-J.init @ Core-dbg.js:1297
-(anonymous) @ Core-dbg.js:733
-r @ Core-dbg.js:366
-W.finishTask @ Core-dbg.js:360
-(anonymous) @ Core-dbg.js:756
-(anonymous) @ Core-dbg.js:1128
-Promise.then
-J._boot @ Core-dbg.js:1127
-(anonymous) @ Core-dbg.js:755
-r @ Core-dbg.js:366
-W.finishTask @ Core-dbg.js:360
-P.g.get.name @ Core-dbg.js:824
-Promise.then
-P @ Core-dbg.js:823
-boot @ Core-dbg.js:798
-(anonymous) @ Object-dbg.js:282
-(anonymous) @ sap-ui-core.js:2Understand this error
-Log-dbg.js:497 2025-09-03 09:39:06.694699 Failed to drill-down into ($uid=id-1756885146677-44)/Material, invalid segment: Material - /sap/opu/odata4/sap/zsb_weighingbrige_v4/srvd/sap/zsb_wr_weighingbrige/0001/ZI_WR_WEIGHINGSESSION?$select=IsActiveEntity,Sessionid,Vbeln sap.ui.model.odata.v4.lib._Cache
-u @ Log-dbg.js:497
-n.error @ Log-dbg.js:247
-m @ _Cache-dbg.js:717
-(anonymous) @ _Cache-dbg.js:772
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-y @ _Cache-dbg.js:768
-e @ _Cache-dbg.js:871
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-(anonymous) @ _Cache-dbg.js:825
-f.drillDown @ _Cache-dbg.js:824
-(anonymous) @ _Cache-dbg.js:2737
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-p.fetchValue @ _Cache-dbg.js:2733
-(anonymous) @ ODataListBinding-dbg.js:2132
-Promise.then
-r.then @ SyncPromise-dbg.js:318
-y.fetchValue @ ODataListBinding-dbg.js:2125
-a.fetchValue @ Context-dbg.js:784
-(anonymous) @ ODataPropertyBinding-dbg.js:310
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-l.checkUpdateInternal @ ODataPropertyBinding-dbg.js:287
-l.setContext @ ODataPropertyBinding-dbg.js:707
-(anonymous) @ CompositeBinding-dbg.js:241
-l.setContext @ CompositeBinding-dbg.js:232
-updateBindingContext @ ManagedObjectBindingSupport-dbg.js:549
-m._propagateProperties @ ManagedObject-dbg.js:4336
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m.setBindingContext @ ManagedObject-dbg.js:4059
-_onObjectMatched @ Main.controller.js:52
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-r.fireEvent @ EventProvider-dbg.js:240
-(anonymous) @ Route-dbg.js:178
-Promise.then
-_routeMatched @ Route-dbg.js:134
-(anonymous) @ Route-dbg.js:205
-execute @ signals-dbg.js:93
-dispatch @ signals-dbg.js:384
-dispatch @ signals-dbg.js:187
-parse @ crossroads-dbg.js:186
-parse @ Router-dbg.js:377
-initialize @ Router-dbg.js:451
-(anonymous) @ AppComponent.ts:417
-Promise.then
-o @ AppComponent.ts:413
-(anonymous) @ AppComponent.ts:440
-Promise.then
-t @ AppComponent.ts:438
-await in t
-(anonymous) @ AsyncComponentServiceFactory.ts:50
-Promise.then
-t @ AsyncComponentServiceFactory.ts:47
-constructor @ Service-dbg.js:101
-e @ AsyncComponentServiceFactory.ts:8
-t @ AsyncComponentServiceFactory.ts:61
-(anonymous) @ Component-dbg.js:1235
-(anonymous) @ ui5loader-dbg.js:2163
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-r @ ui5loader-dbg.js:2159
-(anonymous) @ Component-dbg.js:1220
-k.getService @ Component-dbg.js:1218
-(anonymous) @ Component-dbg.js:1296
-D @ Component-dbg.js:1292
-p @ Component-dbg.js:2752
-(anonymous) @ Component-dbg.js:2836
-m.runWithOwner @ ManagedObject-dbg.js:1216
-(anonymous) @ Component-dbg.js:2835
-Promise.then
-(anonymous) @ Component-dbg.js:2794
-Promise.then
-z @ Component-dbg.js:2779
-k.create @ Component-dbg.js:2531
-i @ utils-dbg.js:72
-instantiateComponent @ Ui5ComponentLoader-dbg.js:281
-(anonymous) @ Ui5ComponentLoader-dbg.js:134
-Promise.then
-createComponent @ Ui5ComponentLoader-dbg.js:133
-(anonymous) @ Application-dbg.js:383
-Promise.then
-createComponent @ Application-dbg.js:382
-(anonymous) @ AppLifeCycle-dbg.js:1047
-Promise.then
-E.createComponent @ AppLifeCycle-dbg.js:1046
-(anonymous) @ Shell-dbg.controller.js:1213
-Promise.then
-(anonymous) @ Shell-dbg.controller.js:1212
-Promise.then
-(anonymous) @ Shell-dbg.controller.js:1161
-(anonymous) @ jquery-compat-dbg.js:725
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ Shell-dbg.controller.js:1444
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ NavTargetResolutionInternal-dbg.js:465
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-(anonymous) @ jquery-dbg.js:4013
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ NavTargetResolutionInternal-dbg.js:142
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ ClientSideTargetResolution-dbg.js:243
-Promise.then
-R.resolveHashFragment @ ClientSideTargetResolution-dbg.js:242
-(anonymous) @ NavTargetResolutionInternal-dbg.js:135
-Promise.then
-_resolveHashFragmentClientSideAndFixApplicationType @ NavTargetResolutionInternal-dbg.js:134
-_resolveHashFragmentClientSide @ NavTargetResolutionInternal-dbg.js:118
-(anonymous) @ NavTargetResolutionInternal-dbg.js:70
-_nextResolveHashFragment @ NavTargetResolutionInternal-dbg.js:97
-_nextResolveHashFragment @ NavTargetResolutionInternal-dbg.js:100
-_invokeResolveHashChain @ NavTargetResolutionInternal-dbg.js:479
-(anonymous) @ NavTargetResolutionInternal-dbg.js:437
-u @ jquery-dbg.js:3500
-add @ jquery-dbg.js:3559
-resolveHashFragment @ NavTargetResolutionInternal-dbg.js:412
-(anonymous) @ Shell-dbg.controller.js:1433
-Promise.then
-_resolveHashFragment @ Shell-dbg.controller.js:1432
-_doHashChange @ Shell-dbg.controller.js:1138
-doHashChange @ Shell-dbg.controller.js:1075
-S.treatHashChanged @ ShellNavigationHashChanger-dbg.js:945
-S.initShellNavigation @ ShellNavigationHashChanger-dbg.js:701
-init @ ShellNavigationInternal-dbg.js:358
-(anonymous) @ Shell-dbg.controller.js:314
-(anonymous) @ Shell-dbg.controller.js:336
-Promise.then
-onInit @ Shell-dbg.controller.js:331
-n @ Controller-dbg.js:766
-r.fireEvent @ EventProvider-dbg.js:240
-m.fireEvent @ Element-dbg.js:798
-(anonymous) @ ManagedObjectMetadata-dbg.js:826
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-p @ View-dbg.js:594
-(anonymous) @ View-dbg.js:631
-Promise.then
-g._initCompositeSupport @ View-dbg.js:630
-(anonymous) @ ManagedObject-dbg.js:528
-constructor @ ManagedObject-dbg.js:515
-constructor @ Element-dbg.js:218
-constructor @ Control-dbg.js:187
-c @ Metadata-dbg.js:504
-c @ Metadata-dbg.js:504
-_ @ View-dbg.js:1334
-I @ View-dbg.js:1266
-o @ View-dbg.js:1088
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-(anonymous) @ View-dbg.js:1108
-Promise.then
-g.create @ View-dbg.js:1097
-D.createContent @ Renderer-dbg.js:530
-(anonymous) @ UIComponent-dbg.js:394
-m.runWithPreprocessors @ ManagedObject-dbg.js:1189
-(anonymous) @ UIComponent-dbg.js:393
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-p.init @ UIComponent-dbg.js:392
-init @ Renderer-dbg.js:299
-(anonymous) @ ManagedObject-dbg.js:533
-constructor @ ManagedObject-dbg.js:515
-constructor @ Component-dbg.js:354
-constructor @ UIComponent-dbg.js:89
-c @ Metadata-dbg.js:504
-(anonymous) @ Container-dbg.js:409
-(anonymous) @ ui5loader-dbg.js:2163
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-r @ ui5loader-dbg.js:2159
-(anonymous) @ Container-dbg.js:403
-c @ Container-dbg.js:402
-T.createRenderer @ Container-dbg.js:486
-init @ init.js:284
-await in init
-(anonymous) @ init.js:289
-c @ ui5loader-dbg.js:1984
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-Me @ ui5loader-dbg.js:2022
-(anonymous) @ ui5loader-dbg.js:1374
-process @ ui5loader-dbg.js:1372
-r @ ui5loader-dbg.js:1471
-script
-Le @ ui5loader-dbg.js:1454
-Ie @ ui5loader-dbg.js:1718
-Oe @ ui5loader-dbg.js:1888
-r @ ui5loader-dbg.js:2159
-setTimeout
-$ @ Core-dbg.js:261
-J._executeInitialization @ Core-dbg.js:1414
-J.init @ Core-dbg.js:1297
-(anonymous) @ Core-dbg.js:733
-r @ Core-dbg.js:366
-W.finishTask @ Core-dbg.js:360
-(anonymous) @ Core-dbg.js:756
-(anonymous) @ Core-dbg.js:1128
-Promise.then
-J._boot @ Core-dbg.js:1127
-(anonymous) @ Core-dbg.js:755
-r @ Core-dbg.js:366
-W.finishTask @ Core-dbg.js:360
-P.g.get.name @ Core-dbg.js:824
-Promise.then
-P @ Core-dbg.js:823
-boot @ Core-dbg.js:798
-(anonymous) @ Object-dbg.js:282
-(anonymous) @ sap-ui-core.js:2Understand this error
-Log-dbg.js:497 2025-09-03 09:39:06.695399 Failed to drill-down into ($uid=id-1756885146677-44)/MaterialText, invalid segment: MaterialText - /sap/opu/odata4/sap/zsb_weighingbrige_v4/srvd/sap/zsb_wr_weighingbrige/0001/ZI_WR_WEIGHINGSESSION?$select=IsActiveEntity,Sessionid,Vbeln sap.ui.model.odata.v4.lib._Cache
-u @ Log-dbg.js:497
-n.error @ Log-dbg.js:247
-m @ _Cache-dbg.js:717
-(anonymous) @ _Cache-dbg.js:772
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-y @ _Cache-dbg.js:768
-e @ _Cache-dbg.js:871
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-(anonymous) @ _Cache-dbg.js:825
-f.drillDown @ _Cache-dbg.js:824
-(anonymous) @ _Cache-dbg.js:2737
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-p.fetchValue @ _Cache-dbg.js:2733
-(anonymous) @ ODataListBinding-dbg.js:2132
-Promise.then
-r.then @ SyncPromise-dbg.js:318
-y.fetchValue @ ODataListBinding-dbg.js:2125
-a.fetchValue @ Context-dbg.js:784
-(anonymous) @ ODataPropertyBinding-dbg.js:310
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-l.checkUpdateInternal @ ODataPropertyBinding-dbg.js:287
-l.setContext @ ODataPropertyBinding-dbg.js:707
-(anonymous) @ CompositeBinding-dbg.js:241
-l.setContext @ CompositeBinding-dbg.js:232
-updateBindingContext @ ManagedObjectBindingSupport-dbg.js:549
-m._propagateProperties @ ManagedObject-dbg.js:4336
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m._propagateProperties @ ManagedObject-dbg.js:4338
-m.propagateProperties @ ManagedObject-dbg.js:4312
-m.setBindingContext @ ManagedObject-dbg.js:4059
-_onObjectMatched @ Main.controller.js:52
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-r.fireEvent @ EventProvider-dbg.js:240
-(anonymous) @ Route-dbg.js:178
-Promise.then
-_routeMatched @ Route-dbg.js:134
-(anonymous) @ Route-dbg.js:205
-execute @ signals-dbg.js:93
-dispatch @ signals-dbg.js:384
-dispatch @ signals-dbg.js:187
-parse @ crossroads-dbg.js:186
-parse @ Router-dbg.js:377
-initialize @ Router-dbg.js:451
-(anonymous) @ AppComponent.ts:417
-Promise.then
-o @ AppComponent.ts:413
-(anonymous) @ AppComponent.ts:440
-Promise.then
-t @ AppComponent.ts:438
-await in t
-(anonymous) @ AsyncComponentServiceFactory.ts:50
-Promise.then
-t @ AsyncComponentServiceFactory.ts:47
-constructor @ Service-dbg.js:101
-e @ AsyncComponentServiceFactory.ts:8
-t @ AsyncComponentServiceFactory.ts:61
-(anonymous) @ Component-dbg.js:1235
-(anonymous) @ ui5loader-dbg.js:2163
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-r @ ui5loader-dbg.js:2159
-(anonymous) @ Component-dbg.js:1220
-k.getService @ Component-dbg.js:1218
-(anonymous) @ Component-dbg.js:1296
-D @ Component-dbg.js:1292
-p @ Component-dbg.js:2752
-(anonymous) @ Component-dbg.js:2836
-m.runWithOwner @ ManagedObject-dbg.js:1216
-(anonymous) @ Component-dbg.js:2835
-Promise.then
-(anonymous) @ Component-dbg.js:2794
-Promise.then
-z @ Component-dbg.js:2779
-k.create @ Component-dbg.js:2531
-i @ utils-dbg.js:72
-instantiateComponent @ Ui5ComponentLoader-dbg.js:281
-(anonymous) @ Ui5ComponentLoader-dbg.js:134
-Promise.then
-createComponent @ Ui5ComponentLoader-dbg.js:133
-(anonymous) @ Application-dbg.js:383
-Promise.then
-createComponent @ Application-dbg.js:382
-(anonymous) @ AppLifeCycle-dbg.js:1047
-Promise.then
-E.createComponent @ AppLifeCycle-dbg.js:1046
-(anonymous) @ Shell-dbg.controller.js:1213
-Promise.then
-(anonymous) @ Shell-dbg.controller.js:1212
-Promise.then
-(anonymous) @ Shell-dbg.controller.js:1161
-(anonymous) @ jquery-compat-dbg.js:725
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ Shell-dbg.controller.js:1444
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ NavTargetResolutionInternal-dbg.js:465
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-(anonymous) @ jquery-dbg.js:4013
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ NavTargetResolutionInternal-dbg.js:142
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ ClientSideTargetResolution-dbg.js:243
-Promise.then
-R.resolveHashFragment @ ClientSideTargetResolution-dbg.js:242
-(anonymous) @ NavTargetResolutionInternal-dbg.js:135
-Promise.then
-_resolveHashFragmentClientSideAndFixApplicationType @ NavTargetResolutionInternal-dbg.js:134
-_resolveHashFragmentClientSide @ NavTargetResolutionInternal-dbg.js:118
-(anonymous) @ NavTargetResolutionInternal-dbg.js:70
-_nextResolveHashFragment @ NavTargetResolutionInternal-dbg.js:97
-_nextResolveHashFragment @ NavTargetResolutionInternal-dbg.js:100
-_invokeResolveHashChain @ NavTargetResolutionInternal-dbg.js:479
-(anonymous) @ NavTargetResolutionInternal-dbg.js:437
-u @ jquery-dbg.js:3500
-add @ jquery-dbg.js:3559
-resolveHashFragment @ NavTargetResolutionInternal-dbg.js:412
-(anonymous) @ Shell-dbg.controller.js:1433
-Promise.then
-_resolveHashFragment @ Shell-dbg.controller.js:1432
-_doHashChange @ Shell-dbg.controller.js:1138
-doHashChange @ Shell-dbg.controller.js:1075
-S.treatHashChanged @ ShellNavigationHashChanger-dbg.js:945
-S.initShellNavigation @ ShellNavigationHashChanger-dbg.js:701
-init @ ShellNavigationInternal-dbg.js:358
-(anonymous) @ Shell-dbg.controller.js:314
-(anonymous) @ Shell-dbg.controller.js:336
-Promise.then
-onInit @ Shell-dbg.controller.js:331
-n @ Controller-dbg.js:766
-r.fireEvent @ EventProvider-dbg.js:240
-m.fireEvent @ Element-dbg.js:798
-(anonymous) @ ManagedObjectMetadata-dbg.js:826
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-p @ View-dbg.js:594
-(anonymous) @ View-dbg.js:631
-Promise.then
-g._initCompositeSupport @ View-dbg.js:630
-(anonymous) @ ManagedObject-dbg.js:528
-constructor @ ManagedObject-dbg.js:515
-constructor @ Element-dbg.js:218
-constructor @ Control-dbg.js:187
-c @ Metadata-dbg.js:504
-c @ Metadata-dbg.js:504
-_ @ View-dbg.js:1334
-I @ View-dbg.js:1266
-o @ View-dbg.js:1088
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-(anonymous) @ View-dbg.js:1108
-Promise.then
-g.create @ View-dbg.js:1097
-D.createContent @ Renderer-dbg.js:530
-(anonymous) @ UIComponent-dbg.js:394
-m.runWithPreprocessors @ ManagedObject-dbg.js:1189
-(anonymous) @ UIComponent-dbg.js:393
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-p.init @ UIComponent-dbg.js:392
-init @ Renderer-dbg.js:299
-(anonymous) @ ManagedObject-dbg.js:533
-constructor @ ManagedObject-dbg.js:515
-constructor @ Component-dbg.js:354
-constructor @ UIComponent-dbg.js:89
-c @ Metadata-dbg.js:504
-(anonymous) @ Container-dbg.js:409
-(anonymous) @ ui5loader-dbg.js:2163
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-r @ ui5loader-dbg.js:2159
-(anonymous) @ Container-dbg.js:403
-c @ Container-dbg.js:402
-T.createRenderer @ Container-dbg.js:486
-init @ init.js:284
-await in init
-(anonymous) @ init.js:289
-c @ ui5loader-dbg.js:1984
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-Me @ ui5loader-dbg.js:2022
-(anonymous) @ ui5loader-dbg.js:1374
-process @ ui5loader-dbg.js:1372
-r @ ui5loader-dbg.js:1471
-script
-Le @ ui5loader-dbg.js:1454
-Ie @ ui5loader-dbg.js:1718
-Oe @ ui5loader-dbg.js:1888
-r @ ui5loader-dbg.js:2159
-setTimeout
-$ @ Core-dbg.js:261
-J._executeInitialization @ Core-dbg.js:1414
-J.init @ Core-dbg.js:1297
-(anonymous) @ Core-dbg.js:733
-r @ Core-dbg.js:366
-W.finishTask @ Core-dbg.js:360
-(anonymous) @ Core-dbg.js:756
-(anonymous) @ Core-dbg.js:1128
-Promise.then
-J._boot @ Core-dbg.js:1127
-(anonymous) @ Core-dbg.js:755
-r @ Core-dbg.js:366
-W.finishTask @ Core-dbg.js:360
-P.g.get.name @ Core-dbg.js:824
-Promise.then
-P @ Core-dbg.js:823
-boot @ Core-dbg.js:798
-(anonymous) @ Object-dbg.js:282
-(anonymous) @ sap-ui-core.js:2Understand this error
-Log-dbg.js:497 2025-09-03 09:39:07.714500 Failed to drill-down into (Vbeln='',Sessionid=05744661-bb00-1fe0-a293-224d9167e79c,IsActiveEntity=false)/Material, invalid segment: Material - /sap/opu/odata4/sap/zsb_weighingbrige_v4/srvd/sap/zsb_wr_weighingbrige/0001/ZI_WR_WEIGHINGSESSION?$select=IsActiveEntity,Sessionid,Vbeln sap.ui.model.odata.v4.lib._Cache
-u @ Log-dbg.js:497
-n.error @ Log-dbg.js:247
-m @ _Cache-dbg.js:717
-(anonymous) @ _Cache-dbg.js:772
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-y @ _Cache-dbg.js:768
-e @ _Cache-dbg.js:871
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-(anonymous) @ _Cache-dbg.js:825
-f.drillDown @ _Cache-dbg.js:824
-(anonymous) @ _Cache-dbg.js:2737
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-p.fetchValue @ _Cache-dbg.js:2733
-(anonymous) @ ODataListBinding-dbg.js:2132
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-y.fetchValue @ ODataListBinding-dbg.js:2125
-a.fetchValue @ Context-dbg.js:784
-(anonymous) @ ODataPropertyBinding-dbg.js:310
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-l.checkUpdateInternal @ ODataPropertyBinding-dbg.js:287
-(anonymous) @ Context-dbg.js:155
-a.checkUpdateInternal @ Context-dbg.js:154
-(anonymous) @ ODataListBinding-dbg.js:3939
-Promise.then
-r.then @ SyncPromise-dbg.js:318
-(anonymous) @ ODataListBinding-dbg.js:3933
-(anonymous) @ ODataBinding-dbg.js:1581
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-h.withCache @ ODataBinding-dbg.js:1577
-y.refreshSingle @ ODataListBinding-dbg.js:3856
-(anonymous) @ ODataListBinding-dbg.js:1022
-Promise.then
-r.then @ SyncPromise-dbg.js:318
-y.create @ ODataListBinding-dbg.js:990
-_onObjectMatched @ Main.controller.js:49
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-r.fireEvent @ EventProvider-dbg.js:240
-(anonymous) @ Route-dbg.js:178
-Promise.then
-_routeMatched @ Route-dbg.js:134
-(anonymous) @ Route-dbg.js:205
-execute @ signals-dbg.js:93
-dispatch @ signals-dbg.js:384
-dispatch @ signals-dbg.js:187
-parse @ crossroads-dbg.js:186
-parse @ Router-dbg.js:377
-initialize @ Router-dbg.js:451
-(anonymous) @ AppComponent.ts:417
-Promise.then
-o @ AppComponent.ts:413
-(anonymous) @ AppComponent.ts:440
-Promise.then
-t @ AppComponent.ts:438
-await in t
-(anonymous) @ AsyncComponentServiceFactory.ts:50
-Promise.then
-t @ AsyncComponentServiceFactory.ts:47
-constructor @ Service-dbg.js:101
-e @ AsyncComponentServiceFactory.ts:8
-t @ AsyncComponentServiceFactory.ts:61
-(anonymous) @ Component-dbg.js:1235
-(anonymous) @ ui5loader-dbg.js:2163
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-r @ ui5loader-dbg.js:2159
-(anonymous) @ Component-dbg.js:1220
-k.getService @ Component-dbg.js:1218
-(anonymous) @ Component-dbg.js:1296
-D @ Component-dbg.js:1292
-p @ Component-dbg.js:2752
-(anonymous) @ Component-dbg.js:2836
-m.runWithOwner @ ManagedObject-dbg.js:1216
-(anonymous) @ Component-dbg.js:2835
-Promise.then
-(anonymous) @ Component-dbg.js:2794
-Promise.then
-z @ Component-dbg.js:2779
-k.create @ Component-dbg.js:2531
-i @ utils-dbg.js:72
-instantiateComponent @ Ui5ComponentLoader-dbg.js:281
-(anonymous) @ Ui5ComponentLoader-dbg.js:134
-Promise.then
-createComponent @ Ui5ComponentLoader-dbg.js:133
-(anonymous) @ Application-dbg.js:383
-Promise.then
-createComponent @ Application-dbg.js:382
-(anonymous) @ AppLifeCycle-dbg.js:1047
-Promise.then
-E.createComponent @ AppLifeCycle-dbg.js:1046
-(anonymous) @ Shell-dbg.controller.js:1213
-Promise.then
-(anonymous) @ Shell-dbg.controller.js:1212
-Promise.then
-(anonymous) @ Shell-dbg.controller.js:1161
-(anonymous) @ jquery-compat-dbg.js:725
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ Shell-dbg.controller.js:1444
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ NavTargetResolutionInternal-dbg.js:465
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-(anonymous) @ jquery-dbg.js:4013
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ NavTargetResolutionInternal-dbg.js:142
-u @ jquery-dbg.js:3500
-fireWith @ jquery-dbg.js:3630
-t.resolve @ jquery-compat-dbg.js:764
-(anonymous) @ ClientSideTargetResolution-dbg.js:243
-Promise.then
-R.resolveHashFragment @ ClientSideTargetResolution-dbg.js:242
-(anonymous) @ NavTargetResolutionInternal-dbg.js:135
-Promise.then
-_resolveHashFragmentClientSideAndFixApplicationType @ NavTargetResolutionInternal-dbg.js:134
-_resolveHashFragmentClientSide @ NavTargetResolutionInternal-dbg.js:118
-(anonymous) @ NavTargetResolutionInternal-dbg.js:70
-_nextResolveHashFragment @ NavTargetResolutionInternal-dbg.js:97
-_nextResolveHashFragment @ NavTargetResolutionInternal-dbg.js:100
-_invokeResolveHashChain @ NavTargetResolutionInternal-dbg.js:479
-(anonymous) @ NavTargetResolutionInternal-dbg.js:437
-u @ jquery-dbg.js:3500
-add @ jquery-dbg.js:3559
-resolveHashFragment @ NavTargetResolutionInternal-dbg.js:412
-(anonymous) @ Shell-dbg.controller.js:1433
-Promise.then
-_resolveHashFragment @ Shell-dbg.controller.js:1432
-_doHashChange @ Shell-dbg.controller.js:1138
-doHashChange @ Shell-dbg.controller.js:1075
-S.treatHashChanged @ ShellNavigationHashChanger-dbg.js:945
-S.initShellNavigation @ ShellNavigationHashChanger-dbg.js:701
-init @ ShellNavigationInternal-dbg.js:358
-(anonymous) @ Shell-dbg.controller.js:314
-(anonymous) @ Shell-dbg.controller.js:336
-Promise.then
-onInit @ Shell-dbg.controller.js:331
-n @ Controller-dbg.js:766
-r.fireEvent @ EventProvider-dbg.js:240
-m.fireEvent @ Element-dbg.js:798
-(anonymous) @ ManagedObjectMetadata-dbg.js:826
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-p @ View-dbg.js:594
-(anonymous) @ View-dbg.js:631
-Promise.then
-g._initCompositeSupport @ View-dbg.js:630
-(anonymous) @ ManagedObject-dbg.js:528
-constructor @ ManagedObject-dbg.js:515
-constructor @ Element-dbg.js:218
-constructor @ Control-dbg.js:187
-c @ Metadata-dbg.js:504
-c @ Metadata-dbg.js:504
-_ @ View-dbg.js:1334
-I @ View-dbg.js:1266
-o @ View-dbg.js:1088
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-(anonymous) @ View-dbg.js:1108
-Promise.then
-g.create @ View-dbg.js:1097
-D.createContent @ Renderer-dbg.js:530
-(anonymous) @ UIComponent-dbg.js:394
-m.runWithPreprocessors @ ManagedObject-dbg.js:1189
-(anonymous) @ UIComponent-dbg.js:393
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-p.init @ UIComponent-dbg.js:392
-init @ Renderer-dbg.js:299
-(anonymous) @ ManagedObject-dbg.js:533
-constructor @ ManagedObject-dbg.js:515
-constructor @ Component-dbg.js:354
-constructor @ UIComponent-dbg.js:89
-c @ Metadata-dbg.js:504
-(anonymous) @ Container-dbg.js:409
-(anonymous) @ ui5loader-dbg.js:2163
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-r @ ui5loader-dbg.js:2159
-(anonymous) @ Container-dbg.js:403
-c @ Container-dbg.js:402
-T.createRenderer @ Container-dbg.js:486
-init @ init.js:284
-await in init
-(anonymous) @ init.js:289
-c @ ui5loader-dbg.js:1984
-Promise.then
-Oe @ ui5loader-dbg.js:1898
-Me @ ui5loader-dbg.js:2022
-(anonymous) @ ui5loader-dbg.js:1374
-process @ ui5loader-dbg.js:1372
-r @ ui5loader-dbg.js:1471
-script
-Le @ ui5loader-dbg.js:1454
-Ie @ ui5loader-dbg.js:1718
-Oe @ ui5loader-dbg.js:1888
-r @ ui5loader-dbg.js:2159
-setTimeout
-$ @ Core-dbg.js:261
-J._executeInitialization @ Core-dbg.js:1414
-J.init @ Core-dbg.js:1297
-(anonymous) @ Core-dbg.js:733
-r @ Core-dbg.js:366
-W.finishTask @ Core-dbg.js:360
-(anonymous) @ Core-dbg.js:756
-(anonymous) @ Core-dbg.js:1128
-Promise.then
-J._boot @ Core-dbg.js:1127
-(anonymous) @ Core-dbg.js:755
-r @ Core-dbg.js:366
-W.finishTask @ Core-dbg.js:360
-P.g.get.name @ Core-dbg.js:824
-Promise.then
-P @ Core-dbg.js:823
-boot @ Core-dbg.js:798
-(anonymous) @ Object-dbg.js:282
-(anonymous) @ sap-ui-core.js:2Understand this error
-Log-dbg.js:497 2025-09-03 09:39:07.715599 Failed to drill-down into (Vbeln='',Sessionid=05744661-bb00-1fe0-a293-224d9167e79c,IsActiveEntity=false)/MaterialText, invalid segment: MaterialText - /sap/opu/odata4/sap/zsb_weighingbrige_v4/srvd/sap/zsb_wr_weighingbrige/0001/ZI_WR_WEIGHINGSESSION?$select=IsActiveEntity,Sessionid,Vbeln sap.ui.model.odata.v4.lib._Cache
+sap.ui.define([
+    "sap/fe/core/PageController",
+    "sap/m/MessageToast",
+    "sap/ui/core/Messaging",
+    "sap/m/MessageBox",
+    "sap/ui/core/message/Message",
+    "sap/ui/core/library",
+    "sap/ui/model/Filter",
+    "sap/ui/model/FilterOperator",
+    "sap/m/Button"
+],
+    function (PageController, MessageToast, Messaging, MessageBox, Message, coreLibrary, Filter, FilterOperator, Button) {
+        "use strict";
+        return PageController.extend("com.example.weighingsessionwizard.controller.CustomPage", {
+            formatter: {
+                concatMaterialText: function (sMaterial, sMaterialText) {
+                    return (sMaterial || '') + ' - ' + (sMaterialText || '');
+                }
+            },
+
+            onInit: function () {
+               var superResult =  PageController.prototype.onInit.apply(this);
+
+                // Messaging
+                Messaging.registerObject(this.getView(), true);
+                this.getView().setModel(Messaging.getMessageModel(), "message");
+
+                // Wizard
+                this.oWizard = this.byId("weighingWizard");
+
+                // Router
+                var oRouter = this.getAppComponent().getRouter();
+                oRouter.getRoute("ZI_WR_WEIGHINGSESSIONMain").attachPatternMatched(this._onObjectMatched, this);
+
+                this._enterWired = false; // guard so we wire Enter only once
+                this._isFromScan = true;
+                return superResult
+            },
+
+            generateUUID: function () {
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            },
+
+            _onObjectMatched: function () {
+                var oModel = this.getView().getModel();
+                var oListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION");
+                var oNewContext = oListBinding.create({
+                    Sessionid: this.generateUUID()
+                });
+                this.getView().setBindingContext(oNewContext);
+                oNewContext.requestProperty(["Vbeln", "Grossweight", "Grossweightunit", "Sessionid"]).catch(function () { });
+            },
+
+            // === ENTER wiring (ADDED) ===
+            _setupEnterToNext: function () {
+                if (this._enterWired) { return; }
+                this._enterWired = true;
+
+                // Step 1: Enter on Contract input -> reuse existing onNextStep
+                var oIp = this.byId("step1InputContract");
+                if (oIp) {
+                    oIp.addEventDelegate({
+                        onsapenter: function (oEvent) {
+                            oEvent.preventDefault();
+                            oEvent.stopPropagation();
+                            this.onNextStep();
+                        }.bind(this)
+                    }, oIp);
+                }
+
+                // Step 3: Enter on Gross/Tare inputs -> compute & advance
+                var aStep3Ids = ["ipGrossWeight", "ipTareWeight"];
+                aStep3Ids.forEach(function (sId) {
+                    var oCtrl = this.byId(sId);
+                    if (oCtrl) {
+                        oCtrl.addEventDelegate({
+                            onsapenter: function (oEvent) {
+                                oEvent.preventDefault();
+                                oEvent.stopPropagation();
+                                this._onStep3Enter();
+                            }.bind(this)
+                        }, oCtrl);
+                    }
+                }.bind(this));
+            },
+
+            // Step 3 Enter handler (ADDED)
+            _onStep3Enter: function () {
+                var oGW = this.byId("ipGrossWeight");
+                var oTW = this.byId("ipTareWeight");
+                var oNW = this.byId("ipNetWeight");
+
+                var gw = oGW ? parseFloat(oGW.getValue()) : NaN;
+                var tw = oTW ? parseFloat(oTW.getValue()) : NaN;
+
+                if (isNaN(gw) || isNaN(tw)) {
+                    MessageToast.show("Enter valid numbers for Gross and Tare.");
+                    return;
+                }
+
+                // persist to bound context so rebinds won't clear
+                var oCtx = this.getView().getBindingContext();
+                if (oCtx) {
+                    oCtx.setProperty("Grossweight", gw);
+                    oCtx.setProperty("TareWeight", tw);
+                    oCtx.setProperty("NetWeight", gw - tw);
+                }
+                if (oNW) { oNW.setValue(gw - tw); }
+
+                this.oWizard.validateStep(this.byId("step3"));
+                this.oWizard.nextStep();
+            },
+
+            onNextStep: function () {
+                var oContext = this.getView().getBindingContext();
+                var oCurrentStep = this.oWizard.getCurrentStep();
+                var sStepId = oCurrentStep.split("--").pop();
+
+                if (sStepId === "step1") {
+                    var sContractId = this.byId("step1InputContract").getValue();
+                    if (!sContractId) {
+                        MessageToast.show("Please enter a Contract ID.");
+                        return;
+                    }
+                    if (!oContext) {
+                        MessageToast.show("No session context available.");
+                        return;
+                    }
+
+                    // Pad with leading zeros for internal format
+                    sContractId = sContractId.padStart(10, '0');
+
+                    // write user entry to model before action
+                    oContext.setProperty("Vbeln", sContractId);
+
+                    // FE EditFlow bound action call
+                    this.editFlow.invokeAction("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)", {
+                        model: this.getView().getModel(),
+                        contexts: oContext,
+                        parameterValues: [{ name: "vbeln", value: sContractId }],
+                        skipParameterDialog: true
+                    }).then(function (oResult) {
+                        // optional: surface success messages
+                        var aMsgs = Messaging.getMessageModel().getData() || [];
+                        var aUnboundSuccess = aMsgs.filter(function (oMsg) {
+                            return oMsg.getTarget && oMsg.getTarget() === "" &&
+                                oMsg.getType && oMsg.getType() === "Success";
+                        });
+                        if (aUnboundSuccess.length > 0) {
+                            MessageBox.show(aUnboundSuccess[0].getMessage(), {
+                                title: "Success"
+                            });
+                        }
+                        // Bind step 2 dynamically
+                        var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')";
+                        var oVBox = this.byId("step2LtContainer");
+                        var oTemplate = new Button({
+                            text: {
+                                parts: [
+                                    {path: 'Material', targetType: 'any'},
+                                    {path: 'MaterialText', targetType: 'any'}
+                                ],
+                                formatter: '.formatter.concatMaterialText'
+                            },
+                            press: [this.onChooseLoadType, this],
+                            width: "100%",
+                            "class": "loadTypeBtn"
+                        });
+                        oVBox.bindItems({
+                            path: sPath,
+                            parameters: {
+                                $select: "SalesOrder,SalesOrderitem,Material,MaterialText,Language",
+                                $orderby: "SalesOrder,SalesOrderitem"
+                            },
+                            template: oTemplate,
+                            templateShareable: false
+                        });
+                        // advance wizard
+                        this._clearContractInlineError();
+                        this.oWizard.validateStep(this.byId("step1"));
+                        
+                        this.oWizard.nextStep();
+
+                    }.bind(this)).catch(function (oError) {
+
+                        // ✅ inline on the field instead:
+                        this._setContractInlineError("Invalid Contract. Please try again.");
+                        // MessageBox.error("Invalid Contract. Please try again.");
+                    }.bind(this));
+                }
+            },
+            onScanCard: function () {
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.focus();  // Focus the input so the scanner's "keystrokes" go here
+                    //oInput.setValue("");  // Optional: Clear any existing value to avoid appending
+                    this._isFromScan = true;
+                    MessageToast.show("Please scan the RFID card now.");  // User prompt (shows a toast message)
+                }
+            },
+            onContractChange: function (oEvent) {
+                var oInput = oEvent.getSource();
+                var sValue = oInput.getValue();
+                if (sValue.length > 10) {
+                    oInput.setValueState("Error");
+                    oInput.setValueStateText("Contract ID cannot exceed 10 characters.");
+                } else {
+                    oInput.setValueState("None");
+                }
+            },
+            onAfterRendering: function () {
+                var oIp = this.byId("step1InputContract");
+                if (oIp) { oIp.focus(); }
+                this._setupEnterToNext(); // wire Enter once
+            },
+
+            onChooseLoadType: function (oEvent) {
+                const sLoadType = oEvent.getSource().getBindingContext().getProperty("Material");
+                const oSessionCtx = this.getView().getBindingContext();
+                if (!oSessionCtx) { return; }
+
+                oSessionCtx.setProperty("LoadType", sLoadType);
+                this.oWizard.validateStep(this.byId("step2"));
+                this.oWizard.nextStep();
+            },
+
+            onStepActivate: function () { /* optional per-step hooks */ },
+            validateStep: function () { /* return true; */ },
+
+            onCaptureWeight: function () {
+                this.getView().getModel().setProperty("/Grossweight", 1000);
+            },
+
+            onCaptureFinalWeight: function () {
+                var oModel = this.getView().getModel();
+                var fGross = oModel.getProperty("/Grossweight");
+                var fTare = oModel.getProperty("/TareWeight");
+                oModel.setProperty("/NetWeight", fGross - fTare);
+            },
+
+            onSubmit: function () {
+                this.getView().getModel().submitChanges({
+                    success: function () { MessageToast.show("Weighing session submitted."); }
+                });
+            },
+
+            _setContractInlineError: function (sText) {
+                // Inline on the input
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.setValueState("Error");
+                    oInput.setValueStateText(sText);
+                    oInput.focus();
+                }
+
+                // Optional: also add a field-bound message (shows in FE message popover / keeps state on rebind)
+                var oCtx = this.getView().getBindingContext();
+                var oModel = this.getView().getModel();
+                if (oCtx && oModel) {
+                    var sTarget = oCtx.getPath() + "/Vbeln"; // property bound to the input
+                    var aAll = Messaging.getMessageModel().getData() || [];
+                    var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+                    if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
+                    Messaging.addMessages(new Message({
+                        message: sText,
+                        type: coreLibrary.MessageType.Error,
+                        target: sTarget,
+                        processor: oModel
+                    }));
+                }
+            },
+
+            _clearContractInlineError: function () {
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.setValueState("None");
+                    oInput.setValueStateText("");
+                }
+                var oCtx = this.getView().getBindingContext();
+                if (oCtx) {
+                    var sTarget = oCtx.getPath() + "/Vbeln";
+                    var aAll = Messaging.getMessageModel().getData() || [];
+                    var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+                    if (aForField.length) { Messaging.removeMessages(aForField); }
+                }
+            },
+
+            onPrintSlip: function () { },
+            onWizardComplete: function () { }
+        });
+    });
