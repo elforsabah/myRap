@@ -1,11 +1,3 @@
-sap.ui.define([
-  "sap/m/MessageToast",
-  "sap/m/MessageBox",
-  "sap/base/Log"
-], function (MessageToast, MessageBox, Log) {
-  "use strict";
-
-  return {
     onNextStep: function () {
       var oContext = this.getView().getBindingContext();
       var oCurrentStep = this.oWizard.getCurrentStep();
@@ -98,6 +90,3 @@ sap.ui.define([
           }.bind(this));
       }
     }
-  };
-});
-
