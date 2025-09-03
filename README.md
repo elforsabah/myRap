@@ -23,6 +23,9 @@ sap.ui.define([
                 // Messaging
                 Messaging.registerObject(this.getView(), true);
                 this.getView().setModel(Messaging.getMessageModel(), "message");
+                // Attach to message model change to intercept and handle messages
+                this.oMessageModel = this.getView().getModel("message");
+                this.oMessageModel.attachChange(this._onMessageChange, this);
                 // Wizard
                 this.oWizard = this.byId("weighingWizard");
                 // Router
@@ -32,6 +35,27 @@ sap.ui.define([
                 this._isFromScan = true;
                 // Local model for unbound inputs
                 this.getView().setModel(new JSONModel({ contractId: "" }), "local");
+            },
+            _onMessageChange: function (oEvent) {
+                var aMessages = this.oMessageModel.getData() || [];
+                var aErrors = aMessages.filter(function (oMsg) {
+                    return oMsg.getType() === "Error";
+                });
+                if (aErrors.length > 0) {
+                    // Remove error messages to prevent popup/dialog
+                    Messaging.removeMessages(aErrors);
+                    // Set inline error using the message text (if related to contract)
+                    var sErrorText = aErrors[0].getMessage() || "Invalid Contract. Please try again.";
+                    this._setContractInlineError(sErrorText);
+                }
+                var aSuccesses = aMessages.filter(function (oMsg) {
+                    return oMsg.getType() === "Success";
+                });
+                if (aSuccesses.length > 0) {
+                    // Optionally handle success messages, e.g., show toast and remove
+                    MessageToast.show(aSuccesses[0].getMessage());
+                    Messaging.removeMessages(aSuccesses);
+                }
             },
             _onObjectMatched: function () {
                 var oModel = this.getView().getModel();
@@ -109,34 +133,11 @@ sap.ui.define([
                     }
                     // Pad with leading zeros for internal format
                     sContractId = sContractId.padStart(10, '0');
-                    // FE EditFlow bound action call (no client-side setProperty to avoid PATCH/lock error)
-                    this.editFlow.invokeAction("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)", {
-                        model: this.getView().getModel(),
-                        contexts: oContext,
-                        parameterValues: [{ name: "vbeln", value: sContractId }],
-                        skipParameterDialog: true
-                    }).then(function (oResult) {
-                        // optional: surface success messages
-                        var aMsgs = Messaging.getMessageModel().getData() || [];
-                        var aErrors = aMsgs.filter(function (oMsg) {
-                            return oMsg.getType && oMsg.getType() === "Error";
-                        });
-                        if (aErrors.length > 0) {
-                            this._setContractInlineError("Invalid Contract. Please try again."); // Or use aErrors[0].getMessage() for dynamic
-                            Messaging.removeMessages(aErrors); // Remove to prevent popup
-                            return; // Don't proceed
-                        }
-                        var aUnboundSuccess = aMsgs.filter(function (oMsg) {
-                            return oMsg.getTarget && oMsg.getTarget() === "" &&
-                                oMsg.getType && oMsg.getType() === "Success";
-                        });
-                        if (aUnboundSuccess.length > 0) {
-                            // Optionally show success as toast instead of box to avoid popup
-                            MessageToast.show(aUnboundSuccess[0].getMessage());
-                            // Or comment out to hide
-                            // MessageBox.show(aUnboundSuccess[0].getMessage(), { title: "Success" });
-                            Messaging.removeMessages(aUnboundSuccess); // Optional, if you don't want them in message popover
-                        }
+                    // Manual bound action call to avoid automatic popups from editFlow
+                    var oModel = this.getView().getModel();
+                    var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)", oContext);
+                    oAction.invoke({ vbeln: sContractId }).then(function (oResult) {
+                        // Messages are handled in _onMessageChange, so no need for additional checks here
                         // Refresh context to pull server-set Vbeln and any other updates
                         oContext.refresh();
                         // Bind step 2 dynamically
@@ -169,10 +170,8 @@ sap.ui.define([
                        
                         this.oWizard.nextStep();
                     }.bind(this)).catch(function (oError) {
-                        // Technical errors
+                        // Technical errors or action failures (messages handled in _onMessageChange)
                         this._setContractInlineError("Invalid Contract. Please try again.");
-                        // Optionally log oError or show toast
-                        MessageToast.show("Technical error occurred.");
                     }.bind(this));
                 }
             },
