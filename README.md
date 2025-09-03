@@ -1,128 +1,77 @@
-Log-dbg.js:497 2025-09-03 19:18:30.869300 Failed to request side effects - Error: HTTP request was not processed because the previous request failed
-    at _Requestor-dbg.js:1361:21
-    at Array.forEach (<anonymous>)
-    at a (_Requestor-dbg.js:1353:15)
-    at /resources/sap/ui/core/library-preload.js:2352:12323 sap.ui.model.odata.v4.ODataListBinding
-u @ Log-dbg.js:497
-n.error @ Log-dbg.js:247
-k.reportError @ ODataModel-dbg.js:2507
-(anonymous) @ ODataListBinding-dbg.js:4189
-Promise.catch
-f @ ODataListBinding-dbg.js:4188
-y.requestSideEffects @ ODataListBinding-dbg.js:4232
-a.requestSideEffectsInternal @ Context-dbg.js:2004
-(anonymous) @ Context-dbg.js:1925
-(anonymous) @ SyncPromise-dbg.js:314
-e @ SyncPromise-dbg.js:63
-r @ SyncPromise-dbg.js:230
-r.then @ SyncPromise-dbg.js:313
-a.requestSideEffects @ Context-dbg.js:1920
-t @ SideEffectsServiceFactory.ts:552
-z @ facade.ts:2228
-S @ facade.ts:1965
-t @ facade.ts:2038
-(anonymous) @ facade.ts:2054
-await in (anonymous)
-T @ facade.ts:2052
-(anonymous) @ facade.ts:2074
-K @ facade.ts:1883
-(anonymous) @ facade.ts:530
-R @ facade.ts:318
-B @ facade.ts:188
-await in B
-e @ TransactionHelper.ts:1053
-t @ EditFlow.ts:2187
-await in t
-(anonymous) @ ControllerExtension-dbg.js:105
-onNextStep @ Main.controller.js:128
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-(anonymous) @ Main.controller.js:60
-r @ Element-dbg.js:345
-m._handleEvent @ Element-dbg.js:365
-N._handleEvent @ UIArea-dbg.js:1056
-dispatch @ jquery-dbg.js:5430
-y.handle @ jquery-dbg.js:5234Understand this error
-Log-dbg.js:497 2025-09-03 19:18:30.869800 Failed to invoke /ZI_WR_WEIGHINGSESSION(Sessionid=05744661-bb00-1fe0-a29d-3f3da2a1a79c,IsActiveEntity=false)/com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...) - Edit not possible: locking of entity ZI_WR_WEIGHINGSESSION failed
-Error: Communication error: 423 REASON_423
-    at Object.createError (_Helper-dbg.js:609:15)
-    at _Requestor-dbg.js:1371:23
-    at Array.forEach (<anonymous>)
-    at a (_Requestor-dbg.js:1353:15)
-    at /resources/sap/ui/core/library-preload.js:2352:12323 sap.ui.model.odata.v4.ODataContextBinding
-u @ Log-dbg.js:497
-n.error @ Log-dbg.js:247
-k.reportError @ ODataModel-dbg.js:2507
-(anonymous) @ ODataContextBinding-dbg.js:277
-Promise.then
-r.then @ SyncPromise-dbg.js:318
-r.catch @ SyncPromise-dbg.js:255
-l._invoke @ ODataContextBinding-dbg.js:275
-l.invoke @ ODataContextBinding-dbg.js:1415
-W @ facade.ts:1737
-S @ facade.ts:1949
-t @ facade.ts:2038
-(anonymous) @ facade.ts:2054
-await in (anonymous)
-T @ facade.ts:2052
-(anonymous) @ facade.ts:2074
-K @ facade.ts:1883
-(anonymous) @ facade.ts:530
-R @ facade.ts:318
-B @ facade.ts:188
-await in B
-e @ TransactionHelper.ts:1053
-t @ EditFlow.ts:2187
-await in t
-(anonymous) @ ControllerExtension-dbg.js:105
-onNextStep @ Main.controller.js:128
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-(anonymous) @ Main.controller.js:60
-r @ Element-dbg.js:345
-m._handleEvent @ Element-dbg.js:365
-N._handleEvent @ UIArea-dbg.js:1056
-dispatch @ jquery-dbg.js:5430
-y.handle @ jquery-dbg.js:5234Understand this error
-Log-dbg.js:497 2025-09-03 19:18:30.871600 Error while executing action  -  
-u @ Log-dbg.js:497
-n.error @ Log-dbg.js:247
-(anonymous) @ facade.ts:1829
-Promise.catch
-q @ facade.ts:1828
-(anonymous) @ facade.ts:1893
-K @ facade.ts:1883
-(anonymous) @ facade.ts:530
-R @ facade.ts:318
-B @ facade.ts:188
-await in B
-e @ TransactionHelper.ts:1053
-t @ EditFlow.ts:2187
-await in t
-(anonymous) @ ControllerExtension-dbg.js:105
-onNextStep @ Main.controller.js:128
-(anonymous) @ PageController.ts:108
-m.runWithOwner @ ManagedObject-dbg.js:1216
-k.runAsOwner @ Component-dbg.js:800
-ye @ PageController.ts:108
-(anonymous) @ Main.controller.js:60
-r @ Element-dbg.js:345
-m._handleEvent @ Element-dbg.js:365
-N._handleEvent @ UIArea-dbg.js:1056
-dispatch @ jquery-dbg.js:5430
-y.handle @ jquery-dbg.js:5234Understand this error
-Log-dbg.js:497 2025-09-03 19:18:30.871800 Error while requesting side effects - Error: HTTP request was not processed because the previous request failed  
- Error: HTTP request was not processed because the previous request failed
-    at _Requestor-dbg.js:1361:21
-    at Array.forEach (<anonymous>)
-    at a (_Requestor-dbg.js:1353:15)
-    at _Requestor-dbg.js:1422:5Caused by: Error: Edit not possible: locking of entity ZI_WR_WEIGHINGSESSION failed
-    at Object.createError (_Helper-dbg.js:609:15)
-    at _Requestor-dbg.js:1371:23
-    at Array.forEach (<anonymous>)
-    at a (_Requestor-dbg.js:1353:15)
-    at _Requestor-dbg.js:1422:5
+onNextStep: function () {
+  var oView    = this.getView();
+  var oModel   = oView.getModel();
+  var oWizard  = this.oWizard;
+  var oContext = oView.getBindingContext();
+
+  // Read current step (optional; keep if you branch per step)
+  var oCurrentStep = oWizard && oWizard.getCurrentStep && oWizard.getCurrentStep();
+  var sStepId = oCurrentStep && oCurrentStep.getId ? oCurrentStep.getId().split("--").pop() : "";
+
+  // Example: step 1 expects a contract number
+  if (sStepId === "step1") {
+    var sContractRaw = this.byId("step1InputContract").getValue();
+    if (!sContractRaw) {
+      sap.m.MessageToast.show("Please enter a Contract ID.");
+      return; // stop here
+    }
+  }
+
+  // Ensure we have a context; if not, create via FE to keep things consistent
+  var pEnsureContext = oContext
+    ? Promise.resolve(oContext)
+    : this.editFlow.createDocument().then(function (oNewCtx) {
+        oView.setBindingContext(oNewCtx);
+        return oNewCtx;
+      });
+
+  return pEnsureContext
+    .then(function (oCtx) {
+      // wait until POST finished (transient -> persisted draft)
+      return oCtx.created().then(function () { return oCtx; });
+    })
+    .then(function (oCtx) {
+      // acquire RAP draft lock (enter edit mode)
+      return this.editFlow.editDocument(oCtx).then(function () { return oCtx; }.bind(this));
+    }.bind(this))
+    .then(function (oCtx) {
+      // Prepare parameters
+      var sContractId = this.byId("step1InputContract").getValue().padStart(10, "0");
+
+      // Invoke the bound action on the context
+      return this.editFlow.invokeAction(
+        "com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard",
+        {
+          model: oModel,
+          contexts: [oCtx],
+          parameterValues: [{ name: "vbeln", value: sContractId }],
+          skipParameterDialog: true
+        }
+      ).then(function () { return oCtx; });
+    }.bind(this))
+    .then(function (oCtx) {
+      // OPTIONAL: refresh fields impacted by the action (adjust paths to your entity)
+      return oCtx.requestSideEffects([{
+        $PropertyPath: [
+          "Vbeln",             // example
+          "LoadType",          // example
+          "CardId"             // example
+        ]
+      }]).catch(function () {
+        // Side effects may be skipped if backend doesn’t support them—don’t block UX
+      }).then(function () { return oCtx; });
+    })
+    .then(function () {
+      sap.m.MessageToast.show("Card identified.");
+      if (oWizard && oWizard.nextStep) {
+        oWizard.nextStep();
+      }
+    })
+    .catch(function (oError) {
+      // Show a nice error; MessageManager will also have backend details if provided
+      var sMsg = (oError && oError.message) || String(oError) || "Unknown error";
+      sap.ui.require(["sap/m/MessageBox"], function (MessageBox) {
+        MessageBox.error(sMsg);
+      });
+    });
+}
