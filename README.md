@@ -1,7 +1,17 @@
-Log-dbg.js:499 2025-09-03 02:47:52.265600 EventProvider.fireEvent: Event Listener for event 'patternMatched' failed during execution. - TypeError: Cannot read properties of undefined (reading 'creationMode')  
- TypeError: Cannot read properties of undefined (reading 'creationMode')
-    at o.e [as createDocument] (EditFlow.ts:433:18)
-    at o.<anonymous> (ControllerExtension-dbg.js:104:29)
-    at c._onObjectMatched (Main.controller.js:21:40)
-    at r.fireEvent (EventProvider-dbg.js:241:38)
-    at constructor.<anonymous> (Route-dbg.js:178:11)
+_onObjectMatched: async function () {
+  try {
+    const oModel = this.getView().getModel();
+    const oListBinding = oModel.bindList("/ZI_WR_WEIGHBRIDGE");
+
+    // ✅ FE v4: pass all 3 args; give params with creationMode (pick one)
+    const oCtx = await this.editFlow.createDocument(
+      oListBinding,        // collection binding
+      {},                  // optional initial values
+      { creationMode: "NewPage" } // or "Inline" / "Dialog" depending on UX
+    );
+
+    this.getView().setBindingContext(oCtx);
+  } catch (e) {
+    sap.m.MessageBox.error(e.message || "Failed to create draft");
+  }
+}
