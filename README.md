@@ -136,7 +136,7 @@ sap.ui.define([
                     // Manual bound action call to avoid automatic popups from editFlow
                     var oModel = this.getView().getModel();
                     var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)", oContext);
-                    oAction.setParameter("vbeln", sContractId);
+                    oAction.setParameter("Vbeln", sContractId);
                     oAction.invoke().then(function (oResult) {
                         // Messages are handled in _onMessageChange, so no need for additional checks here
                         // Refresh context to pull server-set Vbeln and any other updates
