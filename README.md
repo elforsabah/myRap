@@ -1,5 +1,15 @@
-Log-dbg.js:497 2025-09-03 05:53:28.464599 (dependency of 'com/prologa/zwrweighbrige/ext/main/Main.controller.js') Importing the pseudo module 'sap/ui/core/MessageType' is deprecated. To access the type 'sap.ui.core.MessageType', please import 'sap/ui/core/library'. You can then reference this type via the library's module export. For more information, see documentation under 'Best Practices for Loading Modules'. -  sap.ui.ModuleSystem
+<WizardStep id="step3" title="Weighing">
+  <HBox id="step3HBoxOuter" width="100%" justifyContent="Center">
+    <VBox id="step3Rail" width="36rem">
+      <!-- TODO: weighing content -->
+    </VBox>
+  </HBox>
+</WizardStep>
 
-Log-dbg.js:497 2025-09-03 05:53:28.506899 [FUTURE FATAL] The registered Event Listener 'onInit' must not have a return value. - com.example.weighingsessionwizard.controller.CustomPage 
-Log-dbg.js:497 2025-09-03 05:53:28.521199 The Wizard is supposed to handle from 3 to 8 steps. -  
-﻿
+<WizardStep id="step4" title="Finish & Print">
+  <HBox id="step4HBoxOuter" width="100%" justifyContent="Center">
+    <VBox id="step4Rail" width="36rem">
+      <!-- TODO: print/summary content -->
+    </VBox>
+  </HBox>
+</WizardStep>
