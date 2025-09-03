@@ -25,7 +25,7 @@ sap.ui.define([
                 this.getView().setModel(Messaging.getMessageModel(), "message");
                 // Attach to message model change to intercept and handle messages
                 this.oMessageModel = this.getView().getModel("message");
-                this.oMessageModel.attachChange(this._onMessageChange, this);
+                this.oMessageModel.attachPropertyChange(this._onMessageChange, this);
                 // Wizard
                 this.oWizard = this.byId("weighingWizard");
                 // Router
