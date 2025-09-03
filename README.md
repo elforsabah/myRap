@@ -1,48 +1,74 @@
-DATA lt_success_keys TYPE TABLE FOR READ IMPORT zi_wr_weighingsession.
-  LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
-    " Validate contract existence (adjust table name if not VBAK)
-    SELECT SINGLE @abap_true FROM vbak
-      WHERE vbeln = @<ls_key>-%param-vbeln
-      INTO @DATA(lv_exists).
-    IF sy-subrc = 0.
-      " ✓ Valid: report success message only (no update)
-      APPEND VALUE #(
-        %tky = <ls_key>-%tky
-        %msg = new_message(
-                 id = 'ZWR_WEIGHBRIGE_MESS'
-                 number = '000'
-                 severity = if_abap_behv_message=>severity-success
-                 v1 = 'Contract is valid' ) )
-        TO reported-weighingsession.
-
-      " Collect for result
-      APPEND VALUE #( %tky = <ls_key>-%tky ) TO lt_success_keys.
-    ELSE.
-      " ✗ Invalid: report bound error and fail the action
-      APPEND VALUE #(
-        %tky = <ls_key>-%tky
-        %msg = new_message(
-                 id = 'ZWR_WEIGHBRIGE_MESS'
-                 number = '001'
-                 severity = if_abap_behv_message=>severity-error
-                 v1 = <ls_key>-%param-vbeln )
-        %element-vbeln = if_abap_behv=>mk-on  " Bind message to Vbeln field
-      ) TO reported-weighingsession.
-
-      " Fail the function (set failed to prevent result for this key)
-      APPEND VALUE #(
-        %tky = <ls_key>-%tky
-        %fail-cause = if_abap_behv=>cause-unspecific
-      ) TO failed-weighingsession.
-    ENDIF.
-  ENDLOOP.
-
-  " Read and return full data for successful instances
-  IF lt_success_keys IS NOT INITIAL.
-    READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-      ENTITY WeighingSession
-      ALL FIELDS WITH lt_success_keys
-      RESULT DATA(lt_result)
-      FAILED DATA(lt_read_failed).
-    result = CORRESPONDING #( lt_result ).
-  ENDIF.
+onNextStep: function () {
+    var oContext = this.getView().getBindingContext();
+    var oCurrentStep = this.oWizard.getCurrentStep();
+    var sStepId = oCurrentStep.split("--").pop();
+    if (sStepId === "step1") {
+        var sContractId = this.byId("step1InputContract").getValue();
+        if (!sContractId) { MessageToast.show("Please enter a Contract ID."); return; }
+        if (!oContext) { MessageToast.show("No session context available."); return; }
+        // 1) Ensure the transient draft is persisted
+        oContext.created()
+            // 2) Acquire lock only if we’re still on ACTIVE instance
+            .then(function () {
+                var bIsActive = oContext.getProperty("IsActiveEntity");
+                return bIsActive ? this.editFlow.editDocument(oContext) : Promise.resolve();
+            }.bind(this))
+            // 3) Call bound function (GET, no lock)
+            .then(function () {
+                sContractId = sContractId.padStart(10, '0');
+                var oModel = this.getView().getModel();
+                var sFunctionPath = oContext.getPath() + "/identifyCard(vbeln='" + sContractId + "')";
+                return new Promise(function(resolve, reject) {
+                    oModel.createBindingContext(sFunctionPath, undefined, {$$getMetadata : true}, function(oFunctionContext) {
+                        if (oFunctionContext) {
+                            resolve(oFunctionContext);
+                        } else {
+                            reject(new Error("Function call failed"));
+                        }
+                    });
+                });
+            }.bind(this))
+            // 4) Success (your original logic)
+            .then(function (oResultContext) {
+                var aMsgs = Messaging.getMessageModel().getData() || [];
+                var aUnboundSuccess = aMsgs.filter(function (oMsg) {
+                    return oMsg.getTarget && oMsg.getTarget() === "" &&
+                        oMsg.getType && oMsg.getType() === "Success";
+                });
+                if (aUnboundSuccess.length > 0) {
+                    MessageBox.show(aUnboundSuccess[0].getMessage(), { title: "Success" });
+                }
+                var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')";
+                var oVBox = this.byId("step2LtContainer");
+                var oTemplate = new Button({
+                    text: {
+                        parts: [
+                            { path: 'Material', targetType: 'any' },
+                            { path: 'MaterialText', targetType: 'any' }
+                        ],
+                        formatter: '.formatter.concatMaterialText'
+                    },
+                    press: [this.onChooseLoadType, this],
+                    width: "100%"
+                });
+                oTemplate.addStyleClass("loadTypeBtn");
+                oVBox.bindItems({
+                    path: sPath,
+                    parameters: {
+                        $select: "SalesOrder,SalesOrderitem,Material,MaterialText,Language",
+                        $orderby: "SalesOrder,SalesOrderitem"
+                    },
+                    template: oTemplate,
+                    templateShareable: false
+                });
+                this._clearContractInlineError();
+                this.oWizard.validateStep(this.byId("step1"));
+                this.oWizard.nextStep();
+            }.bind(this))
+            // 5) Error (keep inline message)
+            .catch(function (oError) {
+                this._setContractInlineError("Invalid Contract or draft lock issue. Please try again.");
+                // Optionally inspect oError.message for details
+            }.bind(this));
+    }
+},
