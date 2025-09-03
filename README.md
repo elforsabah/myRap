@@ -1,285 +1,92 @@
-sap.ui.define([
-    "sap/fe/core/PageController",
-    "sap/m/MessageToast",
-    "sap/ui/core/Messaging",
-    "sap/m/MessageBox",
-    "sap/ui/core/message/Message",
-    "sap/ui/core/library",
-    "sap/ui/model/Filter",
-    "sap/ui/model/FilterOperator",
-    "sap/m/Button"
-],
-    function (PageController, MessageToast, Messaging, MessageBox, Message, coreLibrary, Filter, FilterOperator, Button) {
-        "use strict";
-        return PageController.extend("com.example.weighingsessionwizard.controller.CustomPage", {
-            formatter: {
-                concatMaterialText: function (sMaterial, sMaterialText) {
-                    return (sMaterial || '') + ' - ' + (sMaterialText || '');
-                }
-            },
-
-            onInit: function () {
-               var superResult =  PageController.prototype.onInit.apply(this);
-
-                // Messaging
-                Messaging.registerObject(this.getView(), true);
-                this.getView().setModel(Messaging.getMessageModel(), "message");
-
-                // Wizard
-                this.oWizard = this.byId("weighingWizard");
-
-                // Router
-                var oRouter = this.getAppComponent().getRouter();
-                oRouter.getRoute("ZI_WR_WEIGHINGSESSIONMain").attachPatternMatched(this._onObjectMatched, this);
-
-                this._enterWired = false; // guard so we wire Enter only once
-                this._isFromScan = true;
-                return superResult
-            },
-            
-            _onObjectMatched: function () {
-                var oModel = this.getView().getModel();
-                var oListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION");
-                var oNewContext = oListBinding.create({});
-                this.getView().setBindingContext(oNewContext);
-                oNewContext.requestProperty(["Vbeln", "Grossweight", "Grossweightunit", "Sessionid"]).catch(function () { });
-            },
-
-            // === ENTER wiring (ADDED) ===
-            _setupEnterToNext: function () {
-                if (this._enterWired) { return; }
-                this._enterWired = true;
-
-                // Step 1: Enter on Contract input -> reuse existing onNextStep
-                var oIp = this.byId("step1InputContract");
-                if (oIp) {
-                    oIp.addEventDelegate({
-                        onsapenter: function (oEvent) {
-                            oEvent.preventDefault();
-                            oEvent.stopPropagation();
-                            this.onNextStep();
-                        }.bind(this)
-                    }, oIp);
-                }
-
-                // Step 3: Enter on Gross/Tare inputs -> compute & advance
-                var aStep3Ids = ["ipGrossWeight", "ipTareWeight"];
-                aStep3Ids.forEach(function (sId) {
-                    var oCtrl = this.byId(sId);
-                    if (oCtrl) {
-                        oCtrl.addEventDelegate({
-                            onsapenter: function (oEvent) {
-                                oEvent.preventDefault();
-                                oEvent.stopPropagation();
-                                this._onStep3Enter();
-                            }.bind(this)
-                        }, oCtrl);
-                    }
-                }.bind(this));
-            },
-
-            // Step 3 Enter handler (ADDED)
-            _onStep3Enter: function () {
-                var oGW = this.byId("ipGrossWeight");
-                var oTW = this.byId("ipTareWeight");
-                var oNW = this.byId("ipNetWeight");
-
-                var gw = oGW ? parseFloat(oGW.getValue()) : NaN;
-                var tw = oTW ? parseFloat(oTW.getValue()) : NaN;
-
-                if (isNaN(gw) || isNaN(tw)) {
-                    MessageToast.show("Enter valid numbers for Gross and Tare.");
-                    return;
-                }
-
-                // persist to bound context so rebinds won't clear
-                var oCtx = this.getView().getBindingContext();
-                if (oCtx) {
-                    oCtx.setProperty("Grossweight", gw);
-                    oCtx.setProperty("TareWeight", tw);
-                    oCtx.setProperty("NetWeight", gw - tw);
-                }
-                if (oNW) { oNW.setValue(gw - tw); }
-
-                this.oWizard.validateStep(this.byId("step3"));
-                this.oWizard.nextStep();
-            },
-
-            onNextStep: function () {
-                var oContext = this.getView().getBindingContext();
-                var oCurrentStep = this.oWizard.getCurrentStep();
-                var sStepId = oCurrentStep.split("--").pop();
-
-                if (sStepId === "step1") {
-                    var sContractId = this.byId("step1InputContract").getValue();
-                    if (!sContractId) {
-                        MessageToast.show("Please enter a Contract ID.");
-                        return;
-                    }
-                    if (!oContext) {
-                        MessageToast.show("No session context available.");
-                        return;
-                    }
-
-                    // Pad with leading zeros for internal format
-                    sContractId = sContractId.padStart(10, '0');
-
-                    // write user entry to model before action
-                    oContext.setProperty("Vbeln", sContractId);
-
-                    // FE EditFlow bound action call
-                    this.editFlow.invokeAction("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)", {
-                        model: this.getView().getModel(),
-                        contexts: oContext,
-                        parameterValues: [{ name: "vbeln", value: sContractId }],
-                        skipParameterDialog: true
-                    }).then(function (oResult) {
-                        // optional: surface success messages
-                        var aMsgs = Messaging.getMessageModel().getData() || [];
-                        var aUnboundSuccess = aMsgs.filter(function (oMsg) {
-                            return oMsg.getTarget && oMsg.getTarget() === "" &&
-                                oMsg.getType && oMsg.getType() === "Success";
-                        });
-                        if (aUnboundSuccess.length > 0) {
-                            MessageBox.show(aUnboundSuccess[0].getMessage(), {
-                                title: "Success"
-                            });
-                        }
-                        // Bind step 2 dynamically
-                        var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')";
-                        var oVBox = this.byId("step2LtContainer");
-                        var oTemplate = new Button({
-                            text: {
-                                parts: [
-                                    {path: 'Material', targetType: 'any'},
-                                    {path: 'MaterialText', targetType: 'any'}
-                                ],
-                                formatter: '.formatter.concatMaterialText'
-                            },
-                            press: [this.onChooseLoadType, this],
-                            width: "100%"
-                        });
-                        oTemplate.addStyleClass("loadTypeBtn");
-                        oVBox.bindItems({
-                            path: sPath,
-                            parameters: {
-                                $select: "SalesOrder,SalesOrderitem,Material,MaterialText,Language",
-                                $orderby: "SalesOrder,SalesOrderitem"
-                            },
-                            template: oTemplate,
-                            templateShareable: false
-                        });
-                        // advance wizard
-                        this._clearContractInlineError();
-                        this.oWizard.validateStep(this.byId("step1"));
-                        
-                        this.oWizard.nextStep();
-
-                    }.bind(this)).catch(function (oError) {
-
-                        // ✅ inline on the field instead:
-                        this._setContractInlineError("Invalid Contract. Please try again.");
-                        // MessageBox.error("Invalid Contract. Please try again.");
-                    }.bind(this));
-                }
-            },
-            onScanCard: function () {
-                var oInput = this.byId("step1InputContract");
-                if (oInput) {
-                    oInput.focus();  // Focus the input so the scanner's "keystrokes" go here
-                    //oInput.setValue("");  // Optional: Clear any existing value to avoid appending
-                    this._isFromScan = true;
-                    MessageToast.show("Please scan the RFID card now.");  // User prompt (shows a toast message)
-                }
-            },
-            onContractChange: function (oEvent) {
-                var oInput = oEvent.getSource();
-                var sValue = oInput.getValue();
-                if (sValue.length > 10) {
-                    oInput.setValueState("Error");
-                    oInput.setValueStateText("Contract ID cannot exceed 10 characters.");
-                } else {
-                    oInput.setValueState("None");
-                }
-            },
-            onAfterRendering: function () {
-                var oIp = this.byId("step1InputContract");
-                if (oIp) { oIp.focus(); }
-                this._setupEnterToNext(); // wire Enter once
-            },
-
-            onChooseLoadType: function (oEvent) {
-                const sLoadType = oEvent.getSource().getBindingContext().getProperty("Material");
-                const oSessionCtx = this.getView().getBindingContext();
-                if (!oSessionCtx) { return; }
-
-                oSessionCtx.setProperty("LoadType", sLoadType);
-                this.oWizard.validateStep(this.byId("step2"));
-                this.oWizard.nextStep();
-            },
-
-            onStepActivate: function () { /* optional per-step hooks */ },
-            validateStep: function () { /* return true; */ },
-
-            onCaptureWeight: function () {
-                this.getView().getModel().setProperty("/Grossweight", 1000);
-            },
-
-            onCaptureFinalWeight: function () {
-                var oModel = this.getView().getModel();
-                var fGross = oModel.getProperty("/Grossweight");
-                var fTare = oModel.getProperty("/TareWeight");
-                oModel.setProperty("/NetWeight", fGross - fTare);
-            },
-
-            onSubmit: function () {
-                this.getView().getModel().submitChanges({
-                    success: function () { MessageToast.show("Weighing session submitted."); }
-                });
-            },
-
-            _setContractInlineError: function (sText) {
-                // Inline on the input
-                var oInput = this.byId("step1InputContract");
-                if (oInput) {
-                    oInput.setValueState("Error");
-                    oInput.setValueStateText(sText);
-                    oInput.focus();
-                }
-
-                // Optional: also add a field-bound message (shows in FE message popover / keeps state on rebind)
-                var oCtx = this.getView().getBindingContext();
-                var oModel = this.getView().getModel();
-                if (oCtx && oModel) {
-                    var sTarget = oCtx.getPath() + "/Vbeln"; // property bound to the input
-                    var aAll = Messaging.getMessageModel().getData() || [];
-                    var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
-                    if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
-                    Messaging.addMessages(new Message({
-                        message: sText,
-                        type: coreLibrary.MessageType.Error,
-                        target: sTarget,
-                        processor: oModel
-                    }));
-                }
-            },
-
-            _clearContractInlineError: function () {
-                var oInput = this.byId("step1InputContract");
-                if (oInput) {
-                    oInput.setValueState("None");
-                    oInput.setValueStateText("");
-                }
-                var oCtx = this.getView().getBindingContext();
-                if (oCtx) {
-                    var sTarget = oCtx.getPath() + "/Vbeln";
-                    var aAll = Messaging.getMessageModel().getData() || [];
-                    var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
-                    if (aForField.length) { Messaging.removeMessages(aForField); }
-                }
-            },
-
-            onPrintSlip: function () { },
-            onWizardComplete: function () { }
-        });
-    });
+Log-dbg.js:497 2025-09-03 18:09:33.925399 Failed to update path /ZI_WR_WEIGHINGSESSION(Sessionid=05744661-bb00-1fe0-a29c-0a6da3e9e79c,IsActiveEntity=false)/Vbeln - Edit not possible: locking of entity ZI_WR_WEIGHINGSESSION failed
+Error: Communication error: 423 REASON_423
+    at Object.createError (_Helper-dbg.js:609:15)
+    at _Requestor-dbg.js:1371:23
+    at Array.forEach (<anonymous>)
+    at a (_Requestor-dbg.js:1353:15)
+    at /resources/sap/ui/core/library-preload.js:2352:12323 sap.ui.model.odata.v4.Context
+u @ Log-dbg.js:497
+n.error @ Log-dbg.js:247
+k.reportError @ ODataModel-dbg.js:2507
+g @ Context-dbg.js:546
+(anonymous) @ _Cache-dbg.js:2237
+Promise.then
+r.then @ SyncPromise-dbg.js:318
+k @ _Cache-dbg.js:2203
+(anonymous) @ _Cache-dbg.js:2336
+(anonymous) @ SyncPromise-dbg.js:314
+e @ SyncPromise-dbg.js:63
+r @ SyncPromise-dbg.js:230
+r.then @ SyncPromise-dbg.js:313
+f.update @ _Cache-dbg.js:2132
+(anonymous) @ Context-dbg.js:590
+(anonymous) @ SyncPromise-dbg.js:314
+e @ SyncPromise-dbg.js:63
+r @ SyncPromise-dbg.js:230
+r.then @ SyncPromise-dbg.js:313
+(anonymous) @ Context-dbg.js:530
+(anonymous) @ ODataBinding-dbg.js:1581
+(anonymous) @ SyncPromise-dbg.js:314
+e @ SyncPromise-dbg.js:63
+r @ SyncPromise-dbg.js:230
+r.then @ SyncPromise-dbg.js:313
+h.withCache @ ODataBinding-dbg.js:1577
+a.withCache @ Context-dbg.js:2445
+a.doSetProperty @ Context-dbg.js:528
+l.setValue @ ODataPropertyBinding-dbg.js:806
+(anonymous) @ PropertyBinding-dbg.js:136
+(anonymous) @ SyncPromise-dbg.js:314
+e @ SyncPromise-dbg.js:63
+r @ SyncPromise-dbg.js:230
+r.then @ SyncPromise-dbg.js:313
+i._setBoundValue @ PropertyBinding-dbg.js:130
+i._setExternalValue @ PropertyBinding-dbg.js:286
+i.setExternalValue @ PropertyBinding-dbg.js:253
+(anonymous) @ ManagedObjectBindingSupport-dbg.js:328
+(anonymous) @ SyncPromise-dbg.js:314
+e @ SyncPromise-dbg.js:63
+r @ SyncPromise-dbg.js:230
+r.then @ SyncPromise-dbg.js:313
+updateModelProperty @ ManagedObjectBindingSupport-dbg.js:327
+m.setProperty @ ManagedObject-dbg.js:1520
+m.setProperty @ Element-dbg.js:548
+m.setProperty @ InputBase-dbg.js:791
+m.setValue @ InputBase-dbg.js:1208
+U.setValue @ Input-dbg.js:2600
+m.onChange @ InputBase-dbg.js:580
+m.onsapenter @ InputBase-dbg.js:673
+U.onsapenter @ Input-dbg.js:1507
+m._handleEvent @ Element-dbg.js:361
+N._handleEvent @ UIArea-dbg.js:1056
+dispatch @ jquery-dbg.js:5430
+y.handle @ jquery-dbg.js:5234Understand this error
+Log-dbg.js:497 2025-09-03 18:09:33.927000 Failed to update path /ZI_WR_WEIGHINGSESSION(Sessionid=05744661-bb00-1fe0-a29c-0a6da3e9e79c,IsActiveEntity=false)/Vbeln - Edit not possible: locking of entity ZI_WR_WEIGHINGSESSION failed
+Error: Communication error: 423 REASON_423
+    at Object.createError (_Helper-dbg.js:609:15)
+    at _Requestor-dbg.js:1371:23
+    at Array.forEach (<anonymous>)
+    at a (_Requestor-dbg.js:1353:15)
+    at /resources/sap/ui/core/library-preload.js:2352:12323 sap.ui.model.odata.v4.Context
+u @ Log-dbg.js:497
+n.error @ Log-dbg.js:247
+k.reportError @ ODataModel-dbg.js:2507
+(anonymous) @ Context-dbg.js:2288
+Promise.catch
+a.setProperty @ Context-dbg.js:2284
+onNextStep @ Main.controller.js:128
+(anonymous) @ PageController.ts:108
+m.runWithOwner @ ManagedObject-dbg.js:1216
+k.runAsOwner @ Component-dbg.js:800
+ye @ PageController.ts:108
+(anonymous) @ Main.controller.js:60
+r @ Element-dbg.js:345
+m._handleEvent @ Element-dbg.js:365
+N._handleEvent @ UIArea-dbg.js:1056
+dispatch @ jquery-dbg.js:5430
+y.handle @ jquery-dbg.js:5234Understand this error
+_Helper-dbg.js:609 Uncaught (in promise) Error: Edit not possible: locking of entity ZI_WR_WEIGHINGSESSION failed
+    at Object.createError (_Helper-dbg.js:609:15)
+    at _Requestor-dbg.js:1371:23
+    at Array.forEach (<anonymous>)
+    at a (_Requestor-dbg.js:1353:15)
+    at _Requestor-dbg.js:1422:5
