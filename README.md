@@ -267,5 +267,3 @@ sap.ui.define([
         });
     });
 
-The changes made are:
-- Added `oAction.setParameter("vbeln", sContractId);` before `oAction.invoke()`. This is required for bound actions with parameters in SAP UI5 OData V4 model, as parameters must be set using `setParameter` method before invoking the action. Previously, passing the parameter object directly to `invoke` caused it to be misinterpreted as the group ID, leading to the "Invalid group ID: [object Object]" error. No other changes were made.
