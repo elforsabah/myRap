@@ -283,3 +283,8 @@ sap.ui.define([
             onWizardComplete: function () { }
         });
     });
+
+2025-09-03 06:00:34.857699 (dependency of 'com/prologa/zwrweighbrige/ext/main/Main.controller.js') Importing the pseudo module 'sap/ui/core/MessageType' is deprecated. To access the type 'sap.ui.core.MessageType', please import 'sap/ui/core/library'. You can then reference this type via the library's module export. For more information, see documentation under 'Best Practices for Loading Modules'. -  sap.ui.ModuleSystem
+u @ Log-dbg.js:497Understand this error
+Log-dbg.js:497 2025-09-03 06:00:34.921500 [FUTURE FATAL] The registered Event Listener 'onInit' must not have a return value. - com.example.weighingsessionwizard.controller.CustomPage 
+u @ Log-dbg.js:497Understand this error
