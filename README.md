@@ -7,9 +7,10 @@ sap.ui.define([
     "sap/ui/core/library",
     "sap/ui/model/Filter",
     "sap/ui/model/FilterOperator",
-    "sap/m/Button"
+    "sap/m/Button",
+    "sap/ui/model/json/JSONModel"
 ],
-    function (PageController, MessageToast, Messaging, MessageBox, Message, coreLibrary, Filter, FilterOperator, Button) {
+    function (PageController, MessageToast, Messaging, MessageBox, Message, coreLibrary, Filter, FilterOperator, Button, JSONModel) {
         "use strict";
         return PageController.extend("com.example.weighingsessionwizard.controller.CustomPage", {
             formatter: {
@@ -17,39 +18,33 @@ sap.ui.define([
                     return (sMaterial || '') + ' - ' + (sMaterialText || '');
                 }
             },
-
             onInit: function () {
                 PageController.prototype.onInit.apply(this);
-
                 // Messaging
                 Messaging.registerObject(this.getView(), true);
                 this.getView().setModel(Messaging.getMessageModel(), "message");
-
                 // Wizard
                 this.oWizard = this.byId("weighingWizard");
-
                 // Router
                 var oRouter = this.getAppComponent().getRouter();
                 oRouter.getRoute("ZI_WR_WEIGHINGSESSIONMain").attachPatternMatched(this._onObjectMatched, this);
-
                 this._enterWired = false; // guard so we wire Enter only once
                 this._isFromScan = true;
-
+                // Local model for unbound inputs
+                this.getView().setModel(new JSONModel({ contractId: "" }), "local");
             },
-
             _onObjectMatched: function () {
                 var oModel = this.getView().getModel();
                 var oListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION");
                 var oNewContext = oListBinding.create({}); // No initial data; let backend manage Sessionid (UUID)
                 this.getView().setBindingContext(oNewContext);
                 oNewContext.requestProperty(["Vbeln", "Grossweight", "Grossweightunit", "Sessionid"]).catch(function () { });
+                this.getView().getModel("local").setProperty("/contractId", "");  // Reset local value
             },
-
             // === ENTER wiring (ADDED) ===
             _setupEnterToNext: function () {
                 if (this._enterWired) { return; }
                 this._enterWired = true;
-
                 // Step 1: Enter on Contract input -> reuse existing onNextStep
                 var oIp = this.byId("step1InputContract");
                 if (oIp) {
@@ -61,7 +56,6 @@ sap.ui.define([
                         }.bind(this)
                     }, oIp);
                 }
-
                 // Step 3: Enter on Gross/Tare inputs -> compute & advance
                 var aStep3Ids = ["ipGrossWeight", "ipTareWeight"];
                 aStep3Ids.forEach(function (sId) {
@@ -77,21 +71,17 @@ sap.ui.define([
                     }
                 }.bind(this));
             },
-
             // Step 3 Enter handler (ADDED)
             _onStep3Enter: function () {
                 var oGW = this.byId("ipGrossWeight");
                 var oTW = this.byId("ipTareWeight");
                 var oNW = this.byId("ipNetWeight");
-
                 var gw = oGW ? parseFloat(oGW.getValue()) : NaN;
                 var tw = oTW ? parseFloat(oTW.getValue()) : NaN;
-
                 if (isNaN(gw) || isNaN(tw)) {
                     MessageToast.show("Enter valid numbers for Gross and Tare.");
                     return;
                 }
-
                 // persist to bound context so rebinds won't clear
                 var oCtx = this.getView().getBindingContext();
                 if (oCtx) {
@@ -100,7 +90,6 @@ sap.ui.define([
                     oCtx.setProperty("NetWeight", gw - tw);
                 }
                 if (oNW) { oNW.setValue(gw - tw); }
-
                 this.oWizard.validateStep(this.byId("step3"));
                 this.oWizard.nextStep();
             },
@@ -108,9 +97,8 @@ sap.ui.define([
                 var oContext = this.getView().getBindingContext();
                 var oCurrentStep = this.oWizard.getCurrentStep();
                 var sStepId = oCurrentStep.split("--").pop();
-
                 if (sStepId === "step1") {
-                    var sContractId = this.byId("step1InputContract").getValue();
+                    var sContractId = this.getView().getModel("local").getProperty("/contractId");
                     if (!sContractId) {
                         MessageToast.show("Please enter a Contract ID.");
                         return;
@@ -119,10 +107,8 @@ sap.ui.define([
                         MessageToast.show("No session context available.");
                         return;
                     }
-
                     // Pad with leading zeros for internal format
                     sContractId = sContractId.padStart(10, '0');
-
                     // FE EditFlow bound action call (no client-side setProperty to avoid PATCH/lock error)
                     this.editFlow.invokeAction("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)", {
                         model: this.getView().getModel(),
@@ -141,6 +127,8 @@ sap.ui.define([
                                 title: "Success"
                             });
                         }
+                        // Refresh context to pull server-set Vbeln and any other updates
+                        oContext.refresh();
                         // Bind step 2 dynamically
                         var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')";
                         var oVBox = this.byId("step2LtContainer");
@@ -168,25 +156,22 @@ sap.ui.define([
                         // advance wizard
                         this._clearContractInlineError();
                         this.oWizard.validateStep(this.byId("step1"));
-                        
+                       
                         this.oWizard.nextStep();
-
                     }.bind(this)).catch(function (oError) {
-
                         // ✅ inline on the field instead:
                         this._setContractInlineError("Invalid Contract. Please try again.");
                         // MessageBox.error("Invalid Contract. Please try again.");
                     }.bind(this));
                 }
             },
-
             onScanCard: function () {
                 var oInput = this.byId("step1InputContract");
                 if (oInput) {
-                    oInput.focus();  // Focus the input so the scanner's "keystrokes" go here
-                    //oInput.setValue("");  // Optional: Clear any existing value to avoid appending
+                    oInput.focus(); // Focus the input so the scanner's "keystrokes" go here
+                    //oInput.setValue(""); // Optional: Clear any existing value to avoid appending
                     this._isFromScan = true;
-                    MessageToast.show("Please scan the RFID card now.");  // User prompt (shows a toast message)
+                    MessageToast.show("Please scan the RFID card now."); // User prompt (shows a toast message)
                 }
             },
             onContractChange: function (oEvent) {
@@ -204,37 +189,30 @@ sap.ui.define([
                 if (oIp) { oIp.focus(); }
                 this._setupEnterToNext(); // wire Enter once
             },
-
             onChooseLoadType: function (oEvent) {
                 const sLoadType = oEvent.getSource().getBindingContext().getProperty("Material");
                 const oSessionCtx = this.getView().getBindingContext();
                 if (!oSessionCtx) { return; }
-
                 oSessionCtx.setProperty("LoadType", sLoadType);
                 this.oWizard.validateStep(this.byId("step2"));
                 this.oWizard.nextStep();
             },
-
             onStepActivate: function () { /* optional per-step hooks */ },
             validateStep: function () { /* return true; */ },
-
             onCaptureWeight: function () {
                 this.getView().getModel().setProperty("/Grossweight", 1000);
             },
-
             onCaptureFinalWeight: function () {
                 var oModel = this.getView().getModel();
                 var fGross = oModel.getProperty("/Grossweight");
                 var fTare = oModel.getProperty("/TareWeight");
                 oModel.setProperty("/NetWeight", fGross - fTare);
             },
-
             onSubmit: function () {
                 this.getView().getModel().submitChanges({
                     success: function () { MessageToast.show("Weighing session submitted."); }
                 });
             },
-
             _setContractInlineError: function (sText) {
                 // Inline on the input
                 var oInput = this.byId("step1InputContract");
@@ -243,7 +221,6 @@ sap.ui.define([
                     oInput.setValueStateText(sText);
                     oInput.focus();
                 }
-
                 // Optional: also add a field-bound message (shows in FE message popover / keeps state on rebind)
                 var oCtx = this.getView().getBindingContext();
                 var oModel = this.getView().getModel();
@@ -260,7 +237,6 @@ sap.ui.define([
                     }));
                 }
             },
-
             _clearContractInlineError: function () {
                 var oInput = this.byId("step1InputContract");
                 if (oInput) {
@@ -275,7 +251,6 @@ sap.ui.define([
                     if (aForField.length) { Messaging.removeMessages(aForField); }
                 }
             },
-
             onPrintSlip: function () { },
             onWizardComplete: function () { }
         });
