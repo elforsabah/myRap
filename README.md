@@ -293,11 +293,376 @@ sap.ui.define([
         });
     });
 
-Failed to load resource: the server responded with a status of 403 ()Understand this error
-Log-dbg.js:497 2025-09-03 15:00:35.265100 Failed to request side effects - Error: Expected 1 row(s), but instead saw 0
-    at /resources/sap/ui/core/library-preload.js:2304:36623 sap.ui.model.odata.v4.ODataListBinding
-u @ Log-dbg.js:497Understand this error
-Log-dbg.js:497 2025-09-03 15:00:35.265500 Error while requesting side effects - Error: Expected 1 row(s), but instead saw 0  
- Error: Expected 1 row(s), but instead saw 0
-    at _Cache-dbg.js:3583:12
-u @ Log-dbg.js:497Understand this error
+
+
+CLASS lhc_WeighingSession DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR WeighingSession RESULT result.
+
+    METHODS NextStep FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~NextStep RESULT result.
+
+    METHODS Submit FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~Submit RESULT result.
+
+    METHODS calcNet FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR WeighingSession~calcNet.
+
+    METHODS validateStep1 FOR VALIDATE ON SAVE
+      IMPORTING keys FOR WeighingSession~validateStep1.
+
+    METHODS validateStep2 FOR VALIDATE ON SAVE
+      IMPORTING keys FOR WeighingSession~validateStep2.
+    METHODS identifycard FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~identifycard RESULT result.
+
+    METHODS setloadType FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~setloadType RESULT result.
+
+    METHODS ValidateLoadType FOR VALIDATE ON SAVE
+      IMPORTING keys FOR WeighingSession~ValidateLoadType.
+
+ENDCLASS.
+
+CLASS lhc_WeighingSession IMPLEMENTATION.
+
+  METHOD get_instance_authorizations.
+  ENDMETHOD.
+
+  METHOD NextStep.
+  ENDMETHOD.
+
+  METHOD Submit.
+  ENDMETHOD.
+
+  METHOD calcNet.
+  ENDMETHOD.
+
+  METHOD validateStep1.
+  ENDMETHOD.
+
+  METHOD validateStep2.
+  ENDMETHOD.
+
+  METHOD ValidateLoadType.
+  ENDMETHOD.
+
+METHOD identifycard.
+  DATA lt_success_keys TYPE TABLE FOR READ IMPORT zi_wr_weighingsession.
+  LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
+    " Validate contract existence (adjust table name if not VBAK)
+    SELECT SINGLE @abap_true FROM vbak
+      WHERE vbeln = @<ls_key>-%param-vbeln
+      INTO @DATA(lv_exists).
+    IF sy-subrc = 0.
+      " ✓ Valid: mark step ok
+      MODIFY ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+        ENTITY WeighingSession
+        UPDATE FIELDS ( step1ok )
+        WITH VALUE #( ( %tky = <ls_key>-%tky step1ok = abap_true ) ).
+
+      APPEND VALUE #(
+        %tky = <ls_key>-%tky
+        %msg = new_message(
+                 id = 'ZWR_WEIGHBRIGE_MESS'
+                 number = '000'
+                 severity = if_abap_behv_message=>severity-success
+                 v1 = 'Contract is valid' ) )
+        TO reported-weighingsession.
+
+      " Collect for result
+      APPEND VALUE #( %tky = <ls_key>-%tky ) TO lt_success_keys.
+    ELSE.
+      " ✗ Invalid: report bound error and fail the action
+      APPEND VALUE #(
+        %tky = <ls_key>-%tky
+        %msg = new_message(
+                 id = 'ZWR_WEIGHBRIGE_MESS'
+                 number = '001'
+                 severity = if_abap_behv_message=>severity-error
+                 v1 = <ls_key>-%param-vbeln )
+        %element-vbeln = if_abap_behv=>mk-on  " Bind message to Vbeln field
+      ) TO reported-weighingsession.
+
+      " Fail the action to reject the promise
+      APPEND VALUE #(
+        %tky = <ls_key>-%tky
+        %action-identifycard = if_abap_behv=>mk-on
+        %fail-cause = if_abap_behv=>cause-unspecific  " Or cause-parameter if available
+      ) TO failed-weighingsession.
+    ENDIF.
+  ENDLOOP.
+
+  " Read and return full data for successful instances
+  IF lt_success_keys IS NOT INITIAL.
+    READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+      ENTITY WeighingSession
+      ALL FIELDS WITH lt_success_keys
+      RESULT DATA(lt_result)
+      FAILED DATA(lt_read_failed).
+    result = CORRESPONDING #( lt_result ).
+  ENDIF.
+ENDMETHOD.
+
+
+***********************************************************************************************************************
+* Selection of Load type
+***********************************************************************************************************************
+    METHOD setloadType.
+
+*   READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+*      ENTITY WeighingSession FIELDS ( loadtype ) WITH CORRESPONDING #( keys )
+*      RESULT DATA(lt_sessions).
+*    LOOP AT lt_sessions ASSIGNING FIELD-SYMBOL(<ls_session>).
+*      <ls_session>-loadtype = keys[ sy-tabix ]-%param-LoadType.
+*      <ls_session>-step2ok  = abap_true.
+*      MODIFY ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+*        ENTITY WeighingSession UPDATE FIELDS ( loadtype step2ok )
+*        WITH VALUE #( ( %tky = <ls_session>-%tky loadtype = <ls_session>-loadtype step2ok = abap_true ) ).
+*      result = VALUE #( ( %tky = <ls_session>-%tky ) ).
+*    ENDLOOP.
+
+    ENDMETHOD.
+ENDCLASS.
+
+
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Weighing Session'
+@Metadata.ignorePropagatedAnnotations: true
+@Metadata.allowExtensions: true
+define root view entity ZI_WR_WEIGHINGSESSION
+  as select from zwr_weighsession
+  association [0..*] to ZI_WR_SALESITEM_CONTRACTVH as _SalesItems
+    on _SalesItems.SalesOrder = $projection.Vbeln
+ 
+ 
+{
+
+  key vbeln as Vbeln,
+  key sessionid as Sessionid,
+      @UI.textArrangement: #TEXT_LAST
+      loadtype as LoadType,
+      @Semantics.quantity.unitOfMeasure: 'Grossweightunit'
+      grossweight as Grossweight,
+      @Consumption.valueHelpDefinition: [{
+      entity: { name: 'I_UnitOfMeasure', element: 'UnitOfMeasure' }
+      }]
+      grossweightunit as Grossweightunit,
+      @Semantics.quantity.unitOfMeasure: 'Tareweightunit'
+      tareweight as Tareweight,
+      @Consumption.valueHelpDefinition: [{
+      entity: { name: 'I_UnitOfMeasure', element: 'UnitOfMeasure' }
+      }]
+      tareweightunit as Tareweightunit,
+      @Semantics.quantity.unitOfMeasure: 'Netweightunit'
+     
+      netweight as Netweight,
+      @Consumption.valueHelpDefinition: [{
+      entity: { name: 'I_UnitOfMeasure', element: 'UnitOfMeasure' }
+      }]
+      netweightunit as Netweightunit,
+      step as Step,
+      step1ok as Step1Ok,
+      step2ok as Step2Ok,
+      issummited as IsSummited,
+     
+      _SalesItems
+}
+
+
+@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Materials of Contract'
+@ObjectModel.dataCategory: #VALUE_HELP
+@Metadata.ignorePropagatedAnnotations: true
+@ObjectModel.usageType:{
+    serviceQuality: #X,
+    sizeCategory: #S,
+    dataClass: #MIXED
+}
+@ObjectModel.resultSet.sizeCategory: #XS  // Make it a Drop Down
+define view entity ZI_WR_SALESITEM_CONTRACTVH 
+    with parameters
+    P_SalesOrder : vbeln_va
+  as select distinct from I_SalesDocumentItem as salesitem  
+   inner join I_MaterialText as _text on salesitem.Material = _text.Material
+                                      and _text.Language = $session.system_language
+{
+//    @UI.hidden: true
+    key salesitem.SalesDocument as SalesOrder,
+//    @UI.hidden: true
+    key salesitem.SalesDocumentItem as SalesOrderitem,
+    _text.Material as Material,
+    _text.MaterialName as MaterialText,
+//    @UI.hidden: true
+    _text.Language as Language      
+} where salesitem.SalesDocument = $parameters.P_SalesOrder
+
+managed implementation in class zbp_i_wr_weighingsession unique;
+strict( 2 );
+
+with draft;
+
+define behavior for ZI_WR_WEIGHINGSESSION alias WeighingSession
+persistent table zwr_weighsession
+draft table ZWR_WEIGHB_DD
+lock master
+total etag Grossweight
+authorization master ( instance )
+etag master Grossweight
+
+{
+//  Keys must be readonly in strict draft
+  field (readonly) Vbeln, Sessionid;  // <-- use your exact CDS element names
+  field (numbering: managed) Sessionid;
+create;
+update;
+delete;
+
+draft action Edit;
+draft action Activate;
+draft action Discard;
+draft action Resume;                 // <-- required
+draft determine action Prepare;      //<-- required
+
+action NextStep result [1] $self; // server validates & increments Step
+action Submit result [1] $self; // final checks; printing trigger optional
+
+action identifyCard parameter ZAE_WR_WEIGHINGSESSION result [1] $self;
+action setloadType parameter ZAE_WR_WEIGHINGSESSION  result [1] $self;
+
+//action identifyCard  result [1] $self;
+
+validation validateStep1 on save { field Vbeln, Sessionid; } // Identification
+validation validateStep2 on save { field Loadtype; } // Load type
+validation ValidateLoadType on save { field LoadType; } // Calls a method to check against VH
+
+determination calcNet on modify { field Grossweight, Tareweight; } // Weighing math
+}
+
+<mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:macros="sap.fe.macros" xmlns:f="sap.ui.layout.form"
+xmlns:html="http://www.w3.org/1999/xhtml" controllerName="com.prologa.zwrweighbrige.ext.main.Main"
+height="100%">
+<Page id="Main" class="myApp" >
+<content>
+<Wizard id="weighingWizard" complete="onWizardComplete" >
+ <!-- STEP 1: Identification -->
+<WizardStep id="step1" title="Identification">
+  <HBox id="step1HBoxOuter" width="100%" justifyContent="Center">
+    <VBox id="step1Rail" width="36rem">
+      <Panel id="step1Panel" class="stepPanel" expandable="false">
+        <content>
+          <f:Form id="step1Form" editable="true">
+            <f:layout>
+              <f:ResponsiveGridLayout
+                id="step1FormLayout"
+                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
+                adjustLabelSpan="false"/>
+            </f:layout>
+            <f:formContainers>
+              <f:FormContainer id="step1FormContainer">
+                <f:formElements>
+
+                  <!-- Row 1 -->
+                  <f:FormElement id="step1FormElementInput" label="Please Enter your Contract ID">
+                    <f:fields>
+                      <Input id="step1InputContract"
+                             value="{Vbeln}"
+                             width="100%"
+                             maxLength="10"
+                             required="true"
+                             placeholder="Scan or enter Contract ID"
+                             class="sapUiSizeCompact"
+                             change=".onContractChange"/>
+                    </f:fields>
+                  </f:FormElement>
+
+                  <!-- Row 2 -->
+                  <f:FormElement id="step1FormElementScan" label="">
+                    <f:fields>
+                      <HBox id="step1ScanRow" width="100%" justifyContent="Center" class="sapUiMediumMarginTop">
+                        <Button id="step1BtnScanCard"
+                                width="12rem"
+                                type="Emphasized"
+                                icon="sap-icon://business-card"
+                                text="Scan Card"
+                                press="onScanCard"/>
+                      </HBox>
+                    </f:fields>
+                  </f:FormElement>
+
+                </f:formElements>
+              </f:FormContainer>
+            </f:formContainers>
+          </f:Form>
+        </content>
+      </Panel>
+    </VBox>
+  </HBox>
+</WizardStep>
+
+<!-- STEP 2: Choose Load Type -->
+<WizardStep id="step2" title="Choose Load Type">
+  <HBox id="step2HBoxOuter" width="100%" justifyContent="Center">
+    <VBox id="step2Rail" width="36rem">
+      <Panel id="step2Panel" class="stepPanel" expandable="false">
+        <content>
+          <f:Form id="step2Form" editable="true">
+            <f:layout>
+              <f:ResponsiveGridLayout
+                id="step2FormLayout"
+                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
+                adjustLabelSpan="false"/>
+            </f:layout>
+            <f:formContainers>
+              <f:FormContainer id="step2FormContainer">
+                <f:formElements>
+
+                  <!-- Row 1 -->
+                  <f:FormElement id="step2FormElementLoadType" label="">
+                    <f:fields>
+                      <VBox id="step2LtContainer">
+                      </VBox>
+                    </f:fields>
+                  </f:FormElement>
+
+                  <!-- Row 2 -->
+                  <f:FormElement id="step2FormElementSelection" label="">
+                    <f:fields>
+                      <Text id="step2SelectedText"
+                            class="sapUiSmallMarginTop"
+                            text="{= ${Vbeln} ? 'Selected Contract: ' + ${Vbeln} : ''}"/>
+                    </f:fields>
+                  </f:FormElement>
+
+                </f:formElements>
+              </f:FormContainer>
+            </f:formContainers>
+          </f:Form>
+        </content>
+      </Panel>
+    </VBox>
+  </HBox>
+</WizardStep>
+<WizardStep id="step3" title="Weighing">
+  <HBox id="step3HBoxOuter" width="100%" justifyContent="Center">
+    <VBox id="step3Rail" width="36rem">
+      <!-- TODO: weighing content -->
+    </VBox>
+  </HBox>
+</WizardStep>
+
+<WizardStep id="step4" title="Printing">
+  <HBox id="step4HBoxOuter" width="100%" justifyContent="Center">
+    <VBox id="step4Rail" width="36rem">
+      <!-- TODO: weighing content -->
+    </VBox>
+  </HBox>
+</WizardStep>
+</Wizard>
+</content>
+</Page>
+</mvc:View>
+
