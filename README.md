@@ -118,14 +118,24 @@ sap.ui.define([
                     }).then(function (oResult) {
                         // optional: surface success messages
                         var aMsgs = Messaging.getMessageModel().getData() || [];
+                        var aErrors = aMsgs.filter(function (oMsg) {
+                            return oMsg.getType && oMsg.getType() === "Error";
+                        });
+                        if (aErrors.length > 0) {
+                            this._setContractInlineError("Invalid Contract. Please try again."); // Or use aErrors[0].getMessage() for dynamic
+                            Messaging.removeMessages(aErrors); // Remove to prevent popup
+                            return; // Don't proceed
+                        }
                         var aUnboundSuccess = aMsgs.filter(function (oMsg) {
                             return oMsg.getTarget && oMsg.getTarget() === "" &&
                                 oMsg.getType && oMsg.getType() === "Success";
                         });
                         if (aUnboundSuccess.length > 0) {
-                            MessageBox.show(aUnboundSuccess[0].getMessage(), {
-                                title: "Success"
-                            });
+                            // Optionally show success as toast instead of box to avoid popup
+                            MessageToast.show(aUnboundSuccess[0].getMessage());
+                            // Or comment out to hide
+                            // MessageBox.show(aUnboundSuccess[0].getMessage(), { title: "Success" });
+                            Messaging.removeMessages(aUnboundSuccess); // Optional, if you don't want them in message popover
                         }
                         // Refresh context to pull server-set Vbeln and any other updates
                         oContext.refresh();
@@ -159,9 +169,10 @@ sap.ui.define([
                        
                         this.oWizard.nextStep();
                     }.bind(this)).catch(function (oError) {
-                        // ✅ inline on the field instead:
+                        // Technical errors
                         this._setContractInlineError("Invalid Contract. Please try again.");
-                        // MessageBox.error("Invalid Contract. Please try again.");
+                        // Optionally log oError or show toast
+                        MessageToast.show("Technical error occurred.");
                     }.bind(this));
                 }
             },
