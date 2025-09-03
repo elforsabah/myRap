@@ -1,4 +1,3 @@
-
 sap.ui.define([
     "sap/fe/core/PageController",
     "sap/m/MessageToast",
@@ -7,9 +6,7 @@ sap.ui.define([
     "sap/ui/core/message/Message",
     "sap/ui/core/library",
     "sap/ui/model/Filter",
-  "sap/ui/model/FilterOperator"
-
-
+    "sap/ui/model/FilterOperator"
 ],
     function (PageController, MessageToast, Messaging, MessageBox, Message, coreLibrary, Filter, FilterOperator) {
         "use strict";
@@ -56,7 +53,7 @@ sap.ui.define([
                 this._enterWired = true;
 
                 // Step 1: Enter on Contract input -> reuse existing onNextStep
-                var oIp = this.byId("ipContract");
+                var oIp = this.byId("step1InputContract");
                 if (oIp) {
                     oIp.addEventDelegate({
                         onsapenter: function (oEvent) {
@@ -84,7 +81,7 @@ sap.ui.define([
             },
             _applyLtFilter: function () {
                 var sVbeln = this.getView().getBindingContext().getProperty("Vbeln");
-                var oVBox = this.byId("ltContainer");
+                var oVBox = this.byId("step2LtContainer");
                 var oBinding = oVBox && oVBox.getBinding("items");
                 if (!oBinding) { return; }
 
@@ -129,7 +126,7 @@ sap.ui.define([
                 var sStepId = oCurrentStep.split("--").pop();
 
                 if (sStepId === "step1") {
-                    var sContractId = this.byId("ipContract").getValue();
+                    var sContractId = this.byId("step1InputContract").getValue();
                     if (!sContractId) {
                         MessageToast.show("Please enter a Contract ID.");
                         return;
@@ -176,7 +173,7 @@ sap.ui.define([
                 }
             },
             onScanCard: function () {
-                var oInput = this.byId("ipContract");
+                var oInput = this.byId("step1InputContract");
                 if (oInput) {
                     oInput.focus();  // Focus the input so the scanner's "keystrokes" go here
                     //oInput.setValue("");  // Optional: Clear any existing value to avoid appending
@@ -195,7 +192,7 @@ sap.ui.define([
                 }
             },
             onAfterRendering: function () {
-                var oIp = this.byId("ipContract");
+                var oIp = this.byId("step1InputContract");
                 if (oIp) { oIp.focus(); }
                 this._setupEnterToNext(); // wire Enter once
             },
@@ -232,7 +229,7 @@ sap.ui.define([
 
             _setContractInlineError: function (sText) {
                 // Inline on the input
-                var oInput = this.byId("ipContract");
+                var oInput = this.byId("step1InputContract");
                 if (oInput) {
                     oInput.setValueState("Error");
                     oInput.setValueStateText(sText);
@@ -257,7 +254,7 @@ sap.ui.define([
             },
 
             _clearContractInlineError: function () {
-                var oInput = this.byId("ipContract");
+                var oInput = this.byId("step1InputContract");
                 if (oInput) {
                     oInput.setValueState("None");
                     oInput.setValueStateText("");
@@ -275,143 +272,3 @@ sap.ui.define([
             onWizardComplete: function () { }
         });
     });
-
-**the View**
-
-
-<mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:macros="sap.fe.macros" xmlns:f="sap.ui.layout.form"
-xmlns:html="http://www.w3.org/1999/xhtml" controllerName="com.prologa.zwrweighbrige.ext.main.Main"
-height="100%">
-<Page id="Main" class="myApp" >
-<content>
-<Wizard id="weighingWizard" complete="onWizardComplete" >
- <!-- STEP 1: Identification -->
-<WizardStep id="step1" title="Identification">
-  <HBox id="step1HBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="step1Rail" width="36rem">
-      <Panel id="step1Panel" class="stepPanel" expandable="false">
-        <content>
-          <f:Form id="step1Form" editable="true">
-            <f:layout>
-              <f:ResponsiveGridLayout
-                id="step1FormLayout"
-                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
-                adjustLabelSpan="false"/>
-            </f:layout>
-            <f:formContainers>
-              <f:FormContainer id="step1FormContainer">
-                <f:formElements>
-
-                  <!-- Row 1 -->
-                  <f:FormElement id="step1FormElementInput" label="Please Enter your Contract ID">
-                    <f:fields>
-                      <Input id="step1InputContract"
-                             value="{Vbeln}"
-                             width="100%"
-                             maxLength="10"
-                             required="true"
-                             placeholder="Scan or enter Contract ID"
-                             class="sapUiSizeCompact"
-                             change=".onContractChange"/>
-                    </f:fields>
-                  </f:FormElement>
-
-                  <!-- Row 2 -->
-                  <f:FormElement id="step1FormElementScan" label="">
-                    <f:fields>
-                      <HBox id="step1ScanRow" width="100%" justifyContent="Center" class="sapUiMediumMarginTop">
-                        <Button id="step1BtnScanCard"
-                                width="12rem"
-                                type="Emphasized"
-                                icon="sap-icon://business-card"
-                                text="Scan Card"
-                                press="onScanCard"/>
-                      </HBox>
-                    </f:fields>
-                  </f:FormElement>
-
-                </f:formElements>
-              </f:FormContainer>
-            </f:formContainers>
-          </f:Form>
-        </content>
-      </Panel>
-    </VBox>
-  </HBox>
-</WizardStep>
-
-<!-- STEP 2: Choose Load Type -->
-<WizardStep id="step2" title="Choose Load Type">
-  <HBox id="step2HBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="step2Rail" width="36rem">
-      <Panel id="step2Panel" class="stepPanel" expandable="false">
-        <content>
-          <f:Form id="step2Form" editable="true">
-            <f:layout>
-              <f:ResponsiveGridLayout
-                id="step2FormLayout"
-                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
-                adjustLabelSpan="false"/>
-            </f:layout>
-            <f:formContainers>
-              <f:FormContainer id="step2FormContainer">
-                <f:formElements>
-
-                  <!-- Row 1 -->
-                  <f:FormElement id="step2FormElementLoadType" label="">
-                    <f:fields>
-                      <VBox id="step2LtContainer"
-                            items="{
-                              path: '/ZI_WR_SALESITEM_CONTRACTVH',
-                              parameters: { $select: 'SalesOrder,SalesOrderitem,Material,MaterialText,Language', $orderby: 'SalesOrder,SalesOrderitem' }
-                            }">
-                        <Button id="step2LtButton"
-                                class="loadTypeBtn"
-                                width="100%"
-                                text="{= ${Material} + ' - ' + ${MaterialText} }"
-                                press=".onChooseLoadType"/>
-                      </VBox>
-                    </f:fields>
-                  </f:FormElement>
-
-                  <!-- Row 2 -->
-                  <f:FormElement id="step2FormElementSelection" label="">
-                    <f:fields>
-                      <Text id="step2SelectedText"
-                            class="sapUiSmallMarginTop"
-                            text="{= ${binding>SalesOrder} ? 'Selected: ' + ${binding>SalesOrder} : ''}"/>
-                    </f:fields>
-                  </f:FormElement>
-
-                </f:formElements>
-              </f:FormContainer>
-            </f:formContainers>
-          </f:Form>
-        </content>
-      </Panel>
-    </VBox>
-  </HBox>
-</WizardStep>
-
-<WizardStep id="step3" title="Weighing">
-  <HBox id="step3HBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="step3Rail" width="36rem">
-      <!-- TODO: weighing content -->
-    </VBox>
-  </HBox>
-</WizardStep>
-
-<WizardStep id="step4" title="Printing">
-  <HBox id="step4HBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="step4Rail" width="36rem">
-      <!-- TODO: weighing content -->
-    </VBox>
-  </HBox>
-</WizardStep>
-
-
-</Wizard>
-</content>
-</Page>
-</mvc:View>
-
