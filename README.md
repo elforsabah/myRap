@@ -3,9 +3,10 @@ xmlns:html="http://www.w3.org/1999/xhtml" controllerName="com.prologa.zwrweighbr
 height="100%">
 <Page id="Main" class="myApp" >
 <content>
-<Wizard id="weighingWizard" complete="onWizardComplete" >
+<Wizard id="weighingWizard" complete="onWizardComplete" showNextButton="false">
  <!-- STEP 1: Identification -->
-<WizardStep id="step1" title="Identification">
+<WizardStep id="step1" title="Identification" validated="true" icon="sap-icon://paper-plane">
+  <!-- Existing content remains unchanged -->
   <HBox id="step1HBoxOuter" width="100%" justifyContent="Center">
     <VBox id="step1Rail" width="36rem">
       <Panel id="step1Panel" class="stepPanel" expandable="false">
@@ -20,7 +21,6 @@ height="100%">
             <f:formContainers>
               <f:FormContainer id="step1FormContainer">
                 <f:formElements>
-
                   <!-- Row 1 -->
                   <f:FormElement id="step1FormElementInput" label="Please Enter your Contract ID">
                     <f:fields>
@@ -49,6 +49,14 @@ height="100%">
                     </f:fields>
                   </f:FormElement>
 
+                  <!-- Custom Next Button -->
+                  <f:FormElement id="step1FormElementNext" label="">
+                    <f:fields>
+                      <HBox width="100%" justifyContent="End" class="sapUiMediumMarginTop">
+                        <Button text="Next" type="Accept" press="onNextStep1" />
+                      </HBox>
+                    </f:fields>
+                  </f:FormElement>
                 </f:formElements>
               </f:FormContainer>
             </f:formContainers>
@@ -60,7 +68,8 @@ height="100%">
 </WizardStep>
 
 <!-- STEP 2: Choose Load Type -->
-<WizardStep id="step2" title="Choose Load Type">
+<WizardStep id="step2" title="Choose Load Type" validated="false" icon="sap-icon://decision">
+  <!-- Existing content remains unchanged -->
   <HBox id="step2HBoxOuter" width="100%" justifyContent="Center">
     <VBox id="step2Rail" width="36rem">
       <Panel id="step2Panel" class="stepPanel" expandable="false">
@@ -75,7 +84,6 @@ height="100%">
             <f:formContainers>
               <f:FormContainer id="step2FormContainer">
                 <f:formElements>
-
                   <!-- Row 1 -->
                   <f:FormElement id="step2FormElementLoadType" label="">
                     <f:fields>
@@ -93,6 +101,14 @@ height="100%">
                     </f:fields>
                   </f:FormElement>
 
+                  <!-- Custom Next Button -->
+                  <f:FormElement id="step2FormElementNext" label="">
+                    <f:fields>
+                      <HBox width="100%" justifyContent="End" class="sapUiMediumMarginTop">
+                        <Button text="Next" type="Accept" press="onNextStep2" />
+                      </HBox>
+                    </f:fields>
+                  </f:FormElement>
                 </f:formElements>
               </f:FormContainer>
             </f:formContainers>
@@ -102,18 +118,31 @@ height="100%">
     </VBox>
   </HBox>
 </WizardStep>
-<WizardStep id="step3" title="Weighing">
+
+<WizardStep id="step3" title="Weighing" validated="false" icon="sap-icon://weight">
+  <!-- Existing/TODO content remains unchanged -->
   <HBox id="step3HBoxOuter" width="100%" justifyContent="Center">
     <VBox id="step3Rail" width="36rem">
       <!-- TODO: weighing content -->
+      
+      <!-- Custom Next Button -->
+      <HBox width="100%" justifyContent="End" class="sapUiMediumMarginTop">
+        <Button text="Next" type="Accept" press="onNextStep3" />
+      </HBox>
     </VBox>
   </HBox>
 </WizardStep>
 
-<WizardStep id="step4" title="Printing">
+<WizardStep id="step4" title="Printing" validated="false" icon="sap-icon://print">
+  <!-- Existing/TODO content remains unchanged -->
   <HBox id="step4HBoxOuter" width="100%" justifyContent="Center">
     <VBox id="step4Rail" width="36rem">
-      <!-- TODO: weighing content -->
+      <!-- TODO: printing content -->
+      
+      <!-- Custom Finish Button -->
+      <HBox width="100%" justifyContent="End" class="sapUiMediumMarginTop">
+        <Button text="Finish" type="Accept" press="onFinishStep4" />
+      </HBox>
     </VBox>
   </HBox>
 </WizardStep>
