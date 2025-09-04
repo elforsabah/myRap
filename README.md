@@ -18,7 +18,7 @@
                     <f:fields>
                       <Text id="step3TextInstruction" text="Please make sure to place the vehicle correctly." class="sapUiSmallMarginTop"/>
                       <HBox id="step3HBoxWeighButton" width="100%" justifyContent="Center" class="sapUiSmallMarginTop">
-                        <Button id="step3BtnWeigh" text="WEIGH" type="Emphasized" class="sapUiLargeText"/>
+                        <Button id="step3BtnWeigh" text="WEIGH" type="Emphasized" class="sapUiLargeText sapUiSizeCompact" style="width: 12rem; height: 4rem; font-size: 1.5rem;"/>
                       </HBox>
                     </f:fields>
                   </f:FormElement>
