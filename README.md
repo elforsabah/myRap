@@ -13,16 +13,13 @@
             <f:formContainers>
               <f:FormContainer id="step3FormContainer">
                 <f:formElements>
-                  <!-- Row 1 -->
-                  <f:FormElement id="step3FormElementWeighing" label="Weighing:">
-                    <f:fields>
-                      <Text id="step3TextWeighing" text="11,400 KG" class="sapUiMediumMarginTop"/>
-                    </f:fields>
-                  </f:FormElement>
                   <!-- Row 2 -->
                   <f:FormElement id="step3FormElementInstruction" label="">
                     <f:fields>
                       <Text id="step3TextInstruction" text="Please make sure to place the vehicle correctly." class="sapUiSmallMarginTop"/>
+                      <HBox id="step3HBoxWeighButton" width="100%" justifyContent="Center" class="sapUiSmallMarginTop">
+                        <Button id="step3BtnWeigh" text="WEIGH" type="Emphasized" class="sapUiLargeText"/>
+                      </HBox>
                     </f:fields>
                   </f:FormElement>
                   <!-- Row 3 -->
