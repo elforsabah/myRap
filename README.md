@@ -1,94 +1,50 @@
-.myApp .myCustomFormElement .sapMLabel {
-    font-size: 1.9rem !important;
-    font-weight: bold !important;
-    color: red !important;
-}
-
-/* Responsive panel for tablet */
-.stepPanel {
-    width: 90% !important;     /* take most of the tablet width */
-    max-width: 40rem !important;          /* but don’t get too wide */
-    margin: 1rem !important;              /* breathing space */
-}
-
-/* Bigger touch buttons */
-.loadTypeBtn {
-    margin: 0.5rem 0 !important;
-    padding: 1.5rem 1rem !important;     
-    border: 1px solid #d0d5db !important;
-    border-radius: 0.5rem !important;
-    text-align: left !important;
-    font-size: 1.1rem !important;
-    font-weight: 600 !important;
-    color: #218154 !important;;
-}
-
-/* Solid green button */
-.loadTypeBtn .sapMBtnInner {
-    background-color: #1f8e9c;     /* base */
-    border-color: #1f6d8b;
-    color: #ffffff;                /* white label */
-}
-
-/* Hover (lighter) */
-.loadTypeBtn.sapMBtn:hover .sapMBtnInner {
-    background-color: #3ab87d;     /* +~8% light */
-    border-color: #1b9fa3;
-}
-
-/* Active/pressed (darker) */
-.loadTypeBtn.sapMBtn:active .sapMBtnInner,
-.loadTypeBtn.sapMBtnActive .sapMBtnInner {
-    background-color: #0f693f;     /* -~10% dark */
-    border-color: #2c77a1;
-}
-
-/* Disabled (muted) */
-.loadTypeBtn.sapMBtnDisabled .sapMBtnInner {
-    background-color: #75d4a7;
-    border-color: #2e89a5;
-    color: #ffffff;
-}
-
-.sapMWizardProgressNavStepIcon {
-    color: rgb(47, 226, 12) !important; /* Replace with your desired color, e.g., #FF0000 or rgb(255, 0, 0) */
-}
-
-/* Bigger touch buttons for largeWeighButton */
-.largeWeighButton {
-    margin: 0.5rem 0 !important;
-    padding: 1.5rem 1rem !important;     
-    border: 1px solid #d0d5db !important;
-    border-radius: 0.5rem !important;
-    text-align: left !important;
-    font-size: 9rem !important;
-    font-weight: 600 !important;
-    color: #218154 !important;
-}
-
-/* Solid green button for largeWeighButton */
-.largeWeighButton .sapMBtnInner {
-    background-color: #1f8e9c;     /* base */
-    border-color: #1f6d8b;
-    color: #ffffff;                /* white label */
-}
-
-/* Hover (lighter) for largeWeighButton */
-.largeWeighButton.sapMBtn:hover .sapMBtnInner {
-    background-color: #3ab87d;     /* +~8% light */
-    border-color: #1b9fa3;
-}
-
-/* Active/pressed (darker) for largeWeighButton */
-.largeWeighButton.sapMBtn:active .sapMBtnInner,
-.largeWeighButton.sapMBtnActive .sapMBtnInner {
-    background-color: #0f693f;     /* -~10% dark */
-    border-color: #2c77a1;
-}
-
-/* Disabled (muted) for largeWeighButton */
-.largeWeighButton.sapMBtnDisabled .sapMBtnInner {
-    background-color: #75d4a7;
-    border-color: #2e89a5;
-    color: #ffffff;
-}
+<WizardStep id="step3" title="Weighing" validated="false" icon="sap-icon://compare-2">
+  <HBox id="step3HBoxOuter" width="100%" justifyContent="Center">
+    <VBox id="step3Rail" width="36rem">
+      <Panel id="step3Panel" class="stepPanel" expandable="false">
+        <content>
+          <f:Form id="step3Form" editable="true">
+            <f:layout>
+              <f:ResponsiveGridLayout
+                id="step3FormLayout"
+                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
+                adjustLabelSpan="false"/>
+            </f:layout>
+            <f:formContainers>
+              <f:FormContainer id="step3FormContainer">
+                <f:formElements>
+                  <!-- Row 2 -->
+                  <f:FormElement id="step3FormElementInstruction" label="">
+                    <f:fields>
+                      <Text id="step3TextInstruction" text="Please make sure to place the vehicle correctly." class="sapUiSmallMarginTop sapUiMediumFontWeight"/>
+                      <HBox id="step3HBoxWeighButton" width="100%" justifyContent="Start" class="sapUiSmallMarginTop">
+                        <Button id="step3BtnWeigh" width="100%" text="WEIGH" type="Emphasized" class="sapUiLargeText  largeWeighButton"/>
+                      </HBox>
+                    </f:fields>
+                  </f:FormElement>
+                  <!-- Row 3 -->
+                  <f:FormElement id="step3FormElementWeight" label="">
+                    <f:fields>
+                      <HBox id="step3HBoxWeight" width="100%" justifyContent="Center">
+                        <Text id="step3TextWeight" text="8.100 KG" class="sapUiLargeText"/>
+                      </HBox>
+                    </f:fields>
+                  </f:FormElement>
+                  <!-- Row 4 -->
+                  <f:FormElement id="step3FormElementConfirm" label="">
+                    <f:fields>
+                      <HBox id="step3HBoxConfirm" width="100%" justifyContent="Start" class="sapUiMediumMarginTop">
+                        <Button id="step3BtnConfirm" text="CONFIRM" type="Emphasized" press="onConfirmStep3"/>
+                      </HBox>
+                    </f:fields>
+                  </f:FormElement>
+                </f:formElements>
+              </f:FormContainer>
+            </f:formContainers>
+          </f:Form>
+        </content>
+      </Panel>
+     
+    </VBox>
+  </HBox>
+</WizardStep>
