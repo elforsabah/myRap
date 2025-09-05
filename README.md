@@ -1,5 +1,21 @@
+<f:fields>
+  <HBox id="step3HBoxWeight" width="100%" justifyContent="Center" class="bigWeightContainer">
+    <Text
+      id="step3TextWeight"
+      text="{local>/mainWeight} KG"
+      textAlign="Center"
+      wrapping="true"
+      class="bigWeightNumber"/>
+  </HBox>
+</f:fields>
+
+
 .bigWeightContainer {
-    min-height: 10rem !important;  /* Adjust this value (e.g., 15rem) to fit your large number */
-    display: flex;  /* Ensures flex behavior if overridden */
-    align-items: center;  /* Vertically centers the content if desired */
+  margin-top: 1rem;
+}
+
+.bigWeightNumber {
+  font-size: 2.5rem;     /* adjust until it fits */
+  font-weight: bold;
+  white-space: nowrap;   /* keep number + KG together */
 }
