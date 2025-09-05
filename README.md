@@ -1,1 +1,6 @@
- <Button id="step3BtnConfirm" width="8rem" text="CONFIRM"  press="onConfirmStep3" class="sapUiLargeText largeWeighButton" visible="false"/>
+// Make the CONFIRM button visible after weight is set
+                    var oButton = this.byId("step3BtnConfirm");
+                    if (oButton) {
+                        oButton.setVisible(true);
+                    }
+                }
