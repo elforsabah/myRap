@@ -1,198 +1,67 @@
-CLASS lhc_WeighingSession DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
+onWeighStep3: function () {
+                var oContext = this.getView().getBindingContext();
+                var oModel = this.getView().getModel();
+                var oLocalModel = this.getView().getModel("local");
 
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR WeighingSession RESULT result.
+                if (!oContext) {
+                    MessageToast.show("No session context available.");
+                    return;
+                }
 
-    METHODS identifyCard FOR Modify
-      IMPORTING keys FOR ACTION WeighingSession~identifyCard RESULT result.
+                // Ensure the entity is persisted before calling the action
+                oModel.submitBatch("weighingGroup").then(function () {
+                    console.log("Entity persisted. Invoking determineWeight...");
+                    // Call the determineWeight action
+                    var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.determineWeight(...)", oContext);
+                    var sContractId = this.getView().getModel("local").getProperty("/contractId");
+                    var sLoadType = this.getView().getModel("local").getProperty("/loadType");
+                    oAction.setParameter("Vbeln", sContractId);
+                    oAction.setParameter("Loadtype", sLoadType);
 
-    METHODS NextStep FOR MODIFY
-      IMPORTING keys FOR ACTION WeighingSession~NextStep RESULT result.
-
-    METHODS determineWeight FOR MODIFY
-      IMPORTING keys FOR ACTION WeighingSession~determineWeight RESULT result.
-
-    METHODS Submit FOR MODIFY
-      IMPORTING keys FOR ACTION WeighingSession~Submit RESULT result.
-
-    METHODS calcNet FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR WeighingSession~calcNet.
-
-    METHODS ValidateLoadType FOR VALIDATE ON SAVE
-      IMPORTING keys FOR WeighingSession~ValidateLoadType.
-
-    METHODS validateStep1 FOR VALIDATE ON SAVE
-      IMPORTING keys FOR WeighingSession~validateStep1.
-
-    METHODS validateStep2 FOR VALIDATE ON SAVE
-      IMPORTING keys FOR WeighingSession~validateStep2.
-
-ENDCLASS.
-
-CLASS lhc_WeighingSession IMPLEMENTATION.
-
-******************************************************************************************
-* Authorization
-******************************************************************************************
-METHOD get_instance_authorizations.
-  READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-    ENTITY WeighingSession
-    FIELDS ( sessionid ) WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_sessions)
-    FAILED failed.
-
-  result = VALUE #( FOR ls_session IN lt_sessions
-    ( %tky   = ls_session-%tky
-*      %create              = if_abap_behv=>auth-allowed
-      %update              = if_abap_behv=>auth-allowed
-      %delete              = if_abap_behv=>auth-allowed
-      %action-identifyCard = if_abap_behv=>auth-allowed
-      %action-determineWeight  = if_abap_behv=>auth-allowed
-      %action-NextStep     = if_abap_behv=>auth-allowed
-      %action-Submit       = if_abap_behv=>auth-allowed ) ).
-ENDMETHOD.
-******************************************************************************************
-* Identification
-******************************************************************************************
-  METHOD identifyCard.
-
-  DATA lt_success_keys TYPE TABLE FOR READ IMPORT zi_wr_weighingsession.
-  LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
-    " Validate contract existence (adjust table name if not VBAK)
-    SELECT SINGLE @abap_true FROM vbak
-      WHERE vbeln = @<ls_key>-%param-vbeln
-      INTO @DATA(lv_exists).
-    IF sy-subrc = 0.
-      " ✓ Valid: report success message only (no update)
-      APPEND VALUE #(
-        %tky = <ls_key>-%tky
-        %msg = new_message(
-                 id = 'ZWR_WEIGHBRIGE_MESS'
-                 number = '000'
-                 severity = if_abap_behv_message=>severity-success
-                 v1 = <ls_key>-%param-vbeln ) )
-        TO reported-weighingsession.
-
-      " Collect for result
-      APPEND VALUE #( %tky = <ls_key>-%tky ) TO lt_success_keys.
-    ELSE.
-      " ✗ Invalid: report bound error and fail the action
-      APPEND VALUE #(
-        %tky = <ls_key>-%tky
-        %msg = new_message(
-                 id = 'ZWR_WEIGHBRIGE_MESS'
-                 number = '001'
-                 severity = if_abap_behv_message=>severity-error
-                 v1 = <ls_key>-%param-vbeln )
-        %element-vbeln = if_abap_behv=>mk-on  " Bind message to Vbeln field
-      ) TO reported-weighingsession.
-
-      " Fail the function (set failed to prevent result for this key)
-      APPEND VALUE #(
-        %tky = <ls_key>-%tky
-        %fail-cause = if_abap_behv=>cause-unspecific
-      ) TO failed-weighingsession.
-    ENDIF.
-
-  ENDLOOP.
-
-  " Read and return full data for successful instances
-  IF lt_success_keys IS NOT INITIAL.
-    READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-      ENTITY WeighingSession
-      ALL FIELDS WITH lt_success_keys
-      RESULT DATA(lt_result)
-      FAILED DATA(lt_read_failed).
-    result = CORRESPONDING #( lt_result ).
-  ENDIF.
-ENDMETHOD.
-
-
-*********************************************************************************************
-* Selection of Load type
-*********************************************************************************************
- METHOD determineWeight.
-  DATA lt_success_keys TYPE TABLE FOR READ IMPORT zi_wr_weighingsession.
-
-  LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
-    " Read the current session data
-    READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-      ENTITY WeighingSession
-      ALL FIELDS WITH VALUE #( ( %tky = <ls_key>-%tky ) )
-      RESULT DATA(lt_sessions)
-      FAILED DATA(lt_failed).
-
-    IF lt_sessions IS NOT INITIAL.
-      DATA(ls_session) = lt_sessions[ 1 ].
-      " Example: Assume weight is calculated or fetched (e.g., from a device or table)
-      DATA(lv_weight) = ls_session-Grossweight. " Adjust logic as needed
-      IF lv_weight IS INITIAL.
-        " Simulate fetching weight (replace with actual logic, e.g., from a device or table)
-        lv_weight = 1000. " Example value in kg
-*        " Update the entity with the weight
-*        MODIFY ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-*          ENTITY WeighingSession
-*          UPDATE FIELDS ( Grossweight )
-*          WITH VALUE #( ( %tky = <ls_key>-%tky
-*                          Grossweight = lv_weight ) )
-*          FAILED DATA(lt_update_failed)
-*          REPORTED DATA(lt_reported).
-      ENDIF.
-
-      " Report success
-      APPEND VALUE #(
-        %tky = <ls_key>-%tky
-        %msg = new_message(
-                 id = 'ZWR_WEIGHBRIGE_MESS'
-                 number = '002'
-                 severity = if_abap_behv_message=>severity-success
-                 v1 = lv_weight )
-      ) TO reported-weighingsession.
-
-      " Collect for result
-      APPEND VALUE #( %tky = <ls_key>-%tky ) TO lt_success_keys.
-    ELSE.
-      " Report error if session not found
-      APPEND VALUE #(
-        %tky = <ls_key>-%tky
-        %msg = new_message(
-                 id = 'ZWR_WEIGHBRIGE_MESS'
-                 number = '003'
-                 severity = if_abap_behv_message=>severity-error
-                 v1 = 'Session not found' )
-      ) TO reported-weighingsession.
-      APPEND VALUE #( %tky = <ls_key>-%tky %fail-cause = if_abap_behv=>cause-not_found ) TO failed-weighingsession.
-    ENDIF.
-  ENDLOOP.
-
-  " Read and return full data for successful instances
-  IF lt_success_keys IS NOT INITIAL.
-    READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-      ENTITY WeighingSession
-      ALL FIELDS WITH lt_success_keys
-      RESULT DATA(lt_result)
-      FAILED DATA(lt_read_failed).
-    result = CORRESPONDING #( lt_result ).
-  ENDIF.
-ENDMETHOD.
-
-  METHOD NextStep.
-  ENDMETHOD.
-
-  METHOD Submit.
-  ENDMETHOD.
-
-  METHOD calcNet.
-  ENDMETHOD.
-
-  METHOD ValidateLoadType.
-  ENDMETHOD.
-
-  METHOD validateStep1.
-  ENDMETHOD.
-
-  METHOD validateStep2.
-  ENDMETHOD.
-
-ENDCLASS.
+                    return oAction.invoke();
+                }.bind(this)).then(function (oResult) {
+                    console.log("determineWeight invoked successfully.");
+                    // NEW: Manually fetch all messages from the message model
+                    var aMessages = Messaging.getMessageModel().getData() || [];
+                    // Filter for the specific success message using getCode() (expected format: 'msgid/msgno')
+                    var aSpecificSuccesses = aMessages.filter(function (oMsg) {
+                        return oMsg.getType() === "Success" && oMsg.getCode() === 'ZWR_WEIGHBRIGE_MESS/002';
+                    });
+                    if (aSpecificSuccesses.length > 0) {
+                        // Take the first (or last) matching message; assuming one per action
+                        var oSpecificMsg = aSpecificSuccesses[0]; // or aSpecificSuccesses[aSpecificSuccesses.length - 1]
+                        var sMsgText = oSpecificMsg.getMessage();
+                        // Parse the weight (assumes text like "Weight determined: 1000" or similar; adjust regex if needed)
+                        var aMatch = sMsgText.match(/(\d+(\.\d+)?)/); // Matches integer or decimal number
+                        if (aMatch) {
+                            var fWeight = parseFloat(aMatch[0]);
+                            oLocalModel.setProperty("/mainWeight", fWeight.toString());
+                            // Optional: Show a toast with the parsed weight
+                            MessageToast.show("Weight captured from backend: " + fWeight);
+                        } else {
+                            // Fallback if parsing fails
+                            MessageToast.show(sMsgText); // Show original message
+                        }
+                        // Remove the processed specific success messages to avoid accumulation or popups
+                        Messaging.removeMessages(aSpecificSuccesses);
+                    } else {
+                        MessageToast.show("No specific success message (ZWR_WEIGHBRIGE_MESS/002) received from backend.");
+                    }
+                    // Refresh context for any other updates
+                    oContext.refresh();
+                }.bind(this)).catch(function (oError) {
+                    console.error("Error in determineWeight: ", oError);
+                    var sErrorMsg = oError.message || "Failed to determine weight.";
+                    MessageToast.show(sErrorMsg);
+                    // Optional: Also check for error messages and handle/remove them
+                    var aMessages = Messaging.getMessageModel().getData() || [];
+                    var aErrors = aMessages.filter(function (oMsg) {
+                        return oMsg.getType() === "Error";
+                    });
+                    if (aErrors.length > 0) {
+                        // Example: Show the error message and remove
+                        MessageToast.show(aErrors[0].getMessage());
+                        Messaging.removeMessages(aErrors);
+                    }
+                }.bind(this));
+            },
