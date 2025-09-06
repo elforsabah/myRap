@@ -1,3 +1,59 @@
+@EndUserText.label: 'Print Slip Result'
+define abstract entity ZAE_WR_WEIGHB_PRINT_Result
+  
+{
+    PDFBase64 : abap.string( 0 );
+    
+}
+
+
+managed implementation in class zbp_i_wr_weighingsession unique;
+strict( 2 );
+
+with draft;
+
+define behavior for ZI_WR_WEIGHINGSESSION alias WeighingSession
+persistent table zwr_weighsession
+draft table ZWR_WEIGHB_DD
+lock master
+total etag Grossweight
+authorization master ( instance )
+etag master Grossweight
+
+{
+//  Keys must be readonly in strict draft
+  field (readonly) Sessionid;  // <-- use your exact CDS element names
+  field (numbering: managed) Sessionid;
+create;
+update;
+delete;
+
+draft action Edit;
+draft action Activate;
+draft action Discard;
+draft action Resume;                 // <-- required
+draft determine action Prepare;      //<-- required
+
+action NextStep result [1] $self; // server validates & increments Step
+action Submit result [1] $self; // final checks; printing trigger optional
+
+action identifyCard parameter ZAE_WR_WEIGHINGSESSION result [1] $self ;
+action determineWeight parameter ZAE_WR_WEIGHB_DW  result [1] $self;
+function printSlip parameter ZAE_WR_WEIGHB_PRINT  result [1] ZAE_WR_WEIGHB_PRINT_Result;
+
+
+//action identifyCard  result [1] $self;
+
+validation validateStep1 on save { field Vbeln, Sessionid; } // Identification
+validation validateStep2 on save { field Loadtype; } // Load type
+validation ValidateLoadType on save { field LoadType; } // Calls a method to check against VH
+
+determination calcNet on modify { field Grossweight, Tareweight; } // Weighing math
+
+
+}
+
+
 CLASS lhc_WeighingSession DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
 
@@ -7,7 +63,7 @@ CLASS lhc_WeighingSession DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS identifyCard FOR MODIFY
       IMPORTING keys FOR ACTION WeighingSession~identifyCard RESULT result.
 
-    METHODS printSlip FOR READ
+    METHODS printSlip FOR read
       IMPORTING keys FOR FUNCTION WeighingSession~printSlip RESULT result.
 
     METHODS NextStep FOR MODIFY
@@ -184,8 +240,10 @@ CLASS lhc_WeighingSession IMPLEMENTATION.
       result = CORRESPONDING #( lt_result ).
     ENDIF.
   ENDMETHOD.
-
-  METHOD printslip.
+*********************************************************************************************
+* Printing of slip
+*********************************************************************************************
+METHOD printslip.
     DATA: lv_base64 TYPE string,
           lt_success_keys TYPE TABLE FOR READ IMPORT zi_wr_weighingsession.
 
@@ -244,7 +302,7 @@ CLASS lhc_WeighingSession IMPLEMENTATION.
                         ( %tky = <ls_session>-%tky
                           sessionid = <ls_session>-sessionid  " Map other fields as needed
                           " ... (add all relevant entity fields here)
-                          pdf_base64 = lv_base64 ) ).  " Set the computed Base64
+                          PDFBase64 = lv_base64 ) ).  " Set the computed Base64
     ENDIF.
   ENDMETHOD.
   METHOD NextStep.
@@ -266,3 +324,4 @@ CLASS lhc_WeighingSession IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
