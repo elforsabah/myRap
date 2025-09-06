@@ -275,6 +275,53 @@ define abstract entity ZAE_WR_WEIGHB_PRINT_Result
     
 }
 
+managed implementation in class zbp_i_wr_weighingsession unique;
+strict( 2 );
+
+with draft;
+
+define behavior for ZI_WR_WEIGHINGSESSION alias WeighingSession
+persistent table zwr_weighsession
+draft table ZWR_WEIGHB_DD
+lock master
+total etag Grossweight
+authorization master ( instance )
+etag master Grossweight
+
+{
+//  Keys must be readonly in strict draft
+  field (readonly) Sessionid;  // <-- use your exact CDS element names
+  field (numbering: managed) Sessionid;
+create;
+update;
+delete;
+
+draft action Edit;
+draft action Activate;
+draft action Discard;
+draft action Resume;                 // <-- required
+draft determine action Prepare;      //<-- required
+
+action NextStep result [1] $self; // server validates & increments Step
+action Submit result [1] $self; // final checks; printing trigger optional
+
+action identifyCard parameter ZAE_WR_WEIGHINGSESSION result [1] $self ;
+action determineWeight parameter ZAE_WR_WEIGHB_DW  result [1] $self;
+function printSlip parameter ZAE_WR_WEIGHB_PRINT  result [1] ZAE_WR_WEIGHB_PRINT_Result;
+
+
+//action identifyCard  result [1] $self;
+
+validation validateStep1 on save { field Vbeln, Sessionid; } // Identification
+validation validateStep2 on save { field Loadtype; } // Load type
+validation ValidateLoadType on save { field LoadType; } // Calls a method to check against VH
+
+determination calcNet on modify { field Grossweight, Tareweight; } // Weighing math
+
+
+}
+
+
 Description	Resource	Path	Location	Type
 No component exists with the name "PDFBASE64".	ZBP_I_WR_WEIGHINGSESSION (Local Types)	/S4/.adt/classlib/classes/zbp_i_wr_weighingsession	line 224	ABAP Syntax Check Problem
 
