@@ -1,59 +1,3 @@
-@EndUserText.label: 'Print Slip Result'
-define abstract entity ZAE_WR_WEIGHB_PRINT_Result
-  
-{
-    PDFBase64 : abap.string( 0 );
-    
-}
-
-
-managed implementation in class zbp_i_wr_weighingsession unique;
-strict( 2 );
-
-with draft;
-
-define behavior for ZI_WR_WEIGHINGSESSION alias WeighingSession
-persistent table zwr_weighsession
-draft table ZWR_WEIGHB_DD
-lock master
-total etag Grossweight
-authorization master ( instance )
-etag master Grossweight
-
-{
-//  Keys must be readonly in strict draft
-  field (readonly) Sessionid;  // <-- use your exact CDS element names
-  field (numbering: managed) Sessionid;
-create;
-update;
-delete;
-
-draft action Edit;
-draft action Activate;
-draft action Discard;
-draft action Resume;                 // <-- required
-draft determine action Prepare;      //<-- required
-
-action NextStep result [1] $self; // server validates & increments Step
-action Submit result [1] $self; // final checks; printing trigger optional
-
-action identifyCard parameter ZAE_WR_WEIGHINGSESSION result [1] $self ;
-action determineWeight parameter ZAE_WR_WEIGHB_DW  result [1] $self;
-function printSlip parameter ZAE_WR_WEIGHB_PRINT  result [1] ZAE_WR_WEIGHB_PRINT_Result;
-
-
-//action identifyCard  result [1] $self;
-
-validation validateStep1 on save { field Vbeln, Sessionid; } // Identification
-validation validateStep2 on save { field Loadtype; } // Load type
-validation ValidateLoadType on save { field LoadType; } // Calls a method to check against VH
-
-determination calcNet on modify { field Grossweight, Tareweight; } // Weighing math
-
-
-}
-
-
 CLASS lhc_WeighingSession DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
 
@@ -243,12 +187,13 @@ CLASS lhc_WeighingSession IMPLEMENTATION.
 *********************************************************************************************
 * Printing of slip
 *********************************************************************************************
-METHOD printslip.
-    DATA: lv_base64 TYPE string,
-          lt_success_keys TYPE TABLE FOR READ IMPORT zi_wr_weighingsession.
+  METHOD printslip.
+    DATA lv_base64 TYPE string.
 
     LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
-      " Fetch the base64 PDF using the helper method (use parameters if needed for dynamic generation, e.g., <ls_key>-%param-vbeln)
+      " Fetch the base64 PDF using the helper method
+      " TODO: Make dynamic - pass <ls_key>-%param-vbeln, %param-loadtype, %param-weight, %param-weighunit to helper for form data population
+      "       (Enhance zcl_wr_weighbridge_helper=>form_to_base64 to accept a structure with these params and fill the Smart Form dynamically)
       zcl_wr_weighbridge_helper=>form_to_base64(
         EXPORTING
           iv_form   = 'IS_U_WA_SF_WEIGHINGPROCESS'
@@ -274,8 +219,9 @@ METHOD printslip.
                    v1 = 'PDF generated successfully' )
         ) TO reported-weighingsession.
 
-        " Collect for result
-        APPEND VALUE #( %tky = <ls_key>-%tky ) TO lt_success_keys.
+        " Directly add to result (combine %tky with result entity fields)
+        APPEND VALUE #( %tky = <ls_key>-%tky
+                        PDFBase64 = lv_base64 ) TO result.
       ELSE.
         " Report error if base64 generation failed
         APPEND VALUE #(
@@ -289,21 +235,6 @@ METHOD printslip.
         APPEND VALUE #( %tky = <ls_key>-%tky %fail-cause = if_abap_behv=>cause-unspecific ) TO failed-weighingsession.
       ENDIF.
     ENDLOOP.
-
-    " Read current entity data for successful keys and add the computed pdf_base64 to the result (no modification)
-    IF lt_success_keys IS NOT INITIAL.
-      READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
-        ENTITY WeighingSession
-        ALL FIELDS WITH lt_success_keys
-        RESULT DATA(lt_sessions)
-        FAILED DATA(lt_read_failed).
-
-      result = VALUE #( FOR <ls_session> IN lt_sessions
-                        ( %tky = <ls_session>-%tky
-                          sessionid = <ls_session>-sessionid  " Map other fields as needed
-                          " ... (add all relevant entity fields here)
-                          PDFBase64 = lv_base64 ) ).  " Set the computed Base64
-    ENDIF.
   ENDMETHOD.
   METHOD NextStep.
   ENDMETHOD.
@@ -324,4 +255,3 @@ METHOD printslip.
   ENDMETHOD.
 
 ENDCLASS.
-
