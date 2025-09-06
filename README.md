@@ -1,164 +1,223 @@
-CLASS ZCL_WR_WEIGHBRIDGE_HELPER DEFINITION
-  PUBLIC
-  CREATE PUBLIC .
-
-  PUBLIC SECTION.
-    METHODS FORM_TO_BASE64
-      IMPORTING
-        !p_form   TYPE c LENGTH 30 DEFAULT 'Z_MY_ADOBE_FORM' " SFP form name
-        !p_lang   TYPE sylangu DEFAULT sy-langu
-        !p_show   TYPE abap_bool DEFAULT abap_true " Show Base64 preview
-        !p_pdf    TYPE abap_bool DEFAULT abap_false " Save PDF file
-        !p_b64    TYPE abap_bool DEFAULT abap_false " Save Base64 text
-        !p_pdfpth TYPE string DEFAULT 'C:\Temp\adobe_form.pdf'
-        !p_b64pth TYPE string DEFAULT 'C:\Temp\adobe_form_base64.txt'
-        !p_prevln TYPE i DEFAULT 200 " Preview chars
-      RETURNING
-        VALUE(r_base64) TYPE string. " Return the Base64 string
-
-  PROTECTED SECTION.
+CLASS lhc_WeighingSession DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
+
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR WeighingSession RESULT result.
+
+    METHODS identifyCard FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~identifyCard RESULT result.
+
+    METHODS printSlip FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~printSlip RESULT result.
+
+    METHODS NextStep FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~NextStep RESULT result.
+
+    METHODS determineWeight FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~determineWeight RESULT result.
+
+    METHODS Submit FOR MODIFY
+      IMPORTING keys FOR ACTION WeighingSession~Submit RESULT result.
+
+    METHODS calcNet FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR WeighingSession~calcNet.
+
+    METHODS ValidateLoadType FOR VALIDATE ON SAVE
+      IMPORTING keys FOR WeighingSession~ValidateLoadType.
+
+    METHODS validateStep1 FOR VALIDATE ON SAVE
+      IMPORTING keys FOR WeighingSession~validateStep1.
+
+    METHODS validateStep2 FOR VALIDATE ON SAVE
+      IMPORTING keys FOR WeighingSession~validateStep2.
+
 ENDCLASS.
 
-CLASS ZCL_WR_WEIGHBRIDGE_HELPER IMPLEMENTATION.
+CLASS lhc_WeighingSession IMPLEMENTATION.
 
-* <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_WR_WEIGHBRIDGE_HELPER->FORM_TO_BASE64
-* +-------------------------------------------------------------------------------------------------+
-* +--------------------------------------------------------------------------------------</SIGNATURE>
-  METHOD FORM_TO_BASE64.
-    DATA: ls_outparams TYPE sfpoutputparams,
-          ls_docparams TYPE sfpdocparams,
-          lv_fm_name TYPE rs38l_fnam,
-          ls_formoutput TYPE fpformoutput,
-          lv_pdf_xstr TYPE xstring,
-          lv_pdf_b64 TYPE string,
-          lv_job_opened TYPE abap_bool,
-          ls_cpd_address TYPE adrc. " Replace with the actual type from your form interface if not ADRC (check in SFP transaction)
+******************************************************************************************
+* Authorization
+******************************************************************************************
+  METHOD get_instance_authorizations.
+    READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+      ENTITY WeighingSession
+      FIELDS ( sessionid ) WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_sessions)
+      FAILED failed.
 
-    ls_outparams-nodialog = abap_true.
-    ls_outparams-getpdf = abap_true.
-    ls_docparams-langu = p_lang.
+    result = VALUE #( FOR ls_session IN lt_sessions
+      ( %tky   = ls_session-%tky
+*      %create              = if_abap_behv=>auth-allowed
+        %update              = if_abap_behv=>auth-allowed
+        %delete              = if_abap_behv=>auth-allowed
+        %action-identifyCard = if_abap_behv=>auth-allowed
+        %action-determineWeight  = if_abap_behv=>auth-allowed
+        %action-NextStep     = if_abap_behv=>auth-allowed
+        %action-Submit       = if_abap_behv=>auth-allowed ) ).
+  ENDMETHOD.
+******************************************************************************************
+* Identification
+******************************************************************************************
+  METHOD identifyCard.
 
-    " Fill application data for the form interface
-    " Example values - adjust based on your form's requirements
-    ls_cpd_address-name1 = 'Test Company Name'.
-    ls_cpd_address-street = 'Test Street 123'.
-    ls_cpd_address-city1 = 'Test City'.
-    ls_cpd_address-post_code1 = '12345'.
-    ls_cpd_address-country = 'DE'. " Example: Germany
-    " Add more fields as needed, e.g., house_num1, region, etc.
+    DATA lt_success_keys TYPE TABLE FOR READ IMPORT zi_wr_weighingsession.
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
+      " Validate contract existence (adjust table name if not VBAK)
+      SELECT SINGLE @abap_true FROM vbak
+        WHERE vbeln = @<ls_key>-%param-vbeln
+        INTO @DATA(lv_exists).
+      IF sy-subrc = 0.
+        " ✓ Valid: report success message only (no update)
+        APPEND VALUE #(
+          %tky = <ls_key>-%tky
+          %msg = new_message(
+                   id = 'ZWR_WEIGHBRIGE_MESS'
+                   number = '000'
+                   severity = if_abap_behv_message=>severity-success
+                   v1 = <ls_key>-%param-vbeln ) )
+          TO reported-weighingsession.
 
-    TRY.
-        " Open FP job
-        CALL FUNCTION 'FP_JOB_OPEN'
-          CHANGING
-            ie_outputparams = ls_outparams.
-        lv_job_opened = abap_true.
+        " Collect for result
+        APPEND VALUE #( %tky = <ls_key>-%tky ) TO lt_success_keys.
+      ELSE.
+        " ✗ Invalid: report bound error and fail the action
+        APPEND VALUE #(
+          %tky = <ls_key>-%tky
+          %msg = new_message(
+                   id = 'ZWR_WEIGHBRIGE_MESS'
+                   number = '001'
+                   severity = if_abap_behv_message=>severity-error
+                   v1 = <ls_key>-%param-vbeln )
+          %element-vbeln = if_abap_behv=>mk-on  " Bind message to Vbeln field
+        ) TO reported-weighingsession.
 
-        " Resolve generated FM for form name
-        CALL FUNCTION 'FP_FUNCTION_MODULE_NAME'
-          EXPORTING
-            i_name = p_form
-          IMPORTING
-            e_funcname = lv_fm_name.
+        " Fail the function (set failed to prevent result for this key)
+        APPEND VALUE #(
+          %tky = <ls_key>-%tky
+          %fail-cause = if_abap_behv=>cause-unspecific
+        ) TO failed-weighingsession.
+      ENDIF.
 
-        " === If your SFP interface needs additional application data, fill it here ===
-        " DATA(ls_app_data) = VALUE zmy_form_ctx( ... ). " <-- your other DDIC type(s) if any
-        " ================================================================
+    ENDLOOP.
 
-        " Call the form FM
-        CALL FUNCTION lv_fm_name
-          EXPORTING
-            /1BCDWB/DOCPARAMS = ls_docparams
-            IS_CPD_ADDRESS = ls_cpd_address " Added missing parameter with sample data
-            " is_data = ls_app_data " <--- example: your other interface import(s)
-          IMPORTING
-            /1BCDWB/FORMOUTPUT = ls_formoutput
-          EXCEPTIONS
-            usage_error = 1
-            system_error = 2
-            internal_error= 3
-            OTHERS = 4.
-        IF sy-subrc <> 0.
-          MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
-                  WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    " Read and return full data for successful instances
+    IF lt_success_keys IS NOT INITIAL.
+      READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+        ENTITY WeighingSession
+        ALL FIELDS WITH lt_success_keys
+        RESULT DATA(lt_result)
+        FAILED DATA(lt_read_failed).
+      result = CORRESPONDING #( lt_result ).
+    ENDIF.
+  ENDMETHOD.
+
+
+*********************************************************************************************
+* Selection of Load type
+*********************************************************************************************
+  METHOD determineWeight.
+    DATA lt_success_keys TYPE TABLE FOR READ IMPORT zi_wr_weighingsession.
+
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
+      " Read the current session data
+      READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+        ENTITY WeighingSession
+        ALL FIELDS WITH VALUE #( ( %tky = <ls_key>-%tky ) )
+        RESULT DATA(lt_sessions)
+        FAILED DATA(lt_failed).
+
+      IF lt_sessions IS NOT INITIAL.
+        DATA(ls_session) = lt_sessions[ 1 ].
+
+        " Call the waarevorgang FUBA to get the weight
+
+
+        " Example: Assume weight is calculated or fetched (e.g., from a device or table)
+        DATA(lv_weight) = ls_session-Grossweight. " Adjust logic as needed
+        DATA(lv_unit) = 'KG'.
+        IF lv_weight IS INITIAL.
+          " Simulate fetching weight (replace with actual logic, e.g., from a device or table)
+          lv_weight = 345671. " Example value in kg
+*        " Update the entity with the weight
+*        MODIFY ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+*          ENTITY WeighingSession
+*          UPDATE FIELDS ( Grossweight )
+*          WITH VALUE #( ( %tky = <ls_key>-%tky
+*                          Grossweight = lv_weight ) )
+*          FAILED DATA(lt_update_failed)
+*          REPORTED DATA(lt_reported).
         ENDIF.
 
-      CLEANUP.
-        IF lv_job_opened = abap_true.
-          " Always close job
-          CALL FUNCTION 'FP_JOB_CLOSE'
-            EXCEPTIONS
-              OTHERS = 1.
-        ENDIF.
-    ENDTRY.
+        " Report success
+        APPEND VALUE #(
+          %tky = <ls_key>-%tky
+          %msg = new_message(
+                   id = 'ZWR_WEIGHBRIGE_MESS'
+                   number = '002'
+                   severity = if_abap_behv_message=>severity-success
+                   v1 = |{ lv_weight }  { lv_unit }| )
+        ) TO reported-weighingsession.
 
-    " Get PDF as XSTRING (newer) or convert from SOLIX (older)
-    IF ls_formoutput-pdf IS NOT INITIAL.
-      lv_pdf_xstr = ls_formoutput-pdf.
-    ELSE.
-      MESSAGE 'No PDF returned by ADS.' TYPE 'E'.
-    ENDIF.
-
-    " XSTRING -> Base64
-    lv_pdf_b64 = cl_http_utility=>if_http_utility~encode_x_base64( lv_pdf_xstr ).
-
-    " Optional: display a short preview of Base64
-    IF p_show = abap_true.
-      DATA(lv_len) = p_prevln.
-      IF lv_len <= 0 OR lv_len > strlen( lv_pdf_b64 ).
-        lv_len = strlen( lv_pdf_b64 ).
-      ENDIF.
-      WRITE: / 'Base64 (preview):'.
-      ULINE.
-      WRITE: / lv_pdf_b64( lv_len ).
-      SKIP.
-      WRITE: / |Total Base64 length: { strlen( lv_pdf_b64 ) } chars|.
-    ENDIF.
-
-    " Optional: save PDF to frontend
-    IF p_pdf = abap_true.
-      DATA(lt_solix) = cl_bcs_convert=>xstring_to_solix( lv_pdf_xstr ).
-      cl_gui_frontend_services=>gui_download(
-        EXPORTING
-          filename = p_pdfpth
-          filetype = 'BIN'
-        CHANGING
-          data_tab = lt_solix
-        EXCEPTIONS
-          OTHERS = 1 ).
-      IF sy-subrc = 0.
-        WRITE: / |PDF saved to: { p_pdfpth }|.
+        " Collect for result
+        APPEND VALUE #( %tky = <ls_key>-%tky ) TO lt_success_keys.
       ELSE.
-        WRITE: / 'Could not save PDF to frontend.' COLOR COL_NEGATIVE.
+        " Report error if session not found
+        APPEND VALUE #(
+          %tky = <ls_key>-%tky
+          %msg = new_message(
+                   id = 'ZWR_WEIGHBRIGE_MESS'
+                   number = '003'
+                   severity = if_abap_behv_message=>severity-error
+                   v1 = 'Session not found' )
+        ) TO reported-weighingsession.
+        APPEND VALUE #( %tky = <ls_key>-%tky %fail-cause = if_abap_behv=>cause-not_found ) TO failed-weighingsession.
       ENDIF.
+    ENDLOOP.
+
+    " Read and return full data for successful instances
+    IF lt_success_keys IS NOT INITIAL.
+      READ ENTITIES OF zi_wr_weighingsession IN LOCAL MODE
+        ENTITY WeighingSession
+        ALL FIELDS WITH lt_success_keys
+        RESULT DATA(lt_result)
+        FAILED DATA(lt_read_failed).
+      result = CORRESPONDING #( lt_result ).
     ENDIF.
+  ENDMETHOD.
 
-    " Optional: save Base64 text to frontend
-    IF p_b64 = abap_true.
-      DATA(lt_lines) = VALUE stringtab( ( lv_pdf_b64 ) ).
-      cl_gui_frontend_services=>gui_download(
-        EXPORTING
-          filename = p_b64pth
-          filetype = 'ASC'
-        CHANGING
-          data_tab = lt_lines
-        EXCEPTIONS
-          OTHERS = 1 ).
-      IF sy-subrc = 0.
-        WRITE: / |Base64 saved to: { p_b64pth }|.
-      ELSE.
-        WRITE: / 'Could not save Base64 to frontend.' COLOR COL_NEGATIVE.
-      ENDIF.
-    ENDIF.
+  METHOD printslip.
+    DATA lv_base64 TYPE string.
+    zcl_wr_weighbridge_helper=>form_to_base64(
+     EXPORTING
+       iv_form   = 'IS_U_WA_SF_WEIGHINGPROCESS'
+       iv_lang   = sy-langu
+*      iv_show   = abap_true
+*      iv_pdf    = abap_false
+*      iv_b64    = abap_false
+*      iv_pdfpth =
+*      iv_b64pth =
+*      iv_prevln = 200
+     RECEIVING
+       r_base64  = lv_base64
+   ).
 
-    IF p_pdf = abap_false AND p_b64 = abap_false AND p_show = abap_false.
-      WRITE: / 'Done. (Nothing selected to show or save.)'.
-    ENDIF.
+  ENDMETHOD.
+  METHOD NextStep.
+  ENDMETHOD.
 
-    r_base64 = lv_pdf_b64. " Return the Base64 string
+  METHOD Submit.
+  ENDMETHOD.
 
+  METHOD calcNet.
+  ENDMETHOD.
+
+  METHOD ValidateLoadType.
+  ENDMETHOD.
+
+  METHOD validateStep1.
+  ENDMETHOD.
+
+  METHOD validateStep2.
   ENDMETHOD.
 
 ENDCLASS.
