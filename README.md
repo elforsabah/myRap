@@ -1,95 +1,125 @@
 onConfirmStep3: function () {
-                var oContext = this.getView().getBindingContext();
-                var oModel = this.getView().getModel();
-                var oLocalModel = this.getView().getModel("local");
+    var oContext = this.getView().getBindingContext();
+    var oModel = this.getView().getModel();
+    var oLocalModel = this.getView().getModel("local");
 
-                if (!oContext) {
-                    MessageToast.show("No session context available.");
-                    return;
-                }
+    if (!oContext) {
+        MessageToast.show("No session context available.");
+        return;
+    }
 
-                var sContractId = oLocalModel.getProperty("/contractId");
-                var sLoadType = oLocalModel.getProperty("/loadType");
-                var sMainWeight = oLocalModel.getProperty("/mainWeight");
+    var sContractId = oLocalModel.getProperty("/contractId");
+    var sLoadType   = oLocalModel.getProperty("/loadType");
+    var sMainWeight = oLocalModel.getProperty("/mainWeight");
 
-                if (!sContractId || !sLoadType || !sMainWeight) {
-                    MessageToast.show("Missing required data: Contract ID, Load Type, or Weight.");
-                    return;
-                }
+    if (!sContractId || !sLoadType || !sMainWeight) {
+        MessageToast.show("Missing required data: Contract ID, Load Type, or Weight.");
+        return;
+    }
 
-                // Parse "12345 KG" (fallback unit KG)
-                var aWeightParts = sMainWeight.trim().split(/\s+/);
-                var sWeight = aWeightParts[0] || "";
-                var sWeighUnit = aWeightParts[1] || "KG";
+    // Parse "12345 KG" (fallback unit KG)
+    var aWeightParts = sMainWeight.trim().split(/\s+/);
+    var sWeight     = aWeightParts[0] || "";
+    var sWeighUnit  = aWeightParts[1] || "KG";
 
-                // Pad contract like in step 1
-                sContractId = sContractId.padStart(10, "0");
+    // Pad contract like in step 1
+    sContractId = sContractId.padStart(10, "0");
 
-                // Make sure the draft entity is persisted before the action
-                oModel.submitBatch("weighingGroup").then(function () {
+    // Ensure current draft changes are sent first
+    oModel.submitBatch("weighingGroup").then(function () {
 
-                    // Bind the action to the same context
-                    var oAction = oModel.bindContext(
-                        "com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.printSlip(...)",
-                        oContext
-                    );
-                    oAction.setParameter("Vbeln", sContractId);
-                    oAction.setParameter("Loadtype", sLoadType);
-                    oAction.setParameter("Weight", sWeight);
-                    oAction.setParameter("WeighUnit", sWeighUnit);
+        // Bind the action to the same context
+        var oAction = oModel.bindContext(
+            "com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.printSlip(...)",
+            oContext
+        );
+        oAction.setParameter("Vbeln",     sContractId);
+        oAction.setParameter("Loadtype",  sLoadType);
+        oAction.setParameter("Weight",    sWeight);
+        oAction.setParameter("WeighUnit", sWeighUnit);
 
-                    // NOTE: invoke()'s promise does NOT pass payload; read it from the binding.
-                    return oAction.invoke().then(function () {
-                        // Get result payload
-                        var oResCtx = oAction.getBoundContext();
-                        var oRes = oResCtx && oResCtx.getObject ? oResCtx.getObject() : null;
+        return oAction.invoke().then(function () {
+            // Read the result payload from the bound context
+            var oResCtx = oAction.getBoundContext();
+            var oRes = oResCtx && oResCtx.getObject ? oResCtx.getObject() : null;
 
-                        // Be tolerant to server-side casing
-                        var sPdfB64 = oRes && (oRes.pdfbase64 || oRes.Pdfbase64 || oRes.PDFBASE64);
-                            
-                        if (sPdfB64) {
-                            // Example 1: open in a new tab
-                            var win = window.open("");
-                            if (win && win.document) {
-                                win.document.write(
-                                    '<iframe width="100%" height="100%" ' +
-                                    'src="data:application/pdf;base64,' + sPdfB64 + '"></iframe>'
-                                );
-                            } else {
-                                // Example 2: fallback to download
-                                var link = document.createElement("a");
-                                link.href = "data:application/pdf;base64," + sPdfB64;
-                                link.download = "weighing_slip.pdf";
-                                link.click();
-                            }
-                            MessageToast.show("PDF generated.");
+            // Support both names/casings. For xstring/Edm.Binary, property value is Base64 on the wire.
+            var sB64 = oRes && (oRes.pdfraw || oRes.Pdfraw || oRes.PDFRAW ||
+                                oRes.pdfbase64 || oRes.Pdfbase64 || oRes.PDFBASE64);
+
+            if (sB64 && typeof sB64 === "string") {
+                // Build a data URL and convert to Blob (safer for large PDFs and printing)
+                var dataUrl = "data:application/pdf;base64," + sB64;
+
+                fetch(dataUrl)
+                    .then(function (r) { return r.blob(); })
+                    .then(function (blob) {
+                        var url = URL.createObjectURL(blob);
+
+                        // Try to open in a new tab with an iframe (good for print)
+                        var win = window.open("");
+                        if (win && win.document) {
+                            win.document.title = "weighing_slip.pdf";
+                            win.document.body.style.margin = "0";
+                            var iframe = win.document.createElement("iframe");
+                            iframe.style.border = "0";
+                            iframe.style.width = "100%";
+                            iframe.style.height = "100%";
+                            iframe.src = url;
+                            win.document.body.appendChild(iframe);
+
+                            // Optional: auto-print once loaded
+                            // iframe.onload = function () {
+                            //     try { iframe.contentWindow && iframe.contentWindow.print(); } catch (e) {}
+                            // };
                         } else {
-                            MessageToast.show("No pdfbase64 returned by printSlip.");
+                            // Popup blocked → download fallback
+                            var link = document.createElement("a");
+                            link.href = url;
+                            link.download = "weighing_slip.pdf";
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
                         }
 
-                        // Handle FE messages (optional)
-                        var aMsgs = Messaging.getMessageModel().getData() || [];
-                        var aSucc = aMsgs.filter(function (m) { return m.getType() === "Success"; });
-                        if (aSucc.length > 0) {
-                            MessageToast.show(aSucc[0].getMessage());
-                            Messaging.removeMessages(aSucc);
+                        MessageToast.show("PDF generated.");
+                    })
+                    .catch(function () {
+                        // Last-resort: open the data URL directly
+                        var w = window.open(dataUrl, "_blank");
+                        if (!w) {
+                            var link = document.createElement("a");
+                            link.href = dataUrl;
+                            link.download = "weighing_slip.pdf";
+                            link.click();
                         }
+                    });
+            } else {
+                MessageToast.show("No PDF returned by printSlip.");
+            }
 
-                        // Refresh & move on
-                        oContext.refresh();
-                        this.oWizard.nextStep();
+            // Optional: surface server messages (Success)
+            var aMsgs = Messaging.getMessageModel().getData() || [];
+            var aSucc = aMsgs.filter(function (m) { return m.getType && m.getType() === "Success"; });
+            if (aSucc.length > 0) {
+                MessageToast.show(aSucc[0].getMessage());
+                Messaging.removeMessages(aSucc);
+            }
 
-                    }.bind(this));
-                }.bind(this)).catch(function (oError) {
-                    var sErr = (oError && oError.message) || "Failed to process print slip.";
-                    MessageToast.show(sErr);
+            // Refresh & proceed in the wizard
+            oContext.refresh();
+            this.oWizard.nextStep();
+        }.bind(this));
+    }.bind(this)).catch(function (oError) {
+        var sErr = (oError && oError.message) || "Failed to process print slip.";
+        MessageToast.show(sErr);
 
-                    // Also surface any error messages from the message model
-                    var aMsgs = Messaging.getMessageModel().getData() || [];
-                    var aErrs = aMsgs.filter(function (m) { return m.getType() === "Error"; });
-                    if (aErrs.length > 0) {
-                        MessageToast.show(aErrs[0].getMessage());
-                        Messaging.removeMessages(aErrs);
-                    }
-                }.bind(this));
-            },
+        // Optional: surface server messages (Error)
+        var aMsgs = Messaging.getMessageModel().getData() || [];
+        var aErrs = aMsgs.filter(function (m) { return m.getType && m.getType() === "Error"; });
+        if (aErrs.length > 0) {
+            MessageToast.show(aErrs[0].getMessage());
+            Messaging.removeMessages(aErrs);
+        }
+    }.bind(this));
+}
