@@ -77,21 +77,35 @@ onConfirmStep3: function () {
             sB64 = sB64.slice(sPrefix.length);
         }
 
-        // Build the data URL for the PDFViewer (Option A)
-        var sSrc = sPrefix + sB64;
-
-        // Reuse a single PDFViewer instance
-        if (!that._oPdfViewer) {
-            that._oPdfViewer = new sap.m.PDFViewer({
-                title: "PDF",
-                source: sSrc
-            });
-            that.getView().addDependent(that._oPdfViewer);
-        } else {
-            that._oPdfViewer.setSource(sSrc);
+        // ----- Option B: Base64 -> Blob -> ObjectURL -----
+        function b64ToBlobPdf(b64) {
+            var byteString = atob(b64);
+            var len = byteString.length;
+            var bytes = new Uint8Array(len);
+            for (var i = 0; i < len; i++) {
+                bytes[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([bytes], { type: "application/pdf" });
         }
 
-        that._oPdfViewer.open();
+        var oBlob = b64ToBlobPdf(sB64);
+        var sUrl  = URL.createObjectURL(oBlob);
+
+        // a) Open in new tab
+        window.open(sUrl);
+
+        // b) Or force download (uncomment to use download instead of new tab)
+        /*
+        var a = document.createElement("a");
+        a.href = sUrl;
+        a.download = "document.pdf";
+        a.click();
+        */
+
+        // Cleanup after a while
+        setTimeout(function () {
+            URL.revokeObjectURL(sUrl);
+        }, 60000);
 
         // Optionally store last PDF in local model
         oLocalModel.setProperty("/lastPdfBase64", sB64);
