@@ -14,12 +14,11 @@ _normalizeToStdBase64: function (val) {
     // Convert base64url -> base64
     s = s.replace(/-/g, "+").replace(/_/g, "/");
 
-    // Keep only valid Base64 chars (optional hardening)
-    s = s.replace(/[^A-Za-z0-9+/=]/g, "");
-
-    // Pad with '=' to multiple of 4
+    // Pad with '=' to make length % 4 === 0 (without using repeat)
     var pad = s.length % 4;
-    if (pad) s += "=".repeat(4 - pad);
+    if (pad) {
+        s += Array(4 - pad + 1).join("=");
+    }
 
     return { kind: "b64", data: s };
 },
@@ -33,15 +32,15 @@ _base64ToBlob: function (input, mimeType) {
 
     var sB64 = norm.data;
 
-    // Safety check: short, early validation to avoid atob crash
-    // (Base64 string should only contain A–Z a–z 0–9 + / and up to two = at end)
+    // Quick validation after normalization
     if (!/^[A-Za-z0-9+/]+={0,2}$/.test(sB64)) {
         throw new Error("Input is not valid Base64 after normalization.");
     }
 
-    var byteString = atob(sB64); // now safe
+    var byteString = atob(sB64); // safe now
     var len = byteString.length;
     var bytes = new Uint8Array(len);
     for (var i = 0; i < len; i++) bytes[i] = byteString.charCodeAt(i);
-    return new Blob([bytes], { type: mimeType || "application/octet-stream" });
+
+    return new Blob([bytes], { type: mimeType || "application/pdf" });
 },
