@@ -13,13 +13,16 @@ onConfirmStep3: function () {
         MessageToast.show("Missing required data: Contract ID, Load Type, or Weight.");
         return;
     }
+
     // Parse "12345 KG" (fallback unit KG)
     var aWeightParts = sMainWeight.trim().split(/\s+/);
     var sWeight = aWeightParts[0] || "";
     var sWeighUnit = aWeightParts[1] || "KG";
+
     // Pad contract like in step 1
     sContractId = sContractId.padStart(10, "0");
 
+    // Ensure current draft changes are sent first
     oModel.submitBatch("weighingGroup").then(function () {
         // Bind the action to the same context
         var oAction = oModel.bindContext(
@@ -46,12 +49,12 @@ onConfirmStep3: function () {
 
             if (sB64 && typeof sB64 === "string") {
                 try {
-                    // Convert Base64 → Blob (uses your robust helper)
-                    var blob = this._base64ToBlob(sB64, "application/pdf");
-                    var url  = URL.createObjectURL(blob);
+                    // Convert Base64 → Blob (your robust helper should normalize first)
+                    const blob: Blob = this._base64ToBlob(sB64, "application/pdf");
+                    const url: string = URL.createObjectURL(blob);
 
                     // --- Direct print via hidden iframe (no new window) ---
-                    var iframe = document.createElement("iframe");
+                    const iframe: HTMLIFrameElement = document.createElement("iframe");
                     iframe.style.position = "fixed";
                     iframe.style.right = "0";
                     iframe.style.bottom = "0";
@@ -61,43 +64,39 @@ onConfirmStep3: function () {
                     iframe.src = url;
                     document.body.appendChild(iframe);
 
-                    var cleanup = function () {
-                        setTimeout(function () {
-                            try { URL.revokeObjectURL(url); } catch (e) {}
+                    const cleanup = () => {
+                        setTimeout(() => {
+                            try { URL.revokeObjectURL(url); } catch {}
                             if (iframe && iframe.parentNode) {
                                 iframe.parentNode.removeChild(iframe);
                             }
                         }, 1000);
                     };
 
-                    // When the PDF is loaded, trigger print
-                    iframe.onload = function () {
+                    iframe.onload = () => {
                         try {
-                            // Small delay improves reliability across browsers
-                            setTimeout(function () {
-                                var w = iframe.contentWindow || iframe;
-                                if (w) {
-                                    try { w.focus(); } catch (e) {}
-                                    try { w.print(); } catch (e) {}
-                                }
+                            const frameWin = iframe.contentWindow as (Window | null);
+                            if (frameWin) {
+                                // small delay improves reliability across browsers
+                                setTimeout(() => {
+                                    try { frameWin.focus(); } catch {}
+                                    try { frameWin.print(); } catch {}
+                                    cleanup();
+                                }, 150);
+                            } else {
+                                // Fallback if no window is available
+                                window.open(url);
                                 cleanup();
-                            }, 150);
-                        } catch (e) {
+                            }
+                        } catch {
+                            window.open(url);
                             cleanup();
-                            // Fallback: download if printing failed
-                            var a = document.createElement("a");
-                            a.href = url;
-                            a.download = "weighing_slip.pdf";
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
                         }
                     };
 
                     // Safety fallback if onload never fires
-                    setTimeout(function () {
+                    setTimeout(() => {
                         if (!iframe.contentDocument) {
-                            // last resort: try opening to let user print manually
                             window.open(url);
                             cleanup();
                         }
@@ -129,6 +128,7 @@ onConfirmStep3: function () {
     }.bind(this)).catch(function (oError) {
         var sErr = (oError && oError.message) || "Failed to process print slip.";
         MessageToast.show(sErr);
+
         // Optional: surface server messages (Error)
         var aMsgs = Messaging.getMessageModel().getData() || [];
         var aErrs = aMsgs.filter(function (m) { return m.getType && m.getType() === "Error"; });
