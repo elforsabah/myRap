@@ -70,6 +70,16 @@ sap.ui.define([
                 this.getView().getModel("local").setProperty("/contractId", "");  // Reset local value
                 this.getView().getModel("local").setProperty("/mainWeight", "");  // Reset local value
                 this.getView().getModel("local").setProperty("/loadType", "");  // Reset local value
+                // Clear step 2 items binding to reset load types
+                var oVBox = this.byId("step2LtContainer");
+                if (oVBox) {
+                    oVBox.unbindAggregation("items");
+                    oVBox.destroyItems();
+                }
+                // Reset wizard to step 1
+                this.oWizard.setCurrentStep(this.byId("step1"));
+                // Clear any inline errors
+                this._clearContractInlineError();
             },
 
             // === ENTER wiring (ADDED) ===
@@ -96,33 +106,46 @@ sap.ui.define([
                             onsapenter: function (oEvent) {
                                 oEvent.preventDefault();
                                 oEvent.stopPropagation();
-                                this._onStep3Enter();
+                                this._onStep3Enter(oEvent);
                             }.bind(this)
                         }, oCtrl);
                     }
                 }.bind(this));
             },
             // Step 3 Enter handler (ADDED)
-            _onStep3Enter: function () {
+            _onStep3Enter: function (oEvent) {
+                var oSource = oEvent.getSource();
                 var oGW = this.byId("ipGrossWeight");
                 var oTW = this.byId("ipTareWeight");
                 var oNW = this.byId("ipNetWeight");
                 var gw = oGW ? parseFloat(oGW.getValue()) : NaN;
                 var tw = oTW ? parseFloat(oTW.getValue()) : NaN;
-                if (isNaN(gw) || isNaN(tw)) {
-                    MessageToast.show("Enter valid numbers for Gross and Tare.");
-                    return;
+
+                if (oSource === oGW) {
+                    // Enter on Gross: focus Tare if valid
+                    if (isNaN(gw)) {
+                        MessageToast.show("Enter valid Gross weight.");
+                        return;
+                    }
+                    oTW.focus();
+                } else if (oSource === oTW) {
+                    // Enter on Tare: compute net if both valid, but do not advance
+                    if (isNaN(gw) || isNaN(tw)) {
+                        MessageToast.show("Enter valid numbers for Gross and Tare.");
+                        return;
+                    }
+                    // persist to bound context so rebinds won't clear
+                    var oCtx = this.getView().getBindingContext();
+                    if (oCtx) {
+                        oCtx.setProperty("Grossweight", gw);
+                        oCtx.setProperty("TareWeight", tw);
+                        oCtx.setProperty("NetWeight", gw - tw);
+                    }
+                    if (oNW) { oNW.setValue(gw - tw); }
+                    this.oWizard.validateStep(this.byId("step3"));
+                    MessageToast.show("Net weight calculated.");
+                    // Removed: this.oWizard.nextStep(); to prevent auto-advance
                 }
-                // persist to bound context so rebinds won't clear
-                var oCtx = this.getView().getBindingContext();
-                if (oCtx) {
-                    oCtx.setProperty("Grossweight", gw);
-                    oCtx.setProperty("TareWeight", tw);
-                    oCtx.setProperty("NetWeight", gw - tw);
-                }
-                if (oNW) { oNW.setValue(gw - tw); }
-                this.oWizard.validateStep(this.byId("step3"));
-                this.oWizard.nextStep();
             },
             onNextStep: function () {
                 var oContext = this.getView().getBindingContext();
@@ -498,9 +521,9 @@ sap.ui.define([
                             MessageToast.show(aSucc[0].getMessage());
                             Messaging.removeMessages(aSucc);
                         }
-                        // Refresh & proceed in the wizard
+                        // Refresh & reset to step 1 instead of next step
                         oContext.refresh();
-                        this.oWizard.nextStep();
+                        this._onObjectMatched();
                     }.bind(this));
                 }.bind(this)).catch(function (oError) {
                     var sErr = (oError && oError.message) || "Failed to process print slip.";
@@ -519,6 +542,3 @@ sap.ui.define([
             onWizardComplete: function () { }
         });
     });
-
-
-
