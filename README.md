@@ -1,24 +1,4 @@
-@UI: {
-  headerInfo: {
-    typeName: 'Tour',
-    typeNamePlural: 'Tours',
-    title: {
-      type: #STANDARD, value: 'TourId'
-    },
-    description: {
-      type: #STANDARD, value: 'TourTemplateName'
-    }
-  },
-  lineItem: [{ criticality: 'TourCriticality' }],                    //for TourDeviations
-
-  presentationVariant: [{
-    sortOrder: [{
-      by: 'TourId', direction:  #ASC
-    }], visualizations: [{ type: #AS_LINEITEM }]
-  },{
-    sortOrder: [{
-      by: 'TourId', direction:  #ASC
-    }], visualizations: [{ type: #AS_LINEITEM, qualifier: 'DefaultMap' }], qualifier: 'DefaultMap'
-  }]
+extend view entity /PLCE/R_PDServiceExtCustom with {
+  @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_PD_TOUR_DEVIATION_CALC'
+  virtual TourDeviations : abap.int4;  // Use appropriate type; int4 for integer values like 4
 }
-@Search.searchable: true
