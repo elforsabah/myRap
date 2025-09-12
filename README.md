@@ -365,3 +365,35 @@ define root view entity /PLCE/C_PDMNLServiceWR
 
 }
 
+We have this Main CDS view 
+
+/PLCE/R_PDService (not extendable )
+
+which has a composition of /PLCE/R_PDServiceExtWR  (not extendatble)
+
+and 
+
+/PLCE/R_PDServiceExtCustom  (extendable)
+
+so to add a new field to this main cds you have to use the /PLCE/R_PDServiceExtCustom which I have use like so. 
+
+extend view entity /PLCE/R_PDServiceExtCustom with
+association [1] to I_EWA_WasteDisposalOrderItem as _ZZOrderObject on _ZZOrderObject.EWAWasteDsplOrdItmObjectNumber = $projection.ZZPOBJNR
+association to ewa_order_object as _ewa_order_object on $projection.ZZPOBJNR = _ewa_order_object.pobjnr
+{
+  _Service.ReferenceInternalId as ZZPOBJNR,
+  _ZZOrderObject,
+  _ewa_order_object
+}
+
+
+The ewa_order_object has a field calle zzwdio which i want to extend the /PLCE/R_PDServiceExtWR with . that is this field should be available on this CDS view 
+
+The want to use this field to then calculate the criticallity of the entire row and set it to red if the value of this field is = 4 
+
+The critically shopuld be in the metadata extension the extends /PLCE/R_PDServiceExtWR. 
+
+
+Provide a step by step procedure on how this can be done. 
+
+Please be clear consise and detailed about everything
