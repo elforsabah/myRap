@@ -1,7 +1,13 @@
-
-extend view entity /PLCE/C_PDMNLServiceWR with
-association [0..1] to /PLCE/R_PDServiceExtCustom as _ExtCustom on $projection.ServiceUUID = _ExtCustom.ServiceUUID
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+extend view entity /PLCE/R_PDServiceExtCustom with
+  association [1] to I_EWA_WasteDisposalOrderItem as _ZZOrderObject on _ZZOrderObject.EWAWasteDsplOrdItmObjectNumber = $projection.ZZPOBJNR
+  association [0..1] to EWA_ORDER_OBJECT as _ewa_order_object on $projection.ZZPOBJNR = _ewa_order_object.pobjnr
 {
-  _ExtCustom._ewa_order_object.zzpoo_wdoi,
-  case when _ExtCustom._ewa_order_object.zzpoo_wdoi = '4' then 3 else 0 end as RowCriticality
+  _Service.ReferenceInternalId as ZZPOBJNR,  // Already added; keep for ON condition
+  
+  // Expose the field directly via path (supported here as it's not a projection view)
+  @EndUserText.label: 'WDOI Field'
+  _ewa_order_object.zzpoo_wdoi as ZZPOBJ_WDOI  // Direct projection of the field
+  
+  // Do NOT expose full associations here unless needed for navigation
 }
