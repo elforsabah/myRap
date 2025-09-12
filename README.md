@@ -1,29 +1,59 @@
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'PD Service Extension Custom - Waste Order Link'
-extend view entity /PLCE/R_PDServiceExtCustom with
-// Define associations (for navigation; not used locally)
-association [1] to I_EWA_WasteDisposalOrderItem as _ZZOrderObject 
-  on _ZZOrderObject.EWAWasteDsplOrdItmObjectNumber = $projection.ZZPOBJNR
-association [0..1] to ewa_order_object as _ewa_order_object 
-  on $projection.ZZPOBJNR = _ewa_order_object.pobjnr  // Cardinality [0..1] assumes optional; change to [1] if mandatory
+@EndUserText.label: 'PD Service Extension (WR)'
+@ObjectModel.usageType:{
+  serviceQuality: #C,
+  sizeCategory: #XL,
+  dataClass: #TRANSACTIONAL
+}
+define view entity /PLCE/R_PDServiceExtWR
+  as select from /plce/tpdsrvwr
+  association        to parent /PLCE/R_PDService     as _Service                 on $projection.ServiceUUID = _Service.ServiceUUID
+  association [0..1] to /PLCE/R_MDMaterial           as _Material                on _Material.Material = $projection.Material
+  association [0..1] to /PLCE/R_MDTransptPackaggT    as _ContainerTypeAtLocation on _ContainerTypeAtLocation.TransportPackagingType = $projection.ContainerTypeAtLocation
+  association [0..1] to /PLCE/R_MDTransptPackaggT    as _ContainerTypeNew        on _ContainerTypeNew.TransportPackagingType = $projection.ContainerTypeNew
+  association [0..1] to /PLCE/R_PDFunctionalLocation as _PlantLocation           on _PlantLocation.FunctionalLocation = $projection.PlantLocation
+  association [0..1] to /PLCE/R_PDFunctionalLocation as _ContainerSourceLocation on _ContainerSourceLocation.FunctionalLocation = $projection.ContainerSourceLocation
+  association [0..1] to /PLCE/R_PDFunctionalLocation as _ContainerFinalLocation  on _ContainerFinalLocation.FunctionalLocation = $projection.ContainerSourceLocation
+
+  association [0..*] to /PLCE/P_PDServiceFrequencyT  as _ServiceFrequencyText    on _ServiceFrequencyText.ServiceFrequency = $projection.ServiceFrequency
+
 {
-  // New elements: Project parent field, join for field access (avoids local assoc usage), expose associations
-  @EndUserText.label: 'Waste Order Object Number'
-  _Service.ReferenceInternalId as ZZPOBJNR,
+  key service_uuid                               as ServiceUUID,
+      @EndUserText.label: 'Material'
+      material                                   as Material,
+      @EndUserText.label: 'Material Weight'
+      material_weight                            as MaterialWeight,
+      material_weight_unit                       as MaterialWeightUnit,
+      @EndUserText.label: 'Material Plant'
+      plant_location                             as PlantLocation,
+      @EndUserText.label: 'Container Source Location'
+      container_source_location                  as ContainerSourceLocation,
+      @EndUserText.label: 'Container Final Destination'
+      container_final_location                   as ContainerFinalLocation,
 
-  // Direct join to expose zzpoo_wdoi (replaces local path; adjust LEFT OUTER JOIN if optional data)
-  @EndUserText.label: 'WDOI Value'  // Adjust label as needed
-  @Consumption.valueHelpDefinition: [{  // Optional: Value help if zzpoo_wdoi has a domain
-    entity: { name: 'ewa_order_object', element: 'zzpoo_wdoi' }
-  }]
-  @Consumption.filter.hidden: false  // Optional: Allow filtering if needed
-  wdoi : joined(
-    // Use INNER JOIN if always present; LEFT OUTER JOIN for optional
-    [left outer] join ewa_order_object as _ewa_join on _ewa_join.pobjnr = $projection.ZZPOBJNR
-    { _ewa_join.zzpoo_wdoi }
-  ) as wdoi,  // Alias if needed; exposes as 'wdoi' in the extended entity
+      @EndUserText.label: 'Container Type (at Location)'
+      containertype_atloc                        as ContainerTypeAtLocation,
+      @EndUserText.label: 'Container Count (at Location)'
+      container_atloc_count                      as ContainerAtLocationCount,
+      @EndUserText.label: 'Container ID (at Location)'
+      container_atloc_tidnr                      as ContainerAtLocationTidnr,
 
-  // Expose associations for external use (e.g., navigation in Fiori)
-  _ZZOrderObject,
-  _ewa_order_object
+      @EndUserText.label: 'Container Type (New)'
+      containertype_new                          as ContainerTypeNew,
+      @EndUserText.label: 'Container Count (New)'
+      container_new_count                        as ContainerNewCount,
+      @EndUserText.label: 'Container ID (New)'
+      container_new_tidnr                        as ContainerNewTidnr,
+      @EndUserText.label: 'EWC Code'
+      ewc_code                                   as EwcCode,
+      service_freq                               as ServiceFrequency,
+
+      _Service,
+      _Material,
+      _ContainerTypeAtLocation,
+      _ContainerTypeNew,
+      _PlantLocation,
+      _ContainerSourceLocation,
+      _ContainerFinalLocation,
+      _ServiceFrequencyText
 }
