@@ -1,47 +1,49 @@
-class ZCL_WR_SERVICE_EXTEND_CALC definition
-  public
-  final
-  create public .
+CLASS ZCL_WR_SERVICE_EXTEND_CALC DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
 
-public section.
+  PUBLIC SECTION.
+    INTERFACES IF_SADL_EXIT_CALC_ELEMENT_READ.
 
-  interfaces IF_SADL_EXIT .
-  interfaces IF_SADL_EXIT_CALC_ELEMENT_READ .
-  protected section.
-  private section.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
 ENDCLASS.
-
-
 
 CLASS ZCL_WR_SERVICE_EXTEND_CALC IMPLEMENTATION.
 
+  METHOD IF_SADL_EXIT_CALC_ELEMENT_READ~CALCULATE.
+    DATA: lt_original_data TYPE STANDARD TABLE OF /PLCE/C_PDMNLServiceWR WITH DEFAULT KEY,
+          lbadi TYPE REF TO /plce/pd_ui_manual,
+          lt_service_map TYPE /plce/ppdmnlservicemap.
 
-* <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_WR_SERVICE_EXTEND_CALC->IF_SADL_EXIT_CALC_ELEMENT_READ~CALCULATE
-* +-------------------------------------------------------------------------------------------------+
-* | [--->] IT_ORIGINAL_DATA               TYPE        STANDARD TABLE
-* | [--->] IT_REQUESTED_CALC_ELEMENTS     TYPE        TT_ELEMENTS
-* | [<-->] CT_CALCULATED_DATA             TYPE        STANDARD TABLE
-* | [!CX!] CX_SADL_EXIT
-* +--------------------------------------------------------------------------------------</SIGNATURE>
-  method IF_SADL_EXIT_CALC_ELEMENT_READ~CALCULATE.
-    data: lt_original_data type standard table of /PLCE/C_PDMNLServiceWR with default key,
-          lbadi            type ref to /plce/pd_ui_manual,
-          lt_service_map   type /plce/ppdmnlservicemap.
+    lt_original_data = CORRESPONDING #( it_original_data ).  " Assign input data here
 
-      ct_calculated_data = corresponding #( lt_original_data ).
+    " Add your custom calculation logic for point_of_origin2
+    " Example: Loop over lt_original_data, compute the virtual field based on ZI_WR_EWA_ORDER_OBJECT or other sources
+    LOOP AT lt_original_data ASSIGNING FIELD-SYMBOL(<fs_data>).
+      " Your logic, e.g.:
+      " SELECT SINGLE point_of_origin FROM ZI_WR_EWA_ORDER_OBJECT WHERE key_field = <fs_data>-ServiceUUID INTO @<fs_data>-point_of_origin2.
+    ENDLOOP.
 
-  endmethod.
+    ct_calculated_data = CORRESPONDING #( lt_original_data ).
+  ENDMETHOD.
 
+  METHOD IF_SADL_EXIT_CALC_ELEMENT_READ~GET_CALCULATION_INFO.
+    " Specify original fields needed for calculation (optimize by listing dependencies)
+    " Example: If calculation depends on ServiceUUID
+    APPEND 'SERVICEUUID' TO et_requested_orig_elements.
 
-* <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_WR_SERVICE_EXTEND_CALC->IF_SADL_EXIT_CALC_ELEMENT_READ~GET_CALCULATION_INFO
-* +-------------------------------------------------------------------------------------------------+
-* | [--->] IT_REQUESTED_CALC_ELEMENTS     TYPE        TT_ELEMENTS
-* | [--->] IV_ENTITY                      TYPE        STRING
-* | [<---] ET_REQUESTED_ORIG_ELEMENTS     TYPE        TT_ELEMENTS
-* | [!CX!] CX_SADL_EXIT
-* +--------------------------------------------------------------------------------------</SIGNATURE>
-  method IF_SADL_EXIT_CALC_ELEMENT_READ~GET_CALCULATION_INFO.
-  endmethod.
+    " Validate requested elements
+    LOOP AT it_requested_calc_elements ASSIGNING FIELD-SYMBOL(<fs_element>).
+      CASE <fs_element>.
+        WHEN 'POINT_OF_ORIGIN2'.
+          " Supported
+        WHEN OTHERS.
+          RAISE EXCEPTION TYPE cx_sadl_exit_calc_invalid_param
+            EXPORTING iv_reason = 'Unsupported element: ' && <fs_element>.
+      ENDCASE.
+    ENDLOOP.
+  ENDMETHOD.
+
 ENDCLASS.
