@@ -1,7 +1,9 @@
-extend view entity /PLCE/R_PDServiceExtCustom  with
-association [1] to ZI_WR_EWA_ORDER_OBJECT as _ewa_order_object on  $projection.ServiceUUID = _ewa_order_object.PdServiceUuid 
- {
-    _ewa_order_object.PdServiceUuid
-}
-
-Unspecified provider error occurred. See Error Context and Call Stack.
+Adds field attributes to extension fields.
+Field attributes can be added only for extension fields. Extension fields are fields which are not part of the original BO, but are added via RAP data model extension.
+The following field attributes are available in BDEF extensions for extension fields:
+readonly
+mandatory
+suppress
+readonly:update
+features:instance
+Note: When implementing instance feature control for fields, the rules for extension ABPs apply.
