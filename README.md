@@ -1,2 +1,2 @@
 Description	Resource	Path	Location	Type
-Field information for /PLCE/R_PDSERVICEEXTCUSTOM.ZZPOBJNR not available	/PLCE/R_PDSERVICEEXTCUSTOM (Data Definition)	.adt/ddic/ddlsources/%2fplce%2fr_pdserviceextcustom	Unknown	ABAP Syntax Check Problem
+The association _ewa_order_object cannot be used locally in the view (see long text)	ZZPD_R_PDSERVICEEXTCUSTOM (Data Definition)	.adt/ddic/ddlsources/zzpd_r_pdserviceextcustom	line 6	ABAP Syntax Check Problem
