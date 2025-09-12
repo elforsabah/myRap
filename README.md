@@ -1,10 +1,20 @@
+why can't I extend the view and add new fields, 
 
-extend view entity /PLCE/C_PDMNLServiceWR with
-association [0..1] to /PLCE/R_PDServiceExtCustom as _ExtCustom on $projection.ServiceUUID = _ExtCustom.ServiceUUID
-{
-  _ExtCustom._ewa_order_object.zzpoo_wdoi,
-  _ExtCustom
+why is it possible to add only associations ? 
+
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'PD Service Extension Custom'
+@AbapCatalog.extensibility: { extensible: true } 
+@ObjectModel.usageType:{
+  serviceQuality: #A,
+  sizeCategory: #L,
+  dataClass: #TRANSACTIONAL
 }
-
-Description	Resource	Path	Location	Type
-Field selection of association _ExtCustom is not supported in Projection Views	ZC_PDMNLSERVICEWR (Data Definition)	.adt/ddic/ddlsources/zc_pdmnlservicewr	line 5	ABAP Syntax Check Problem
+define view entity /PLCE/R_PDServiceExtCustom
+  as select from /plce/tpdsrvcst
+  association to parent /PLCE/R_PDService as _Service on $projection.ServiceUUID = _Service.ServiceUUID
+{
+  key service_uuid as ServiceUUID,
+      _Service
+}
+****
