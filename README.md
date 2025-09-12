@@ -1,3 +1,5 @@
+the original projection view 
+
 @EndUserText.label: 'Service WR'
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 @Metadata.allowExtensions: true
@@ -207,4 +209,19 @@ define root view entity /PLCE/C_PDMNLServiceWR
           //_PlanningStatusText,
           _ServiceCore
 
+**The extended version**
+
+extend view entity /PLCE/C_PDMNLServiceWR with
+{
+  @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_SERVICE_EXTEND_CALC'  // Reference your new class
+  virtual point_of_origin2 : abap.char( 20 )  // Adjust type/length to match the actual field type in ZI_WR_EWA_ORDER_OBJECT
 }
+
+
+In my extention, i wan to use another abap class ZCL_WR_SERVICE_EXTEND_CALC but i am getting this error message
+
+Referenced class ZCL_WR_SERVICE_EXTEND_CALC cannot be used for CDS View. [RAP Designtime]
+
+But if I switch the class to the standard class /PLCE/CL_PDMNL_SERVICE_CALC,  it works.  
+
+
