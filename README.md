@@ -1,33 +1,26 @@
-Contents
-Header Information
-What happened?
-Error analysis
-Information on where terminated
-Source Code Extract
-Active Calls/Events
-Header Information
-Short Text 	Two internal tables are not compatible or convertible.
-Runtime Error 	OBJECTS_TABLES_NOT_COMPATIBLE
-Program 	ZCL_WR_SERVICE_EXTEND_CALC====CP
-Date/Time 	13.09.2025 07:00:13 (System)
-User 	PROLOGAEFO (Elvis Forsab)
-Client 	110
-Host 	vhmuzs4dci_S4D_00
-What happened?
-Error in the ABAP application program.
+METHOD if_sadl_exit_calc_element_read~calculate.
+  FIELD-SYMBOLS: <ls_original> TYPE any,
+                 <ls_calculated> TYPE any,
+                 <lv_point_of_origin> TYPE any.  " Adjust type if known, e.g., abap.int1
 
-The current ABAP program "ZCL_WR_SERVICE_EXTEND_CALC====CP" had to be terminated because it found a
-statement that could not be executed.
-Error analysis
-You attempted to copy two data objects to each other or to compare them
-with each other.
-This is not possible here because the internal tables concerned are not
-compatible or convertible.
-Information on where terminated
-The termination occurred in ABAP program or include "ZCL_WR_SERVICE_EXTEND_CALC====CP", in "IF_SADL_EXIT_CALC_ELEMENT_READ~CALCULATE". The
-main program was "SAPMHTTP".
+  CLEAR ct_calculated_data.
 
-In the source code, the termination point is in line 2 of include "ZCL_WR_SERVICE_EXTEND_CALC====CM001".
-include "ZCL_WR_SERVICE_EXTEND_CALC====CM001".
-Source Code Extract
+  LOOP AT it_original_data ASSIGNING <ls_original>.
+    APPEND INITIAL LINE TO ct_calculated_data ASSIGNING <ls_calculated>.
+    MOVE-CORRESPONDING <ls_original> TO <ls_calculated>.
 
+    " Set the virtual element
+    ASSIGN COMPONENT 'POINT_OF_ORIGIN' OF STRUCTURE <ls_calculated> TO <lv_point_of_origin>.
+    IF sy-subrc = 0.
+      <lv_point_of_origin> = 1.  " Replace with your actual logic
+
+      " If logic depends on other fields, access them dynamically, e.g.:
+      " ASSIGN COMPONENT 'SERVICETYPE' OF STRUCTURE <ls_original> TO FIELD-SYMBOL(<lv_service_type>).
+      " IF sy-subrc = 0 AND <lv_service_type> = 'ABC'.
+      "   <lv_point_of_origin> = 1.
+      " ELSE.
+      "   <lv_point_of_origin> = 0.
+      " ENDIF.
+    ENDIF.
+  ENDLOOP.
+ENDMETHOD.
