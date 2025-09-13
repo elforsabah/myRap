@@ -22,3 +22,5 @@ METHOD if_sadl_exit_calc_element_read~calculate.
   ENDLOOP.
 ENDMETHOD.
 
+			The use of Table EWA_ORDER_OBJECT is not permitted.
+			The use of element /PLCP/PD_SERVICE_UUID of Table EWA_ORDER_OBJECT is not permitted.
