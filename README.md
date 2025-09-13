@@ -1,7 +1,7 @@
-extend view entity /PLCE/C_PDMNLServiceWR with
-{
+extend view entity /PLCE/C_PDMNLServiceWR with {
+   @ObjectModel.readOnly: true
   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_SERVICE_EXTEND_CALC'  // Reference your new class
-  virtual point_of_origin : abap.char( 20 )  // Adjust type/length to match the actual field type in ZI_WR_EWA_ORDER_OBJECT
+  virtual point_of_origin : abap.int1  // 
 }
 
 
@@ -213,11 +213,5 @@ define root view entity /PLCE/C_PDMNLServiceWR
           _TourAssignments, //    : redirected to /PLCE/C_PDMNLTourServiceAsgWR,
           //_PlanningStatusText,
           _ServiceCore
+
 }
-
-Description	Resource	Path	Location	Type
-Referenced class ZCL_WR_SERVICE_EXTEND_CALC cannot be used for CDS View. [RAP Designtime]	ZC_PDMNLSERVICEWR (Data Definition)	.adt/ddic/ddlsources/zc_pdmnlservicewr	line 1	ABAP Syntax Check Problem
-
-
-
-
