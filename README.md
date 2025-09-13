@@ -1,16 +1,17 @@
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'EWA_ORDER_OBJECT'
-@Metadata.ignorePropagatedAnnotations: true
-define root view entity ZI_WR_EWA_ORDER_OBJECT as select distinct from ewa_order_object as _EWA_ORDER_OBJECT
+extend view entity /PLCE/C_PDMNLServiceWR with 
 {
-    key ordernr as Ordernr,
-    key order_laufnr as OrderLaufnr,
-    key /plcp/pd_service_uuid as PdServiceUuid,
-    pobjnr as EWAWasteDsplOrdItmObjectNumber,
-    container as Container,
-    /plcp/tidnr_rm as /plcp/tidnrRm,
-    /plcp/tidnr_new_rm as /plcp/tidnrNewRm,
-    /plcp/blocking_conf_note as /plcp/blockingConfNote,
-     zzpoint_origin_wdoi as point_of_origin
+   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_SERVICE_EXTEND_CALC'  // Reference your new class
+//   @ObjectModel.virtualElementCalculatedBy: 'ABAP:/PLCE/CL_PDMNL_SERVICE_CALC'  // Reference your new class
+   virtual point_of_origin : abap.char(1)
+   
+   
+    // Value of this field(flag) will come from the table EWA_ORDER_OBJECT(field ZZPOINT_ORIGIN_WDOI ). 
+                                                   // It defines if a service has been replanned
+  
+//  Similarly to how tours in the Planning Cockpit get a red bar at the start of the line to
+//   indicate that a deviation occurred in the tour, we will implement a bar at the start of the
+//    line of the service to indicate that this service has been replanned. This means that we 
+//    extend the services to include a flag whether the service was created from a copied WDOI. 
+//    A filter option on this flag will be added to the Planning Cockpit.
+
 }
-where bintohex( _EWA_ORDER_OBJECT./plcp/pd_service_uuid ) <> '00000000000000000000000000000000';
