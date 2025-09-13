@@ -215,3 +215,5 @@ define root view entity /PLCE/C_PDMNLServiceWR
           _ServiceCore
 
 }
+
+Referenced class ZCL_WR_SERVICE_EXTEND_CALC cannot be used for CDS View. [RAP Designtime]
