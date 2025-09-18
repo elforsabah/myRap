@@ -10,3 +10,12 @@ If the edited object uses an unpermitted object, this results in a syntax error.
 
 Procedure
 Replace the unpermitted Table /PLCE/TPDSRV by a suitable permitted object
+
+
+
+        ASSIGN COMPONENT 'POINT_OF_ORIGIN_VER' OF STRUCTURE <ls_calculated> TO <lv_point_of_origin_wdoi>.
+        IF sy-subrc = 0.
+          <lv_point_of_origin_wdoi> = lv_zzpoint_origin_wdoi.
+          UPDATE /PLCE/TPDSRV SET zzpoint_origin_wdoi = @<lv_point_of_origin_wdoi>
+          WHERE reference_int_id = @<lv_point_of_origin_wdoi> .
+        ENDIF.
