@@ -38,8 +38,6 @@ sap.ui.define([
                 this.getView().setModel(new JSONModel({ contractId: "" }), "local");
                 this.getView().setModel(new JSONModel({ mainWeight: "" }), "local");
                 this.getView().setModel(new JSONModel({ loadType: "" }), "local");
-                this.getView().setModel(new JSONModel({ weighingType: "" }), "local");
-                this.getView().setModel(new JSONModel({ instruction: "Please make sure to place the vehicle correctly." }), "local");
             },
             _onMessageChange: function (oEvent) {
                 var aMessages = this.oMessageModel.getData() || [];
@@ -63,12 +61,14 @@ sap.ui.define([
                 }
             },
             _onObjectMatched: function () {
-                this.getView().setBindingContext(null); // Clear context initially
+                var oModel = this.getView().getModel();
+                var oListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION", undefined, undefined, undefined, { $$updateGroupId: "weighingGroup" });
+                var oNewContext = oListBinding.create({}); // No initial data; let backend manage Sessionid (UUID)
+                this.getView().setBindingContext(oNewContext);
+                oNewContext.requestProperty(["Vbeln", "Grossweight", "Grossweightunit", "Sessionid"]).catch(function () { });
                 this.getView().getModel("local").setProperty("/contractId", ""); // Reset local value
                 this.getView().getModel("local").setProperty("/mainWeight", ""); // Reset local value
                 this.getView().getModel("local").setProperty("/loadType", ""); // Reset local value
-                this.getView().getModel("local").setProperty("/weighingType", ""); // Reset weighing type
-                this.getView().getModel("local").setProperty("/instruction", "Please make sure to place the vehicle correctly."); // Reset instruction
                 // Clear step 2 items binding to reset load types
                 var oVBox = this.byId("step2LtContainer");
                 if (oVBox) {
@@ -102,6 +102,7 @@ sap.ui.define([
                 }
             },
             onNextStep: function () {
+                var oContext = this.getView().getBindingContext();
                 var oCurrentStep = this.oWizard.getCurrentStep();
                 var sStepId = oCurrentStep.split("--").pop();
                 if (sStepId === "step1") {
@@ -110,15 +111,14 @@ sap.ui.define([
                         MessageToast.show("Please enter a Contract ID.");
                         return;
                     }
-                    // Pad with leading zeros for internal format
-                    sContractId = sContractId.padStart(10, '0');
-                    // Manual bound action call to avoid automatic popups from editFlow
-                    var oModel = this.getView().getModel();
-                    var oContext = this.getView().getBindingContext();
                     if (!oContext) {
                         MessageToast.show("No session context available.");
                         return;
                     }
+                    // Pad with leading zeros for internal format
+                    sContractId = sContractId.padStart(10, '0');
+                    // Manual bound action call to avoid automatic popups from editFlow
+                    var oModel = this.getView().getModel();
                     // Submit batch to persist the transient entity (create request)
                     oModel.submitBatch("weighingGroup");
                     // Wait for persistence confirmation
