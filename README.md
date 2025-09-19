@@ -105,13 +105,13 @@ sap.ui.define([
                 var oCurrentStep = this.oWizard.getCurrentStep();
                 var sStepId = oCurrentStep.split("--").pop();
                 if (sStepId === "step1") {
-                    var sContractId = this.getView().getModel("local").getProperty("/contractId");
-                    if (!sContractId) {
+                    var sInputContract = this.getView().getModel("local").getProperty("/contractId");
+                    if (!sInputContract) {
                         MessageToast.show("Please enter a Contract ID.");
                         return;
                     }
                     // Pad with leading zeros for internal format
-                    sContractId = sContractId.padStart(10, '0');
+                    var sContractId = sInputContract.padStart(10, '0');
                     // Manual bound action call to avoid automatic popups from editFlow
                     var oModel = this.getView().getModel();
                     // Search for existing session
@@ -134,6 +134,8 @@ sap.ui.define([
                             // Check if LoadType is already set (for return weighing)
                             var sLoadType = oCtx.getProperty("LoadType") || "";
                             this.getView().getModel("local").setProperty("/loadType", sLoadType);
+                            var sVbeln = oCtx.getProperty("Vbeln") || sContractId;
+                            this.getView().getModel("local").setProperty("/contractId", sVbeln);
                             if (sLoadType) {
                                 // Return weighing, skip to step 3
                                 this._clearContractInlineError();
@@ -141,7 +143,7 @@ sap.ui.define([
                                 this.oWizard.setCurrentStep(this.byId("step3"));
                             } else {
                                 // Existing but no LoadType (rare), treat as first
-                                this._bindStep2(sContractId);
+                                this._bindStep2(sVbeln);
                                 this._clearContractInlineError();
                                 this.oWizard.validateStep(this.byId("step1"));
                                 this.oWizard.nextStep();
@@ -157,11 +159,13 @@ sap.ui.define([
                                 return oAction.invoke();
                             }.bind(this)).then(function () {
                                 oCtx.refresh();
+                                var sVbeln = oCtx.getProperty("Vbeln") || sContractId;
+                                this.getView().getModel("local").setProperty("/contractId", sVbeln);
                                 // Set as first weighing
                                 this.getView().getModel("local").setProperty("/weighingType", "First Weighing");
                                 this.getView().getModel("local").setProperty("/instruction", "Please place the vehicle for initial weighing.");
                                 // Bind step 2
-                                this._bindStep2(sContractId);
+                                this._bindStep2(sVbeln);
                                 this._clearContractInlineError();
                                 this.oWizard.validateStep(this.byId("step1"));
                                 MessageToast.show("Contract is Valid. Step 2 activated");
@@ -178,7 +182,15 @@ sap.ui.define([
                     }.bind(this));
                 }
             },
-            _bindStep2: function (sContractId) {
+            _skipStep2NoLoads: function () {
+                var oCtx = this.getView().getBindingContext();
+                if (oCtx) {
+                    oCtx.setProperty("LoadType", "");
+                }
+                this.oWizard.validateStep(this.byId("step2"));
+                this.oWizard.nextStep();
+            },
+            _bindStep2: function (sSalesOrder) {
                 var oVBox = this.byId("step2LtContainer");
                 var oTemplate = new Button({
                     text: {
@@ -196,25 +208,28 @@ sap.ui.define([
                 if (oVBox) {
                     try {
                         oVBox.bindAggregation("items", {
-                            path: "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')/Set",
+                            path: "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sSalesOrder + "')/Set",
                             parameters: {
                                 $select: "SalesOrder,SalesOrderitem,Material,MaterialText,Avvcode,Language",
                                 $orderby: "SalesOrder,SalesOrderitem"
                             },
                             template: oTemplate,
-                            templateShareable: false
+                            templateShareable: false,
+                            events: {
+                                change: function (oEvent) {
+                                    if (oEvent.getParameter("reason") === "Rejected") {
+                                        MessageToast.show("Failed to load load types. Proceeding without load type.");
+                                        this._skipStep2NoLoads();
+                                    }
+                                }.bind(this)
+                            }
                         });
                         // Attach one-time dataReceived to check if empty
                         var oBinding = oVBox.getBinding("items");
-                        oBinding.attachEventOnce("dataReceived", function () {
+                        oBinding.attachEventOnce("dataReceived", function (oEvent) {
                             if (oBinding.getLength() === 0) {
                                 // No loads, skip step 2
-                                var oCtx = this.getView().getBindingContext();
-                                if (oCtx) {
-                                    oCtx.setProperty("LoadType", "");
-                                }
-                                this.oWizard.validateStep(this.byId("step2"));
-                                this.oWizard.nextStep();
+                                this._skipStep2NoLoads();
                             }
                         }.bind(this));
                     } catch (oError) {
@@ -260,7 +275,7 @@ sap.ui.define([
                     console.log("Entity persisted. Invoking determineWeight...");
                     // Call the determineWeight action
                     var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.determineWeight(...)", oContext);
-                    var sContractId = this.getView().getModel("local").getProperty("/contractId").padStart(10, '0');
+                    var sContractId = oContext.getProperty("Vbeln");
                     var sLoadType = this.getView().getModel("local").getProperty("/loadType");
                     oAction.setParameter("Vbeln", sContractId);
                     oAction.setParameter("Loadtype", sLoadType);
@@ -351,7 +366,7 @@ sap.ui.define([
                     }.bind(this));
                     return;
                 }
-                var sContractId = oLocalModel.getProperty("/contractId");
+                var sContractId = oContext.getProperty("Vbeln");
                 var sLoadType = oLocalModel.getProperty("/loadType");
                 var sMainWeight = oLocalModel.getProperty("/mainWeight");
                 if (!sContractId || !sLoadType || !sMainWeight) {
@@ -362,8 +377,6 @@ sap.ui.define([
                 var aWeightParts = sMainWeight.match(/(\d+)/g) || [];
                 var sWeight = aWeightParts[0] || "";
                 var sWeighUnit = sMainWeight.match(/([A-Z]+)/g)?.[0] || "KG";
-                // Pad contract like in step 1
-                sContractId = sContractId.padStart(10, "0");
                 // Ensure current draft changes are sent first
                 oModel.submitBatch("weighingGroup").then(function () {
                     // Bind the action to the same context
