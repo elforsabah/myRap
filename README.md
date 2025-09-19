@@ -201,4 +201,279 @@ sap.ui.define([
                 var oCtx = this.getView().getBindingContext();
                 if (oCtx) {
                     oCtx.setProperty("LoadType", "");
-                    this.getView().getModel("local").
+                    this.getView().getModel("local").setProperty("/loadType", "");
+                }
+                this.oWizard.validateStep(this.byId("step2"));
+                this.onWeighStep3();
+                this.oWizard.nextStep();
+            },
+            onAfterRendering: function () {
+                var oIp = this.byId("step1InputContract");
+                if (oIp) { oIp.focus(); }
+                this._setupEnterToNext(); // wire Enter once
+            },
+            onChooseLoadType: function (oEvent) {
+                const sLoadType = oEvent.getSource().getBindingContext().getProperty("Material");
+                const oSessionCtx = this.getView().getBindingContext();
+                if (!oSessionCtx) { return; }
+                oSessionCtx.setProperty("LoadType", sLoadType);
+                this.getView().getModel("local").setProperty("/loadType", sLoadType); // Reset local value
+                //Now call the determineWeight() action from the backend and get weight that will be displayed in Step 3
+                this.onWeighStep3();
+                this.oWizard.validateStep(this.byId("step2"));
+                this.oWizard.nextStep();
+            },
+            onStepActivate: function (oEvent) {
+                var oStep = oEvent.getParameter("step");
+                if (!oStep) { return; } // Guard against undefined step
+                var sId = oStep.getId().split("--").pop();
+                // Removed call to onWeighStep3 here to avoid double invocation
+            },
+            onWeighStep3: function () {
+                var oContext = this.getView().getBindingContext();
+                var oModel = this.getView().getModel();
+                var oLocalModel = this.getView().getModel("local");
+                if (!oContext) {
+                    MessageToast.show("No session context available.");
+                    return;
+                }
+                // Ensure the entity is persisted before calling the action
+                oModel.submitBatch("weighingGroup").then(function () {
+                    console.log("Entity persisted. Invoking determineWeight...");
+                    // Call the determineWeight action
+                    var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.determineWeight(...)", oContext);
+                    var sContractId = this.getView().getModel("local").getProperty("/contractId").padStart(10, '0');
+                    var sLoadType = this.getView().getModel("local").getProperty("/loadType");
+                    oAction.setParameter("Vbeln", sContractId);
+                    oAction.setParameter("Loadtype", sLoadType);
+                    return oAction.invoke();
+                }.bind(this)).then(function (oResult) {
+                    console.log("determineWeight invoked successfully.");
+                    // NEW: Manually fetch all messages from the message model
+                    var aMessages = Messaging.getMessageModel().getData() || [];
+                    // Filter for the specific success message using getCode() (expected format: 'msgid/msgno')
+                    var aSpecificSuccesses = aMessages.filter(function (oMsg) {
+                        return oMsg.getType() === "Success" && oMsg.getCode() === 'ZWR_WEIGHBRIGE_MESS/002';
+                    });
+                    if (aSpecificSuccesses.length > 0) {
+                        // Take the first (or last) matching message; assuming one per action
+                        var oSpecificMsg = aSpecificSuccesses[0]; // or aSpecificSuccesses[aSpecificSuccesses.length - 1]
+                        var sMsgText = oSpecificMsg.getMessage();
+                        oLocalModel.setProperty("/mainWeight", sMsgText);
+                        MessageToast.show("Weight captured: " + sMsgText, { duration: 50000 });
+                        jQuery(".sapMMessageToast").addClass("myGreenToast");
+                        // Make Confirm button visible
+                        // Make the CONFIRM button visible after weight is set
+                        var oButton = this.byId("step3BtnConfirm");
+                        if (oButton) {
+                            oButton.setVisible(true);
+                        }
+                        // Remove the processed specific success messages to avoid accumulation or popups
+                        Messaging.removeMessages(aSpecificSuccesses);
+                    } else {
+                        MessageToast.show("No specific success message (ZWR_WEIGHBRIGE_MESS/002) received from backend.");
+                    }
+                    // Refresh context for any other updates
+                    oContext.refresh();
+                }.bind(this)).catch(function (oError) {
+                    console.error("Error in determineWeight: ", oError);
+                    var sErrorMsg = oError.message || "Failed to determine weight.";
+                    MessageToast.show(sErrorMsg);
+                    // Optional: Also check for error messages and handle/remove them
+                    var aMessages = Messaging.getMessageModel().getData() || [];
+                    var aErrors = aMessages.filter(function (oMsg) {
+                        return oMsg.getType() === "Error";
+                    });
+                    if (aErrors.length > 0) {
+                        // Example: Show the error message and remove
+                        MessageToast.show(aErrors[0].getMessage());
+                        Messaging.removeMessages(aErrors);
+                    }
+                }.bind(this));
+            },
+
+            _normalizeToStdBase64: function (val) {
+                // If backend already gave binary (Uint8Array/ArrayBuffer), return as-is
+                if (val instanceof Uint8Array) return { kind: "u8", data: val };
+                if (val && val.buffer instanceof ArrayBuffer) return { kind: "u8", data: new Uint8Array(val) };
+                var s = String(val || "").trim();
+                // Strip any data URL prefix like "data:application/pdf;base64,..."
+                s = s.replace(/^data:[^;]+;base64,/, "");
+                // Remove whitespace/newlines
+                s = s.replace(/\s+/g, "");
+                // Convert base64url -> base64
+                s = s.replace(/-/g, "+").replace(/_/g, "/");
+                // Pad with '=' to make length % 4 === 0 (without using repeat)
+                var pad = s.length % 4;
+                if (pad) {
+                    s += Array(4 - pad + 1).join("=");
+                }
+                return { kind: "b64", data: s };
+            },
+            onConfirmStep3: function () {
+                var oContext = this.getView().getBindingContext();
+                var oModel = this.getView().getModel();
+                var oLocalModel = this.getView().getModel("local");
+                if (!oContext) {
+                    MessageToast.show("No session context available.");
+                    return;
+                }
+                var sContractId = oLocalModel.getProperty("/contractId");
+                var sLoadType = oLocalModel.getProperty("/loadType");
+                var sMainWeight = oLocalModel.getProperty("/mainWeight");
+                if (!sContractId || !sLoadType || !sMainWeight) {
+                    MessageToast.show("Missing required data: Contract ID, Load Type, or Weight.");
+                    return;
+                }
+                // Parse "12345 KG" (fallback unit KG)
+                var aWeightParts = sMainWeight.trim().split(/\s+/);
+                var sWeight = aWeightParts[0] || "";
+                var sWeighUnit = aWeightParts[1] || "KG";
+                // Pad contract like in step 1
+                sContractId = sContractId.padStart(10, "0");
+                // Ensure current draft changes are sent first
+                oModel.submitBatch("weighingGroup").then(function () {
+                    // Bind the action to the same context
+                    var oAction = oModel.bindContext(
+                        "com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.printSlip(...)",
+                        oContext
+                    );
+                    oAction.setParameter("Vbeln", sContractId);
+                    oAction.setParameter("Loadtype", sLoadType);
+                    oAction.setParameter("Weight", sWeight);
+                    oAction.setParameter("WeighUnit", sWeighUnit);
+                    return oAction.invoke().then(function () {
+                        // Read the result payload from the bound context
+                        var oResCtx = oAction.getBoundContext();
+                        var oRes = oResCtx && oResCtx.getObject ? oResCtx.getObject() : null;
+                        // Support both names/casings. For xstring/Edm.Binary, property value is Base64 on the wire.
+                        var sB64 = oRes && (oRes.pdfraw || oRes.Pdfraw || oRes.PDFRAW ||
+                            oRes.pdfbase64 || oRes.Pdfbase64 || oRes.PDFBASE64);
+                        if (typeof sB64 === "string") {
+                            sB64 = String(sB64);
+                        }
+                        if (sB64 && typeof sB64 === "string") {
+                            try {
+                                // Normalize the base64 string first (using your existing _normalizeToStdBase64 for robustness)
+                                var norm = this._normalizeToStdBase64(sB64);
+                                if (norm.kind === "b64") {
+                                    sB64 = norm.data; // Use the normalized base64 string
+                                } else if (norm.kind === "u8") {
+                                    // If it's already binary, convert to base64 for _printBase64PdfSilently (which expects base64)
+                                    sB64 = btoa(String.fromCharCode.apply(null, norm.data));
+                                }
+                                // Now call the silent print function
+                                this._printBase64PdfSilently(sB64);
+                                MessageToast.show("PDF sent to printer.");
+                            } catch (oError) {
+                                console.error("Base64 processing or printing failed: ", oError);
+                                MessageToast.show("Failed to process or print PDF.");
+                            }
+                        } else {
+                            MessageToast.show("No PDF returned by printSlip.");
+                        }
+                        // Optional: surface server messages (Success)
+                        var aMsgs = Messaging.getMessageModel().getData() || [];
+                        var aSucc = aMsgs.filter(function (m) { return m.getType && m.getType() === "Success"; });
+                        if (aSucc.length > 0) {
+                            MessageToast.show(aSucc[0].getMessage());
+                            Messaging.removeMessages(aSucc);
+                        }
+                        // Refresh & reset to step 1 instead of next step
+                        oContext.refresh();
+                        this._onObjectMatched();
+                    }.bind(this));
+                }.bind(this)).catch(function (oError) {
+                    var sErr = (oError && oError.message) || "Failed to process print slip.";
+                    MessageToast.show(sErr);
+                    // Optional: surface server messages (Error)
+                    var aMsgs = Messaging.getMessageModel().getData() || [];
+                    var aErrs = aMsgs.filter(function (m) { return m.getType && m.getType() === "Error"; });
+                    if (aErrs.length > 0) {
+                        MessageToast.show(aErrs[0].getMessage());
+                        Messaging.removeMessages(aErrs);
+                    }
+                }.bind(this));
+            }, 
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            //// Printing in Kiosk Mode for Chrome
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            // Controller method
+            _printBase64PdfSilently: function (sB64) {
+                // Ensure it's a string (some backends return ArrayBuffer/Uint8Array)
+                if (sB64 && sB64.constructor !== String) {
+                    try { sB64 = atob(btoa(String.fromCharCode.apply(null, new Uint8Array(sB64)))); }
+                    catch (e) { sB64 = typeof sB64.toString === "function" ? sB64.toString() : String(sB64); }
+                }
+                // Create a Blob URL (more reliable than giant data-URIs)
+                var byteChars = atob(sB64);
+                var byteNums = new Array(byteChars.length);
+                for (var i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+                var blob = new Blob([new Uint8Array(byteNums)], { type: "application/pdf" });
+                var url = URL.createObjectURL(blob);
+                // Hidden iframe
+                var iframe = document.createElement("iframe");
+                iframe.style.position = "fixed";
+                iframe.style.right = "0";
+                iframe.style.bottom = "0";
+                iframe.style.width = "0";
+                iframe.style.height = "0";
+                iframe.style.border = "0";
+                iframe.onload = function () {
+                    // Important: call print on the iframe's *contentWindow*
+                    setTimeout(function () {
+                        try {
+                            iframe.contentWindow.focus();
+                            iframe.contentWindow.print(); // dialog-less if Chrome has --kiosk-printing
+                        } finally {
+                            // Cleanup after a short delay to avoid killing the print job
+                            setTimeout(function () {
+                                URL.revokeObjectURL(url);
+                                iframe.parentNode && iframe.parentNode.removeChild(iframe);
+                            }, 1000);
+                        }
+                    }, 200); // give the PDF plugin a moment to render
+                };
+                iframe.src = url;
+                document.body.appendChild(iframe);
+            },
+            _setContractInlineError: function (sText) {
+                // Inline on the input
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.setValueState("Error");
+                    oInput.setValueStateText(sText);
+                    oInput.focus();
+                }
+                // Optional: also add a field-bound message (shows in FE message popover / keeps state on rebind)
+                var oCtx = this.getView().getBindingContext();
+                var oModel = this.getView().getModel();
+                if (oCtx && oModel) {
+                    var sTarget = oCtx.getPath() + "/Vbeln"; // property bound to the input
+                    var aAll = Messaging.getMessageModel().getData() || [];
+                    var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+                    if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
+                    Messaging.addMessages(new Message({
+                        message: sText,
+                        type: coreLibrary.MessageType.Error,
+                        target: sTarget,
+                        processor: oModel
+                    }));
+                }
+            },
+            _clearContractInlineError: function () {
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.setValueState("None");
+                    oInput.setValueStateText("");
+                }
+                var oCtx = this.getView().getBindingContext();
+                if (oCtx) {
+                    var sTarget = oCtx.getPath() + "/Vbeln";
+                    var aAll = Messaging.getMessageModel().getData() || [];
+                    var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+                    if (aForField.length) { Messaging.removeMessages(aForField); }
+                }
+            }
+        });
+    });
