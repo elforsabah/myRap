@@ -1,11 +1,511 @@
-Main.controller.js:175 Error searching for existing session:  TypeError: Cannot read properties of undefined (reading 'getId')
-    at c.onStepActivate (Main.controller.js:243:33)
-    at PageController.ts:108:54
-    at constructor.runWithOwner (ManagedObject-dbg.js:1216:14)
-    at r.runAsOwner (Component-dbg.js:800:24)
-    at c.onStepActivate (PageController.ts:108:30)
-    at c.fireEvent (EventProvider-dbg.js:240:38)
-    at c.fireEvent (Element-dbg.js:798:44)
-    at c.fireStepActivate (ManagedObjectMetadata-dbg.js:826:49)
-    at sap.ui.predefine._._handleStepActivated (Wizard-dbg.js:929:9)
-    at sap.ui.predefine._._handleNextButtonPress (Wizard-dbg.js:845:10)
+sap.ui.define([
+    "sap/fe/core/PageController",
+    "sap/m/MessageToast",
+    "sap/ui/core/Messaging",
+    "sap/m/MessageBox",
+    "sap/ui/core/message/Message",
+    "sap/ui/core/library",
+    "sap/ui/model/Filter",
+    "sap/ui/model/FilterOperator",
+    "sap/m/Button",
+    "sap/ui/model/json/JSONModel",
+    "jquery.sap.global"
+],
+    function (PageController, MessageToast, Messaging, MessageBox, Message, coreLibrary, Filter, FilterOperator, Button, JSONModel, jQuery) {
+        "use strict";
+        return PageController.extend("com.example.weighingsessionwizard.controller.CustomPage", {
+            formatter: {
+                concatMaterialText: function (sMaterial, sMaterialText) {
+                    return (sMaterial || '') + ' - ' + (sMaterialText || '');
+                }
+            },
+            onInit: function () {
+                PageController.prototype.onInit.apply(this);
+                // Messaging
+                Messaging.registerObject(this.getView(), true);
+                this.getView().setModel(Messaging.getMessageModel(), "message");
+                // Attach to message model change to intercept and handle messages
+                this.oMessageModel = this.getView().getModel("message");
+                this.oMessageModel.attachPropertyChange(this._onMessageChange, this);
+                // Wizard
+                this.oWizard = this.byId("weighingWizard");
+                this.oWizard.attachStepActivate(this.onStepActivate, this);
+                // Router
+                var oRouter = this.getAppComponent().getRouter();
+                oRouter.getRoute("ZI_WR_WEIGHINGSESSIONMain").attachPatternMatched(this._onObjectMatched, this);
+                this._enterWired = false; // guard so we wire Enter only once
+                // Local model for unbound inputs
+                this.getView().setModel(new JSONModel({ contractId: "" }), "local");
+                this.getView().setModel(new JSONModel({ mainWeight: "" }), "local");
+                this.getView().setModel(new JSONModel({ loadType: "" }), "local");
+                this.getView().setModel(new JSONModel({ weighingType: "" }), "local");
+                this.getView().setModel(new JSONModel({ instruction: "Please make sure to place the vehicle correctly." }), "local");
+            },
+            _onMessageChange: function (oEvent) {
+                var aMessages = this.oMessageModel.getData() || [];
+                var aErrors = aMessages.filter(function (oMsg) {
+                    return oMsg.getType() === "Error";
+                });
+                if (aErrors.length > 0) {
+                    // Remove error messages to prevent popup/dialog
+                    Messaging.removeMessages(aErrors);
+                    // Set inline error using the message text (if related to contract)
+                    var sErrorText = aErrors[0].getMessage() || "Invalid Contract. Please try again.";
+                    this._setContractInlineError(sErrorText);
+                }
+                var aSuccesses = aMessages.filter(function (oMsg) {
+                    return oMsg.getType() === "Success";
+                });
+                if (aSuccesses.length > 0) {
+                    // Optionally handle success messages, e.g., show toast and remove
+                    MessageToast.show(aSuccesses[0].getMessage());
+                    Messaging.removeMessages(aSuccesses);
+                }
+            },
+            _onObjectMatched: function () {
+                this.getView().setBindingContext(null); // Clear context initially
+                this.getView().getModel("local").setProperty("/contractId", ""); // Reset local value
+                this.getView().getModel("local").setProperty("/mainWeight", ""); // Reset local value
+                this.getView().getModel("local").setProperty("/loadType", ""); // Reset local value
+                this.getView().getModel("local").setProperty("/weighingType", ""); // Reset weighing type
+                this.getView().getModel("local").setProperty("/instruction", "Please make sure to place the vehicle correctly."); // Reset instruction
+                // Clear step 2 items binding to reset load types
+                var oVBox = this.byId("step2LtContainer");
+                if (oVBox) {
+                    oVBox.unbindAggregation("items");
+                    oVBox.destroyItems();
+                }
+                // Reset wizard to step 1
+                this.oWizard.setCurrentStep(this.byId("step1"));
+                // Clear any inline errors
+                this._clearContractInlineError();
+                // Hide confirm button
+                var oButton = this.byId("step3BtnConfirm");
+                if (oButton) {
+                    oButton.setVisible(false);
+                }
+            },
+            // === ENTER wiring (ADDED) ===
+            _setupEnterToNext: function () {
+                if (this._enterWired) { return; }
+                this._enterWired = true;
+                // Step 1: Enter on Contract input -> reuse existing onNextStep
+                var oIp = this.byId("step1InputContract");
+                if (oIp) {
+                    oIp.addEventDelegate({
+                        onsapenter: function (oEvent) {
+                            oEvent.preventDefault();
+                            oEvent.stopPropagation();
+                            this.onNextStep();
+                        }.bind(this)
+                    }, oIp);
+                }
+            },
+            onNextStep: function () {
+                var oCurrentStep = this.oWizard.getCurrentStep();
+                var sStepId = oCurrentStep.split("--").pop();
+                if (sStepId === "step1") {
+                    var sContractId = this.getView().getModel("local").getProperty("/contractId");
+                    if (!sContractId) {
+                        MessageToast.show("Please enter a Contract ID.");
+                        return;
+                    }
+                    // Pad with leading zeros for internal format
+                    sContractId = sContractId.padStart(10, '0');
+                    // Manual bound action call to avoid automatic popups from editFlow
+                    var oModel = this.getView().getModel();
+                    // Search for existing session
+                    var oListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION");
+                    var aFilters = [new Filter("Vbeln", FilterOperator.EQ, sContractId)];
+                    oListBinding.filter(aFilters);
+                    oListBinding.requestContexts(0, 10).then(function (aContexts) {
+                        var oCtx;
+                        if (aContexts.length > 0) {
+                            // Existing session found (assume first is the open one)
+                            oCtx = aContexts[0];
+                            this.getView().setBindingContext(oCtx);
+                            oCtx.refresh();
+                            // Determine if first or second weighing
+                            var fGross = oCtx.getProperty("Grossweight") || 0;
+                            var sWeighingType = (fGross === 0) ? "First Weighing" : "Second Weighing";
+                            var sInstruction = (fGross === 0) ? "Please place the vehicle for initial weighing." : "Please place the vehicle for return weighing.";
+                            this.getView().getModel("local").setProperty("/weighingType", sWeighingType);
+                            this.getView().getModel("local").setProperty("/instruction", sInstruction);
+                            // Check if LoadType is already set (for return weighing)
+                            var sLoadType = oCtx.getProperty("LoadType") || "";
+                            this.getView().getModel("local").setProperty("/loadType", sLoadType);
+                            if (sLoadType) {
+                                // Return weighing, skip to step 3
+                                this._clearContractInlineError();
+                                this.oWizard.validateStep(this.byId("step1"));
+                                this.oWizard.setCurrentStep(this.byId("step3"));
+                            } else {
+                                // Existing but no LoadType (rare), treat as first
+                                this._bindStep2(sContractId);
+                                this._clearContractInlineError();
+                                this.oWizard.validateStep(this.byId("step1"));
+                                this.oWizard.nextStep();
+                            }
+                        } else {
+                            // No existing, create new
+                            var oNewListBinding = oModel.bindList("/ZI_WR_WEIGHINGSESSION");
+                            oCtx = oNewListBinding.create({});
+                            this.getView().setBindingContext(oCtx);
+                            oCtx.created().then(function () {
+                                var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)", oCtx);
+                                oAction.setParameter("Vbeln", sContractId);
+                                return oAction.invoke();
+                            }.bind(this)).then(function () {
+                                oCtx.refresh();
+                                // Set as first weighing
+                                this.getView().getModel("local").setProperty("/weighingType", "First Weighing");
+                                this.getView().getModel("local").setProperty("/instruction", "Please place the vehicle for initial weighing.");
+                                // Bind step 2
+                                this._bindStep2(sContractId);
+                                this._clearContractInlineError();
+                                this.oWizard.validateStep(this.byId("step1"));
+                                MessageToast.show("Contract is Valid. Step 2 activated");
+                                this.oWizard.nextStep();
+                            }.bind(this)).catch(function (oError) {
+                                console.error("Error in create or identifyCard: ", oError);
+                                var sErrorMsg = oError.message || "Unknown error";
+                                this._setContractInlineError(sErrorMsg);
+                            }.bind(this));
+                        }
+                    }.bind(this)).catch(function (oError) {
+                        console.error("Error searching for existing session: ", oError);
+                        this._setContractInlineError("Failed to search for weighing session.");
+                    }.bind(this));
+                }
+            },
+            _bindStep2: function (sContractId) {
+                var oVBox = this.byId("step2LtContainer");
+                var oTemplate = new Button({
+                    text: {
+                        parts: [
+                            { path: 'Avvcode', targetType: 'any' },
+                            { path: 'Material', targetType: 'any' },
+                            { path: 'MaterialText', targetType: 'any' }
+                        ],
+                        formatter: '.formatter.concatMaterialText'
+                    },
+                    press: [this.onChooseLoadType, this],
+                    width: "100%"
+                });
+                oTemplate.addStyleClass("loadTypeBtn");
+                if (oVBox) {
+                    try {
+                        oVBox.bindAggregation("items", {
+                            path: "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')/Set",
+                            parameters: {
+                                $select: "SalesOrder,SalesOrderitem,Material,MaterialText,Avvcode,Language",
+                                $orderby: "SalesOrder,SalesOrderitem"
+                            },
+                            template: oTemplate,
+                            templateShareable: false
+                        });
+                        // Attach one-time dataReceived to check if empty
+                        var oBinding = oVBox.getBinding("items");
+                        oBinding.attachEventOnce("dataReceived", function () {
+                            if (oBinding.getLength() === 0) {
+                                // No loads, skip step 2
+                                var oCtx = this.getView().getBindingContext();
+                                if (oCtx) {
+                                    oCtx.setProperty("LoadType", "");
+                                }
+                                this.oWizard.validateStep(this.byId("step2"));
+                                this.oWizard.nextStep();
+                            }
+                        }.bind(this));
+                    } catch (oError) {
+                        console.error("Binding error: ", oError);
+                        this._setContractInlineError("Failed to load materials for contract.");
+                    }
+                } else {
+                    console.error("step2LtContainer not found");
+                }
+            },
+            onAfterRendering: function () {
+                var oIp = this.byId("step1InputContract");
+                if (oIp) { oIp.focus(); }
+                this._setupEnterToNext(); // wire Enter once
+            },
+            onChooseLoadType: function (oEvent) {
+                const sLoadType = oEvent.getSource().getBindingContext().getProperty("Material");
+                const oSessionCtx = this.getView().getBindingContext();
+                if (!oSessionCtx) { return; }
+                oSessionCtx.setProperty("LoadType", sLoadType);
+                this.getView().getModel("local").setProperty("/loadType", sLoadType);
+                this.oWizard.validateStep(this.byId("step2"));
+                this.oWizard.nextStep();
+            },
+            onStepActivate: function (oEvent) {
+                var oStep = oEvent.getParameter("step");
+                if (!oStep) { return; } // Guard against undefined step
+                var sId = oStep.getId().split("--").pop();
+                if (sId === "step3") {
+                    this.onWeighStep3();
+                }
+            },
+            onWeighStep3: function () {
+                var oContext = this.getView().getBindingContext();
+                var oModel = this.getView().getModel();
+                var oLocalModel = this.getView().getModel("local");
+                if (!oContext) {
+                    MessageToast.show("No session context available.");
+                    return;
+                }
+                // Ensure the entity is persisted before calling the action
+                oModel.submitBatch("weighingGroup").then(function () {
+                    console.log("Entity persisted. Invoking determineWeight...");
+                    // Call the determineWeight action
+                    var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.determineWeight(...)", oContext);
+                    var sContractId = this.getView().getModel("local").getProperty("/contractId").padStart(10, '0');
+                    var sLoadType = this.getView().getModel("local").getProperty("/loadType");
+                    oAction.setParameter("Vbeln", sContractId);
+                    oAction.setParameter("Loadtype", sLoadType);
+                    return oAction.invoke();
+                }.bind(this)).then(function (oResult) {
+                    console.log("determineWeight invoked successfully.");
+                    // Refresh context
+                    oContext.refresh();
+                    // Get properties after refresh
+                    var fGross = oContext.getProperty("Grossweight") || 0;
+                    var fTare = oContext.getProperty("TareWeight") || 0;
+                    var fNet = oContext.getProperty("NetWeight") || 0;
+                    var sUnit = oContext.getProperty("Grossweightunit") || "KG";
+                    var sMsgText;
+                    if (fNet > 0) {
+                        sMsgText = "Tare Weight: " + fTare + " " + sUnit + " (Net: " + fNet + " " + sUnit + ")";
+                    } else if (fGross > 0) {
+                        sMsgText = "Gross Weight: " + fGross + " " + sUnit;
+                    } else {
+                        sMsgText = "";
+                    }
+                    oLocalModel.setProperty("/mainWeight", sMsgText);
+                    MessageToast.show("Weight captured: " + sMsgText, { duration: 50000 });
+                    jQuery(".sapMMessageToast").addClass("myGreenToast");
+                    // Make Confirm button visible
+                    var oButton = this.byId("step3BtnConfirm");
+                    if (oButton) {
+                        oButton.setVisible(true);
+                    }
+                    // Handle and remove success messages
+                    var aMessages = Messaging.getMessageModel().getData() || [];
+                    var aSpecificSuccesses = aMessages.filter(function (oMsg) {
+                        return oMsg.getType() === "Success" && oMsg.getCode() === 'ZWR_WEIGHBRIGE_MESS/002';
+                    });
+                    if (aSpecificSuccesses.length > 0) {
+                        Messaging.removeMessages(aSpecificSuccesses);
+                    }
+                }.bind(this)).catch(function (oError) {
+                    console.error("Error in determineWeight: ", oError);
+                    var sErrorMsg = oError.message || "Failed to determine weight.";
+                    MessageToast.show(sErrorMsg);
+                    // Handle and remove error messages
+                    var aMessages = Messaging.getMessageModel().getData() || [];
+                    var aErrors = aMessages.filter(function (oMsg) {
+                        return oMsg.getType() === "Error";
+                    });
+                    if (aErrors.length > 0) {
+                        MessageToast.show(aErrors[0].getMessage());
+                        Messaging.removeMessages(aErrors);
+                    }
+                }.bind(this));
+            },
+            _normalizeToStdBase64: function (val) {
+                // If backend already gave binary (Uint8Array/ArrayBuffer), return as-is
+                if (val instanceof Uint8Array) return { kind: "u8", data: val };
+                if (val && val.buffer instanceof ArrayBuffer) return { kind: "u8", data: new Uint8Array(val) };
+                var s = String(val || "").trim();
+                // Strip any data URL prefix like "data:application/pdf;base64,..."
+                s = s.replace(/^data:[^;]+;base64,/, "");
+                // Remove whitespace/newlines
+                s = s.replace(/\s+/g, "");
+                // Convert base64url -> base64
+                s = s.replace(/-/g, "+").replace(/_/g, "/");
+                // Pad with '=' to make length % 4 === 0 (without using repeat)
+                var pad = s.length % 4;
+                if (pad) {
+                    s += Array(4 - pad + 1).join("=");
+                }
+                return { kind: "b64", data: s };
+            },
+            onConfirmStep3: function () {
+                var oContext = this.getView().getBindingContext();
+                var oModel = this.getView().getModel();
+                var oLocalModel = this.getView().getModel("local");
+                if (!oContext) {
+                    MessageToast.show("No session context available.");
+                    return;
+                }
+                // Check if this is the second weighing (NetWeight set)
+                var fNet = oContext.getProperty("NetWeight") || 0;
+                if (fNet === 0) {
+                    // First weighing complete, no print
+                    oModel.submitBatch("weighingGroup").then(function () {
+                        MessageToast.show("First weighing complete. Please unload and return for final weighing.");
+                        this._onObjectMatched();
+                    }.bind(this)).catch(function (oError) {
+                        MessageToast.show("Failed to save first weighing.");
+                    }.bind(this));
+                    return;
+                }
+                var sContractId = oLocalModel.getProperty("/contractId");
+                var sLoadType = oLocalModel.getProperty("/loadType");
+                var sMainWeight = oLocalModel.getProperty("/mainWeight");
+                if (!sContractId || !sLoadType || !sMainWeight) {
+                    MessageToast.show("Missing required data: Contract ID, Load Type, or Weight.");
+                    return;
+                }
+                // Parse "Tare Weight: 12345 KG (Net: 10000 KG)" – extract the weight (tare for second)
+                var aWeightParts = sMainWeight.match(/(\d+)/g) || [];
+                var sWeight = aWeightParts[0] || "";
+                var sWeighUnit = sMainWeight.match(/([A-Z]+)/g)?.[0] || "KG";
+                // Pad contract like in step 1
+                sContractId = sContractId.padStart(10, "0");
+                // Ensure current draft changes are sent first
+                oModel.submitBatch("weighingGroup").then(function () {
+                    // Bind the action to the same context
+                    var oAction = oModel.bindContext(
+                        "com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.printSlip(...)",
+                        oContext
+                    );
+                    oAction.setParameter("Vbeln", sContractId);
+                    oAction.setParameter("Loadtype", sLoadType);
+                    oAction.setParameter("Weight", sWeight);
+                    oAction.setParameter("WeighUnit", sWeighUnit);
+                    return oAction.invoke().then(function () {
+                        // Read the result payload from the bound context
+                        var oResCtx = oAction.getBoundContext();
+                        var oRes = oResCtx && oResCtx.getObject ? oResCtx.getObject() : null;
+                        // Support both names/casings. For xstring/Edm.Binary, property value is Base64 on the wire.
+                        var sB64 = oRes && (oRes.pdfraw || oRes.Pdfraw || oRes.PDFRAW ||
+                            oRes.pdfbase64 || oRes.Pdfbase64 || oRes.PDFBASE64);
+                        if (typeof sB64 === "string") {
+                            sB64 = String(sB64);
+                        }
+                        if (sB64 && typeof sB64 === "string") {
+                            try {
+                                // Normalize the base64 string first
+                                var norm = this._normalizeToStdBase64(sB64);
+                                if (norm.kind === "b64") {
+                                    sB64 = norm.data;
+                                } else if (norm.kind === "u8") {
+                                    sB64 = btoa(String.fromCharCode.apply(null, norm.data));
+                                }
+                                // Now call the silent print function
+                                this._printBase64PdfSilently(sB64);
+                                MessageToast.show("PDF sent to printer.");
+                            } catch (oError) {
+                                console.error("Base64 processing or printing failed: ", oError);
+                                MessageToast.show("Failed to process or print PDF.");
+                            }
+                        } else {
+                            MessageToast.show("No PDF returned by printSlip.");
+                        }
+                        // Optional: surface server messages (Success)
+                        var aMsgs = Messaging.getMessageModel().getData() || [];
+                        var aSucc = aMsgs.filter(function (m) { return m.getType && m.getType() === "Success"; });
+                        if (aSucc.length > 0) {
+                            MessageToast.show(aSucc[0].getMessage());
+                            Messaging.removeMessages(aSucc);
+                        }
+                        // Refresh & reset to step 1
+                        oContext.refresh();
+                        this._onObjectMatched();
+                    }.bind(this));
+                }.bind(this)).catch(function (oError) {
+                    var sErr = (oError && oError.message) || "Failed to process print slip.";
+                    MessageToast.show(sErr);
+                    // Optional: surface server messages (Error)
+                    var aMsgs = Messaging.getMessageModel().getData() || [];
+                    var aErrs = aMsgs.filter(function (m) { return m.getType && m.getType() === "Error"; });
+                    if (aErrs.length > 0) {
+                        MessageToast.show(aErrs[0].getMessage());
+                        Messaging.removeMessages(aErrs);
+                    }
+                }.bind(this));
+            },
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            //// Printing in Kiosk Mode for Chrome
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            // Controller method
+            _printBase64PdfSilently: function (sB64) {
+                // Ensure it's a string (some backends return ArrayBuffer/Uint8Array)
+                if (sB64 && sB64.constructor !== String) {
+                    try { sB64 = atob(btoa(String.fromCharCode.apply(null, new Uint8Array(sB64)))); }
+                    catch (e) { sB64 = typeof sB64.toString === "function" ? sB64.toString() : String(sB64); }
+                }
+                // Create a Blob URL (more reliable than giant data-URIs)
+                var byteChars = atob(sB64);
+                var byteNums = new Array(byteChars.length);
+                for (var i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+                var blob = new Blob([new Uint8Array(byteNums)], { type: "application/pdf" });
+                var url = URL.createObjectURL(blob);
+                // Hidden iframe
+                var iframe = document.createElement("iframe");
+                iframe.style.position = "fixed";
+                iframe.style.right = "0";
+                iframe.style.bottom = "0";
+                iframe.style.width = "0";
+                iframe.style.height = "0";
+                iframe.style.border = "0";
+                iframe.onload = function () {
+                    // Important: call print on the iframe's *contentWindow*
+                    setTimeout(function () {
+                        try {
+                            iframe.contentWindow.focus();
+                            iframe.contentWindow.print(); // dialog-less if Chrome has --kiosk-printing
+                        } finally {
+                            // Cleanup after a short delay to avoid killing the print job
+                            setTimeout(function () {
+                                URL.revokeObjectURL(url);
+                                iframe.parentNode && iframe.parentNode.removeChild(iframe);
+                            }, 1000);
+                        }
+                    }, 200); // give the PDF plugin a moment to render
+                };
+                iframe.src = url;
+                document.body.appendChild(iframe);
+            },
+            _setContractInlineError: function (sText) {
+                // Inline on the input
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.setValueState("Error");
+                    oInput.setValueStateText(sText);
+                    oInput.focus();
+                }
+                // Optional: also add a field-bound message (shows in FE message popover / keeps state on rebind)
+                var oCtx = this.getView().getBindingContext();
+                var oModel = this.getView().getModel();
+                if (oCtx && oModel) {
+                    var sTarget = oCtx.getPath() + "/Vbeln"; // property bound to the input
+                    var aAll = Messaging.getMessageModel().getData() || [];
+                    var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+                    if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
+                    Messaging.addMessages(new Message({
+                        message: sText,
+                        type: coreLibrary.MessageType.Error,
+                        target: sTarget,
+                        processor: oModel
+                    }));
+                }
+            },
+            _clearContractInlineError: function () {
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.setValueState("None");
+                    oInput.setValueStateText("");
+                }
+                var oCtx = this.getView().getBindingContext();
+                if (oCtx) {
+                    var sTarget = oCtx.getPath() + "/Vbeln";
+                    var aAll = Messaging.getMessageModel().getData() || [];
+                    var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+                    if (aForField.length) { Messaging.removeMessages(aForField); }
+                }
+            }
+        });
+    });
