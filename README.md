@@ -1,3 +1,8 @@
-Blocked aria-hidden on an element because its descendant retained focus. The focus must not be hidden from assistive technology users. Avoid using aria-hidden on a focused element or its ancestor. Consider using the inert attribute instead, which will also prevent focus. For more details, see the aria-hidden section of the WAI-ARIA specification at https://w3c.github.io/aria/#aria-hidden.
-Element with focus: <button.sapMBtnBase sapMBtn sapUiLargeText largeWeighButton#com.prologa.zwrweighbrige::ZI_WR_WEIGHINGSESSIONMain--step3BtnConfirm>
-Ancestor with aria-hidden: <div.sapMFlexItemAlignAuto sapMFlexBoxBGTransparent sapMFlexItem sapUiHiddenPlaceholder#__data13> <div id=​"__data13" class=​"sapMFlexItemAlignAuto sapMFlexBoxBGTransparent sapMFlexItem sapUiHiddenPlaceholder" style=​"order:​ 0;​ flex:​ 0 1 auto;​ min-height:​ auto;​ min-width:​ auto;​" aria-hidden=​"true">​…​</div>​Understand this warning
+                    
+                    var sGrossweight1 = oLocalModel.getProperty("/grossWeight");
+                    var steraweight1 = oLocalModel.getProperty("/teraWeight");
+                    
+                    console.log("grossweight:", sGrossweight1 );
+                    console.log("teraweight:", steraweight1 );
+
+                    MessageToast.show("Weight captured: " + sGrossweight1, + steraweight1, { duration: 50000 });
