@@ -1,23 +1,26 @@
-step1Title=Identifikation
-step2Title=Vælg lasttype
-step3Title=Vejning
-step1Label=Indtast venligst din kontrakt-ID
-step1Placeholder=Scan eller indtast kontrakt-ID
-selectedContract=Valgt kontrakt: 
-step3Instruction=Sørg venligst for at placere køretøjet korrekt.
-confirmAndPrint=BEKRÆFT og Udskriv
-confirm=BEKRÆFT
-enterContractId=Indtast venligst en kontrakt-ID.
-noContext=Ingen sessionskontekst tilgængelig.
-invalidContract=Ugyldig kontrakt. Prøv igen.
-contractValid=Kontrakten er gyldig. Trin 2 aktiveret
-failedLoadTypes=Kunne ikke indlæse lasttyper. Tjek kontrakt eller service.
-failedMaterials=Kunne ikke indlæse materialer til kontrakt.
-missingData=Manglende påkrævede data: Kontrakt-ID, lasttype eller vægt.
-weightCaptured=Vægt registreret: 
-noSuccess002=Ingen specifik succesmeddelelse (ZWR_WEIGHBRIGE_MESS/002) modtaget fra backend.
-noSuccess009=Ingen specifik succesmeddelelse (ZWR_WEIGHBRIGE_MESS/009) modtaget fra backend.
-pdfSent=PDF sendt til printer.
-noPdf=Ingen PDF returneret af printSlip.
-failedPdf=Kunne ikke behandle eller udskrive PDF.
-failedWeight=Kunne ikke bestemme vægt.
+{
+  "_version": "1.65.0",  // Or your UI5 version
+  "sap.app": {
+    "id": "com.example.weighingsessionwizard",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",  // Path to your default English bundle
+    "title": "{{appTitle}}",  // References a key from i18n.properties
+    "description": "{{appDescription}}",
+    "applicationVersion": {
+      "version": "1.0.0"
+    }
+  },
+  "sap.ui5": {
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "com.example.weighingsessionwizard.i18n.i18n",  // Your bundle namespace
+          "supportedLocales": ["en", "da"],  // English and Danish
+          "fallbackLocale": "en"  // Default to English if language not found
+        }
+      }
+    },
+    // Other sap.ui5 settings like rootView, dependencies, etc.
+  }
+}
