@@ -1,24 +1,9 @@
-_printBase64PdfSilently: function (sB64) {
-    // Ensure it's a string (some backends return ArrayBuffer/Uint8Array)
-    if (sB64 && sB64.constructor !== String) {
-        try { sB64 = atob(btoa(String.fromCharCode.apply(null, new Uint8Array(sB64)))); }
-        catch (e) { sB64 = typeof sB64.toString === "function" ? sB64.toString() : String(sB64); }
-    }
-    // Create a Blob URL (more reliable than giant data-URIs)
-    var byteChars = atob(sB64);
-    var byteNums = new Array(byteChars.length);
-    for (var i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
-    var blob = new Blob([new Uint8Array(byteNums)], { type: "application/pdf" });
-    var url = URL.createObjectURL(blob);
-    // For testing: Download the PDF instead of printing
-    var link = document.createElement('a');
-    link.href = url;
-    link.download = 'test.pdf';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    // Cleanup
-    setTimeout(function () {
-        URL.revokeObjectURL(url);
-    }, 1000);
-},
+/test/flp.html?sap-u…false#app-preview:1 Blocked aria-hidden on an element because its descendant retained focus. The focus must not be hidden from assistive technology users. Avoid using aria-hidden on a focused element or its ancestor. Consider using the inert attribute instead, which will also prevent focus. For more details, see the aria-hidden section of the WAI-ARIA specification at https://w3c.github.io/aria/#aria-hidden.
+Element with focus: <button.sapMBtnBase sapMBtn sapUiLargeText largeWeighButton#com.prologa.zwrweighbrige::ZI_WR_WEIGHINGSESSIONMain--step3BtnConfirm2>
+Ancestor with aria-hidden: <div.sapMFlexItemAlignAuto sapMFlexBoxBGTransparent sapMFlexItem sapUiHiddenPlaceholder#__data17> 
+Main.controller.js:437 All Messages 3 
+(2) [constructor, constructor]
+/test/flp.html?sap-u…false#app-preview:1 Blocked aria-hidden on an element because its descendant retained focus. The focus must not be hidden from assistive technology users. Avoid using aria-hidden on a focused element or its ancestor. Consider using the inert attribute instead, which will also prevent focus. For more details, see the aria-hidden section of the WAI-ARIA specification at https://w3c.github.io/aria/#aria-hidden.
+Element with focus: <button.sapMBtnBase sapMBtn sapUiLargeText largeWeighButton#com.prologa.zwrweighbrige::ZI_WR_WEIGHINGSESSIONMain--step3BtnConfirm>
+Ancestor with aria-hidden: <div.sapMFlexItemAlignAuto sapMFlexBoxBGTransparent sapMFlexItem sapUiHiddenPlaceholder#__data16> 
+
