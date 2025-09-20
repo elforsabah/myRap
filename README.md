@@ -7,6 +7,7 @@
         text="{= ${local>/grossWeight} + '\n' + ${local>/teraWeight} }"
         textAlign="Center"
         wrapping="true"
+        renderWhitespace="true"
         class="bigWeightNumber"/>
     </HBox>
   </f:fields>
