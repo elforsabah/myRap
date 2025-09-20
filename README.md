@@ -71,8 +71,8 @@
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
           "bundleName": "com.prologa.zwrweighbrige.i18n.i18n",
-          "supportedLocales": ["en", "da"], 
-          "fallbackLocale": "en" 
+          "supportedLocales": ["en", "da"],
+          "fallbackLocale": "en"
         }
       },
       "": {
@@ -86,7 +86,11 @@
       },
       "@i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
-        "uri": "i18n/i18n.properties"
+        "settings": {
+          "bundleName": "com.prologa.zwrweighbrige.i18n.i18n",
+          "supportedLocales": ["en", "da"],
+          "fallbackLocale": "en"
+        }
       }
     },
     "resources": {
