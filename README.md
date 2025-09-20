@@ -1,1 +1,11 @@
-1.Weighing: 345671.000 KG 2.Weighing: 456743.000 KG
+<!-- Row 2 -->
+<f:FormElement id="step3FormElementWeight" label="">
+  <f:fields>
+    <HBox id="step3HBoxWeight" width="100%" justifyContent="Center" class="bigWeightContainer">
+      <FormattedText
+        id="step3TextWeight"
+        htmlText="{= ${local>/grossWeight} + '<br/>' + ${local>/teraWeight} }"
+        class="bigWeightNumber"/>
+    </HBox>
+  </f:fields>
+</f:FormElement>
