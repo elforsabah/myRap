@@ -1,6 +1,4 @@
-
-
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             //// Printing in Kiosk Mode for Chrome
             /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             _printBase64PdfSilently: function (sB64) {
@@ -17,12 +15,13 @@
                 var url = URL.createObjectURL(blob);
                 // Hidden iframe
                 var iframe = document.createElement("iframe");
-                iframe.style.position = "fixed";
-                iframe.style.right = "0";
-                iframe.style.bottom = "0";
-                iframe.style.width = "0";
-                iframe.style.height = "0";
+                iframe.style.position = "absolute";
+                iframe.style.left = "-10000px";
+                iframe.style.top = "-10000px";
+                iframe.style.width = "0px";
+                iframe.style.height = "0px";
                 iframe.style.border = "0";
+                iframe.style.visibility = "hidden";
                 iframe.onload = function () {
                     // Important: call print on the iframe's *contentWindow*
                     setTimeout(function () {
