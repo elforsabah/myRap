@@ -9,3 +9,8 @@
     </HBox>
   </f:fields>
 </f:FormElement>
+
+
+.bigWeightNumber div:first-child {
+  margin-bottom: 0.5rem;
+}
