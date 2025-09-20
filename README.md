@@ -9,9 +9,10 @@ sap.ui.define([
     "sap/ui/model/FilterOperator",
     "sap/m/Button",
     "sap/ui/model/json/JSONModel",
+    "sap/ui/model/resource/ResourceModel",
     "jquery.sap.global"
 ],
-    function (PageController, MessageToast, Messaging, MessageBox, Message, coreLibrary, Filter, FilterOperator, Button, JSONModel, jQuery) {
+    function (PageController, MessageToast, Messaging, MessageBox, Message, coreLibrary, Filter, FilterOperator, Button, JSONModel, ResourceModel, jQuery) {
         "use strict";
         return PageController.extend("com.example.weighingsessionwizard.controller.CustomPage", {
             formatter: {
@@ -21,6 +22,12 @@ sap.ui.define([
             },
             onInit: function () {
                 PageController.prototype.onInit.apply(this);
+                // Set up i18n model with initial language (English)
+                var oResourceModel = new ResourceModel({
+                    bundleName: "com.example.weighingsessionwizard.i18n.i18n",
+                    bundleLocale: "en"
+                });
+                this.getView().setModel(oResourceModel, "i18n");
                 // Messaging
                 Messaging.registerObject(this.getView(), true);
                 this.getView().setModel(Messaging.getMessageModel(), "message");
@@ -41,6 +48,23 @@ sap.ui.define([
                 this.getView().setModel(new JSONModel({ loadType: "" }), "local");
                 this.getView().setModel(new JSONModel({ transaction_state: "" }), "local");
             },
+            getResourceBundle: function () {
+                return this.getView().getModel("i18n").getResourceBundle();
+            },
+            onSetEnglish: function () {
+                var oResourceModel = new ResourceModel({
+                    bundleName: "com.example.weighingsessionwizard.i18n.i18n",
+                    bundleLocale: "en"
+                });
+                this.getView().setModel(oResourceModel, "i18n");
+            },
+            onSetDanish: function () {
+                var oResourceModel = new ResourceModel({
+                    bundleName: "com.example.weighingsessionwizard.i18n.i18n",
+                    bundleLocale: "da"
+                });
+                this.getView().setModel(oResourceModel, "i18n");
+            },
             _onMessageChange: function (oEvent) {
                 var aMessages = this.oMessageModel.getData() || [];
                 var aErrors = aMessages.filter(function (oMsg) {
@@ -50,7 +74,7 @@ sap.ui.define([
                     // Remove error messages to prevent popup/dialog
                     Messaging.removeMessages(aErrors);
                     // Set inline error using the message text (if related to contract)
-                    var sErrorText = aErrors[0].getMessage() || "Invalid Contract. Please try again.";
+                    var sErrorText = aErrors[0].getMessage() || this.getResourceBundle().getText("invalidContract");
                     this._setContractInlineError(sErrorText);
                 }
                 var aSuccesses = aMessages.filter(function (oMsg) {
@@ -115,11 +139,11 @@ sap.ui.define([
                 if (sStepId === "step1") {
                     var sContractId = this.getView().getModel("local").getProperty("/contractId");
                     if (!sContractId) {
-                        MessageToast.show("Please enter a Contract ID.");
+                        MessageToast.show(this.getResourceBundle().getText("enterContractId"));
                         return;
                     }
                     if (!oContext) {
-                        MessageToast.show("No session context available.");
+                        MessageToast.show(this.getResourceBundle().getText("noContext"));
                         return;
                     }
                     // Pad with leading zeros for internal format
@@ -168,7 +192,7 @@ sap.ui.define([
                                     events: {
                                         change: function (oEvent) {
                                             if (oEvent.getParameter("reason") === "Rejected") {
-                                                MessageToast.show("Failed to load load types. Check contract or service.");
+                                                MessageToast.show(this.getResourceBundle().getText("failedLoadTypes"));
                                                 this._skipToWeigh();
                                             }
                                         }.bind(this)
@@ -184,7 +208,7 @@ sap.ui.define([
                                 }.bind(this));
                             } catch (oError) {
                                 console.error("Binding error: ", oError);
-                                this._setContractInlineError("Failed to load materials for contract.");
+                                this._setContractInlineError(this.getResourceBundle().getText("failedMaterials"));
                                 return; // Prevent advancing
                             }
                         } else {
@@ -207,7 +231,7 @@ sap.ui.define([
                         // advance wizard
                         this._clearContractInlineError();
                         this.oWizard.validateStep(this.byId("step1"));
-                        MessageToast.show("Contract is Valid. Step 2 activated")
+                        MessageToast.show(this.getResourceBundle().getText("contractValid"))
                         this.oWizard.nextStep();
                     }.bind(this)).catch(function (oError) {
                         console.error("Error in create or identifyCard: ", oError); // Debug: Unified catch for full error details
@@ -254,7 +278,7 @@ sap.ui.define([
                 var oModel = this.getView().getModel();
                 var oLocalModel = this.getView().getModel("local");
                 if (!oContext) {
-                    MessageToast.show("No session context available.");
+                    MessageToast.show(this.getResourceBundle().getText("noContext"));
                     return;
                 }
                 // Ensure the entity is persisted before calling the action
@@ -286,7 +310,7 @@ sap.ui.define([
                         // Remove the processed specific success messages to avoid accumulation or popups
                         Messaging.removeMessages(aSpecificSuccesses);
                     } else {
-                        MessageToast.show("No specific success message (ZWR_WEIGHBRIGE_MESS/002) received from backend.");
+                        MessageToast.show(this.getResourceBundle().getText("noSuccess002"));
                     }
 
                     // Teraweight
@@ -325,14 +349,14 @@ sap.ui.define([
                     console.log("grossweight:", sGrossweight1);
                     console.log("teraweight:", steraweight1);
 
-                    MessageToast.show("Weight captured: " + sGrossweight1 + "\n" + steraweight1, { duration: 5000 });
+                    MessageToast.show(this.getResourceBundle().getText("weightCaptured") + sGrossweight1 + "\n" + steraweight1, { duration: 5000 });
                     jQuery(".sapMMessageToast").addClass("myGreenToast");
 
                     // Refresh context for any other updates
                     oContext.refresh();
                 }.bind(this)).catch(function (oError) {
                     console.error("Error in determineWeight: ", oError);
-                    var sErrorMsg = oError.message || "Failed to determine weight.";
+                    var sErrorMsg = oError.message || this.getResourceBundle().getText("failedWeight");
                     MessageToast.show(sErrorMsg);
                     // Optional: Also check for error messages and handle/remove them
                     var aMessages = Messaging.getMessageModel().getData() || [];
@@ -370,7 +394,7 @@ sap.ui.define([
                 var oModel = this.getView().getModel();
                 var oLocalModel = this.getView().getModel("local");
                 if (!oContext) {
-                    MessageToast.show("No session context available.");
+                    MessageToast.show(this.getResourceBundle().getText("noContext"));
                     return;
                 }
                 var sContractId = oLocalModel.getProperty("/contractId");
@@ -378,7 +402,7 @@ sap.ui.define([
                 var sGrossWeight = oLocalModel.getProperty("/grossWeight");
                 var sTeraWeight = oLocalModel.getProperty("/teraWeight");
                 if (!sContractId || !sLoadType || !sGrossWeight) {
-                    MessageToast.show("Missing required data: Contract ID, Load Type, or Weight.");
+                    MessageToast.show(this.getResourceBundle().getText("missingData"));
                     return;
                 }
                 // Parse "12345 KG" (fallback unit KG)
@@ -422,15 +446,15 @@ sap.ui.define([
                                     }
 
                                     this._printBase64PdfSilently(sB64);  // Print only when there is Teraweight
-                                    MessageToast.show("PDF sent to printer.");
+                                    MessageToast.show(this.getResourceBundle().getText("pdfSent"));
 
 
                                 } catch (oError) {
                                     console.error("Base64 processing or printing failed: ", oError);
-                                    MessageToast.show("Failed to process or print PDF.");
+                                    MessageToast.show(this.getResourceBundle().getText("failedPdf"));
                                 }
                             } else {
-                                MessageToast.show("No PDF returned by printSlip.");
+                                MessageToast.show(this.getResourceBundle().getText("noPdf"));
                             }
                             // Optional: surface server messages (Success)
                             var aMsgs = Messaging.getMessageModel().getData() || [];
@@ -451,7 +475,7 @@ sap.ui.define([
                     }
 
                 }.bind(this)).catch(function (oError) {
-                    var sErr = (oError && oError.message) || "Failed to process print slip.";
+                    var sErr = (oError && oError.message) || this.getResourceBundle().getText("failedPdf");
                     MessageToast.show(sErr);
                     // Optional: surface server messages (Error)
                     var aMsgs = Messaging.getMessageModel().getData() || [];
@@ -621,159 +645,3 @@ sap.ui.define([
 
 
 
-<mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:macros="sap.fe.macros" xmlns:f="sap.ui.layout.form"
-xmlns:html="http://www.w3.org/1999/xhtml" controllerName="com.prologa.zwrweighbrige.ext.main.Main"
-height="100%">
-<Page id="Main" class="myApp" >
-<content>
-<Wizard id="weighingWizard" complete="onWizardComplete" showNextButton="false">
- <!-- STEP 1: Identification -->
-<WizardStep id="step1" title="Identification" validated="true" icon="sap-icon://business-card" >
-  <HBox id="step1HBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="step1Rail" width="36rem">
-      <Panel id="step1Panel" class="stepPanel" expandable="false">
-        <content>
-          <f:Form id="step1Form" editable="true">
-            <f:layout>
-              <f:ResponsiveGridLayout
-                id="step1FormLayout"
-                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
-                adjustLabelSpan="false"/>
-            </f:layout>
-            <f:formContainers>
-              <f:FormContainer id="step1FormContainer">
-                <f:formElements>
-
-                  <!-- Row 1 -->
-                  <f:FormElement id="step1FormElementInput" label="Please Enter your Contract ID">
-                    <f:fields>
-                      <Input id="step1InputContract"
-                             value="{local>/contractId}"
-                             width="100%"
-                             maxLength="10"
-                             required="true"
-                             placeholder="Scan or enter Contract ID"
-                             class="sapUiSizeCompact"
-                             change=".onContractChange"/>
-                    </f:fields>
-                  </f:FormElement>
-
-                </f:formElements>
-              </f:FormContainer>
-            </f:formContainers>
-          </f:Form>
-        </content>
-      </Panel>
-    </VBox>
-  </HBox>
-</WizardStep>
-
-<!-- STEP 2: Choose Load Type -->
-<WizardStep id="step2" title="Choose Load Type" validated="false" icon="sap-icon://sap-box">
-  <HBox id="step2HBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="step2Rail" width="36rem">
-      <Panel id="step2Panel" class="stepPanel" expandable="false">
-        <content>
-          <f:Form id="step2Form" editable="true">
-            <f:layout>
-              <f:ResponsiveGridLayout
-                id="step2FormLayout"
-                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
-                adjustLabelSpan="false"/>
-            </f:layout>
-            <f:formContainers>
-              <f:FormContainer id="step2FormContainer">
-                <f:formElements>
-
-                  <!-- Row 1 -->
-                  <f:FormElement id="step2FormElementLoadType" label="">
-                    <f:fields>
-                      <VBox id="step2LtContainer">
-                      </VBox>
-                    </f:fields>
-                  </f:FormElement>
-
-                  <!-- Row 2 -->
-                  <f:FormElement id="step2FormElementSelection" label="">
-                    <f:fields>
-                      <Text id="step2SelectedText"
-                            class="sapUiSmallMarginTop"
-                            text="{= ${Vbeln} ? 'Selected Contract: ' + ${Vbeln} : ''}"/>
-                    </f:fields>
-                  </f:FormElement>
-
-                </f:formElements>
-              </f:FormContainer>
-            </f:formContainers>
-          </f:Form>
-        </content>
-      </Panel>
-    </VBox>
-  </HBox>
-</WizardStep>
-
-<!-- STEP 3: Weighing and the Weight -->
-<WizardStep id="step3" title="Weighing" validated="false" icon="sap-icon://compare-2">
-  <HBox id="step3HBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="step3Rail" width="36rem">
-      <Panel id="step3Panel" class="stepPanel" expandable="false">
-        <content>
-          <f:Form id="step3Form" editable="true">
-            <f:layout>
-              <f:ResponsiveGridLayout
-                id="step3FormLayout"
-                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
-                adjustLabelSpan="false"/>
-            </f:layout>
-            <f:formContainers>
-              <f:FormContainer id="step3FormContainer">
-                <f:formElements>
-                  <!-- Row 1 -->
-                  <f:FormElement id="step3FormElementInstruction" label="">
-                    <f:fields>
-                      <Text id="step3TextInstruction" text="Please make sure to place the vehicle correctly." class="sapUiSmallMarginTop"/>
-                    </f:fields>
-                  </f:FormElement>
-                  <!-- Row 2 -->
-                  <f:FormElement id="step3FormElementWeight" label="">
-                    <f:fields>
-                      <HBox id="step3HBoxWeight" width="100%" justifyContent="Center" class="bigWeightContainer">
-                        <VBox id="step3VBoxWeights" class="tightWeights">
-                          <Text
-                            id="step3TextWeight"
-                            text="{local>/grossWeight}"
-                            textAlign="Center"
-                            wrapping="true"
-                            class="bigWeightNumber"/>
-                          <Text
-                            id="step3TextWeight2"
-                            text="{local>/teraWeight}"
-                            textAlign="Center"
-                            wrapping="true"
-                            class="bigWeightNumber"/>
-                        </VBox>
-                      </HBox>
-                    </f:fields>
-                  </f:FormElement>
-                  <!-- Row 3 -->
-                  <f:FormElement id="step3FormElementConfirm" label="">
-                    <f:fields>
-                      <HBox id="step3HBoxConfirm" width="100%" justifyContent="Start" class="sapUiMediumMarginTop">
-                        <Button id="step3BtnConfirm" width="13rem" text="CONFIRM and Print" press="onConfirmStep3" class="sapUiLargeText largeWeighButton" visible="false"/>
-                        <Button id="step3BtnConfirm2" width="8rem" text="CONFIRM" press="onConfirmStep3" class="sapUiLargeText largeWeighButton" visible="false"/>
-                      </HBox>
-                    </f:fields>
-                  </f:FormElement>
-                </f:formElements>
-              </f:FormContainer>
-            </f:formContainers>
-          </f:Form>
-        </content>
-      </Panel>
-    </VBox>
-  </HBox>
-</WizardStep>
-</Wizard>
-</content>
-</Page>
-</mvc:View>
