@@ -375,15 +375,16 @@ sap.ui.define([
                 }
                 var sContractId = oLocalModel.getProperty("/contractId");
                 var sLoadType = oLocalModel.getProperty("/loadType");
-                var sMainWeight = oLocalModel.getProperty("/grossWeight");
-                if (!sContractId || !sLoadType || !sMainWeight) {
+                var sGrossWeight = oLocalModel.getProperty("/grossWeight");
+                var sTeraWeight = oLocalModel.getProperty("/teraWeight");
+                if (!sContractId || !sLoadType || !sGrossWeight) {
                     MessageToast.show("Missing required data: Contract ID, Load Type, or Weight.");
                     return;
                 }
                 // Parse "12345 KG" (fallback unit KG)
-                var aWeightParts = sMainWeight.trim().split(/\s+/);
-                var sWeight = aWeightParts[0] || "";
-                var sWeighUnit = aWeightParts[1] || "KG";
+                var aWeightParts = sGrossWeight.trim().split(/\s+/);
+                var sWeight = aWeightParts[1] || "";
+                var sWeighUnit = aWeightParts[2] || "KG";
                 // Pad contract like in step 1
                 sContractId = sContractId.padStart(10, "0");
                 // Ensure current draft changes are sent first
@@ -397,6 +398,8 @@ sap.ui.define([
                     oAction.setParameter("Loadtype", sLoadType);
                     oAction.setParameter("Weight", sWeight);
                     oAction.setParameter("WeighUnit", sWeighUnit);
+                    // Now call the silent print function
+                    if (sTeraWeight) {                     // Print only when there is Tera Weight
                     return oAction.invoke().then(function () {
                         // Read the result payload from the bound context
                         var oResCtx = oAction.getBoundContext();
@@ -417,12 +420,11 @@ sap.ui.define([
                                     // If it's already binary, convert to base64 for _printBase64PdfSilently (which expects base64)
                                     sB64 = btoa(String.fromCharCode.apply(null, norm.data));
                                 }
-                                // Now call the silent print function
-                                var steraweight12 = oLocalModel.getProperty("/teraWeight");
-                                if (steraweight12) { 
+                                
                                 this._printBase64PdfSilently(sB64);  // Print only when there is Teraweight
-                                }
                                 MessageToast.show("PDF sent to printer.");
+                               
+                                
                             } catch (oError) {
                                 console.error("Base64 processing or printing failed: ", oError);
                                 MessageToast.show("Failed to process or print PDF.");
@@ -432,6 +434,7 @@ sap.ui.define([
                         }
                         // Optional: surface server messages (Success)
                         var aMsgs = Messaging.getMessageModel().getData() || [];
+                        console.log("All Messages 3", aMsgs)
                         var aSucc = aMsgs.filter(function (m) { return m.getType && m.getType() === "Success"; });
                         if (aSucc.length > 0) {
                             MessageToast.show(aSucc[0].getMessage());
@@ -441,6 +444,13 @@ sap.ui.define([
                         oContext.refresh();
                         this._onObjectMatched();
                     }.bind(this));
+                    }
+                    else {
+                       // Refresh & reset to step 1 instead of next step
+                        oContext.refresh();
+                        this._onObjectMatched();
+                    }
+
                 }.bind(this)).catch(function (oError) {
                     var sErr = (oError && oError.message) || "Failed to process print slip.";
                     MessageToast.show(sErr);
