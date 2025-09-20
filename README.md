@@ -1,145 +1,165 @@
-{
-  "_version": "1.60.0",
-  "sap.app": {
-    "id": "com.prologa.zwrweighbrige",
-    "type": "application",
-    "i18n": "i18n/i18n.properties",
-    "applicationVersion": {
-      "version": "0.0.1"
-    },
-    "title": "{{appTitle}}",
-    "description": "{{appDescription}}",
-    "resources": "resources.json",
-    "sourceTemplate": {
-      "id": "@sap/generator-fiori:fpm",
-      "version": "1.18.5",
-      "toolsId": "b91a0c4c-d512-465f-b1a5-67614404afb7"
-    },
-    "dataSources": {
-      "annotation": {
-        "type": "ODataAnnotation",
-        "uri": "annotations/annotation.xml",
-        "settings": {
-          "localUri": "annotations/annotation.xml"
-        }
-      },
-      "mainService": {
-        "uri": "/sap/opu/odata4/sap/zsb_weighingbrige_v4/srvd/sap/zsb_wr_weighingbrige/0001/",
-        "type": "OData",
-        "settings": {
-          "annotations": [
-            "annotation"
-          ],
-          "localUri": "localService/mainService/metadata.xml",
-          "odataVersion": "4.0"
-        }
-      }
-    }
-  },
-  "sap.ui": {
-    "technology": "UI5",
-    "icons": {
-      "icon": "",
-      "favIcon": "",
-      "phone": "",
-      "phone@2": "",
-      "tablet": "",
-      "tablet@2": ""
-    },
-    "deviceTypes": {
-      "desktop": true,
-      "tablet": true,
-      "phone": true
-    }
-  },
-  "sap.ui5": {
-    "flexEnabled": true,
-    "dependencies": {
-      "minUI5Version": "1.127.6",
-      "libs": {
-        "sap.m": {},
-        "sap.ui.core": {},
-        "sap.fe.core": {}
-      }
-    },
-    "contentDensities": {
-      "compact": true,
-      "cozy": true
-    },
-    "models": {
-      "i18n": {
-        "type": "sap.ui.model.resource.ResourceModel",
-        "settings": {
-          "bundleName": "com.prologa.zwrweighbrige.i18n.i18n",
-          "supportedLocales": ["en", "da"],
-          "fallbackLocale": "en"
-        }
-      },
-      "": {
-        "dataSource": "mainService",
-        "preload": true,
-        "settings": {
-          "operationMode": "Server",
-          "autoExpandSelect": true,
-          "earlyRequests": true
-        }
-      },
-      "@i18n": {
-        "type": "sap.ui.model.resource.ResourceModel",
-        "settings": {
-          "bundleName": "com.prologa.zwrweighbrige.i18n.i18n",
-          "supportedLocales": ["en", "da"],
-          "fallbackLocale": "en"
-        }
-      }
-    },
-    "resources": {
-      "css": [
-        {
-          "uri": "css/style.css"
-        }
-      ]
-    },
-    "services": {
-      "ShellUIService": {
-        "factoryName": "sap.ushell.ui5service.ShellUIService"
-      }
-    },
-    "settings": {
-      "synchronizationMode": "None",
-      "operationMode": "Server",
-      "autoExpandSelect": true,
-      "groupId": "$direct",
-      "annotations": [
-        "annotations"
-      ]
-    },
-    "routing": {
-      "config": {},
-      "routes": [
-        {
-          "name": "ZI_WR_WEIGHINGSESSIONMain",
-          "pattern": ":?query:",
-          "target": "ZI_WR_WEIGHINGSESSIONMain"
-        }
-      ],
-      "targets": {
-        "ZI_WR_WEIGHINGSESSIONMain": {
-          "type": "Component",
-          "id": "ZI_WR_WEIGHINGSESSIONMain",
-          "name": "sap.fe.core.fpm",
-          "options": {
-            "settings": {
-              "navigation": {},
-              "contextPath": "/ZI_WR_WEIGHINGSESSION",
-              "viewName": "com.prologa.zwrweighbrige.ext.main.Main"
-            }
-          }
-        }
-      }
-    }
-  },
-  "sap.fiori": {
-    "registrationIds": []
-  }
-}
+<mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:macros="sap.fe.macros" xmlns:f="sap.ui.layout.form"
+xmlns:html="http://www.w3.org/1999/xhtml" controllerName="com.prologa.zwrweighbrige.ext.main.Main"
+height="100%">
+<Page id="Main" class="myApp" >
+<customHeader>
+    <Toolbar id="headerToolbar">
+        <Image src="path/to/your/logo.png" alt="Company Logo" width="50px" /> <!-- Replace with your actual logo URL or path -->
+        <Text text="Marius Pedersen" class="sapUiSmallMarginBegin" />
+        <ToolbarSpacer />
+        <Button text="🇬🇧" press=".onSetEnglish" type="Transparent" />
+        <Button text="🇩🇰" press=".onSetDanish" type="Transparent" />
+    </Toolbar>
+</customHeader>
+<content>
+<Wizard id="weighingWizard" complete="onWizardComplete" showNextButton="false">
+ <!-- STEP 1: Identification -->
+<WizardStep id="step1" title="{@i18n>step1Title}" validated="true" icon="sap-icon://business-card" >
+  <HBox id="step1HBoxOuter" width="100%" justifyContent="Center">
+    <VBox id="step1Rail" width="36rem">
+      <Panel id="step1Panel" class="stepPanel" expandable="false">
+        <content>
+          <f:Form id="step1Form" editable="true">
+            <f:layout>
+              <f:ResponsiveGridLayout
+                id="step1FormLayout"
+                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
+                adjustLabelSpan="false"/>
+            </f:layout>
+            <f:formContainers>
+              <f:FormContainer id="step1FormContainer">
+                <f:formElements>
+
+                  <!-- Row 1 -->
+                  <f:FormElement id="step1FormElementInput" label="{@i18n>step1Label}">
+                    <f:fields>
+                      <Input id="step1InputContract"
+                             value="{local>/contractId}"
+                             width="100%"
+                             maxLength="10"
+                             required="true"
+                             placeholder="{@i18n>step1Placeholder}"
+                             class="sapUiSizeCompact"
+                             change=".onContractChange"/>
+                    </f:fields>
+                  </f:FormElement>
+
+                </f:formElements>
+              </f:FormContainer>
+            </f:formContainers>
+          </f:Form>
+        </content>
+      </Panel>
+    </VBox>
+  </HBox>
+</WizardStep>
+
+<!-- STEP 2: Choose Load Type -->
+<WizardStep id="step2" title="{@i18n>step2Title}" validated="false" icon="sap-icon://sap-box">
+  <HBox id="step2HBoxOuter" width="100%" justifyContent="Center">
+    <VBox id="step2Rail" width="36rem">
+      <Panel id="step2Panel" class="stepPanel" expandable="false">
+        <content>
+          <f:Form id="step2Form" editable="true">
+            <f:layout>
+              <f:ResponsiveGridLayout
+                id="step2FormLayout"
+                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
+                adjustLabelSpan="false"/>
+            </f:layout>
+            <f:formContainers>
+              <f:FormContainer id="step2FormContainer">
+                <f:formElements>
+
+                  <!-- Row 1 -->
+                  <f:FormElement id="step2FormElementLoadType" label="">
+                    <f:fields>
+                      <VBox id="step2LtContainer">
+                      </VBox>
+                    </f:fields>
+                  </f:FormElement>
+
+                  <!-- Row 2 -->
+                  <f:FormElement id="step2FormElementSelection" label="">
+                    <f:fields>
+                      <Text id="step2SelectedText"
+                            class="sapUiSmallMarginTop"
+                            text="{= ${Vbeln} ? ${@i18n>selectedContract} + ${Vbeln} : ''}"/>
+                    </f:fields>
+                  </f:FormElement>
+
+                </f:formElements>
+              </f:FormContainer>
+            </f:formContainers>
+          </f:Form>
+        </content>
+      </Panel>
+    </VBox>
+  </HBox>
+</WizardStep>
+
+<!-- STEP 3: Weighing and the Weight -->
+<WizardStep id="step3" title="{@i18n>step3Title}" validated="false" icon="sap-icon://compare-2">
+  <HBox id="step3HBoxOuter" width="100%" justifyContent="Center">
+    <VBox id="step3Rail" width="36rem">
+      <Panel id="step3Panel" class="stepPanel" expandable="false">
+        <content>
+          <f:Form id="step3Form" editable="true">
+            <f:layout>
+              <f:ResponsiveGridLayout
+                id="step3FormLayout"
+                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
+                adjustLabelSpan="false"/>
+            </f:layout>
+            <f:formContainers>
+              <f:FormContainer id="step3FormContainer">
+                <f:formElements>
+                  <!-- Row 1 -->
+                  <f:FormElement id="step3FormElementInstruction" label="">
+                    <f:fields>
+                      <Text id="step3TextInstruction" text="{@i18n>step3Instruction}" class="sapUiSmallMarginTop"/>
+                    </f:fields>
+                  </f:FormElement>
+                  <!-- Row 2 -->
+                  <f:FormElement id="step3FormElementWeight" label="">
+                    <f:fields>
+                      <HBox id="step3HBoxWeight" width="100%" justifyContent="Center" class="bigWeightContainer">
+                        <VBox id="step3VBoxWeights" class="tightWeights">
+                          <Text
+                            id="step3TextWeight"
+                            text="{local>/grossWeight}"
+                            textAlign="Center"
+                            wrapping="true"
+                            class="bigWeightNumber"/>
+                          <Text
+                            id="step3TextWeight2"
+                            text="{local>/teraWeight}"
+                            textAlign="Center"
+                            wrapping="true"
+                            class="bigWeightNumber"/>
+                        </VBox>
+                      </HBox>
+                    </f:fields>
+                  </f:FormElement>
+                  <!-- Row 3 -->
+                  <f:FormElement id="step3FormElementConfirm" label="">
+                    <f:fields>
+                      <HBox id="step3HBoxConfirm" width="100%" justifyContent="Start" class="sapUiMediumMarginTop">
+                        <Button id="step3BtnConfirm" width="13rem" text="{@i18n>confirmAndPrint}" press="onConfirmStep3" class="sapUiLargeText largeWeighButton" visible="false"/>
+                        <Button id="step3BtnConfirm2" width="8rem" text="{@i18n>confirm}" press="onConfirmStep3" class="sapUiLargeText largeWeighButton" visible="false"/>
+                      </HBox>
+                    </f:fields>
+                  </f:FormElement>
+                </f:formElements>
+              </f:FormContainer>
+            </f:formContainers>
+          </f:Form>
+        </content>
+      </Panel>
+    </VBox>
+  </HBox>
+</WizardStep>
+</Wizard>
+</content>
+</Page>
+</mvc:View>
