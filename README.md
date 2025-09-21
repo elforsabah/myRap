@@ -7,10 +7,9 @@ sap.ui.define([
     "sap/m/Button",
     "sap/ui/model/json/JSONModel",
     "sap/ui/model/resource/ResourceModel",
-    "jquery.sap.global",
-    "sap/ui/model/odata/v4/Context"  // Added for virtual dummy context
+    "jquery.sap.global"
 ],
-    function (PageController, MessageToast, Messaging, Message, coreLibrary, Button, JSONModel, ResourceModel, jQuery, Context) {
+    function (PageController, MessageToast, Messaging, Message, coreLibrary, Button, JSONModel, ResourceModel, jQuery) {
         "use strict";
         return PageController.extend("com.prologa.zwrweighbrigefinal.ext.main.Main", {
             formatter: {
@@ -86,9 +85,6 @@ sap.ui.define([
                 }
             },
             _onObjectMatched: function () {
-                var oModel = this.getView().getModel();
-                var oListBinding = oModel.bindList("/ZI_WR_R_WEIGHBRIDGE", undefined, undefined, undefined, { $$updateGroupId: "weighingGroup" }); // Updated entity set
-                // Removed create and setBindingContext (set after identifyCard)
                 this.getView().getModel("local").setProperty("/contractId", ""); // Reset local value
                 this.getView().getModel("local").setProperty("/grossWeight", ""); // Reset local value
                 this.getView().getModel("local").setProperty("/teraWeight", ""); // Reset local value
@@ -142,19 +138,20 @@ sap.ui.define([
                     sContractId = sContractId.padStart(10, '0');
                     // Manual bound action call to avoid automatic popups from editFlow
                     var oModel = this.getView().getModel();
-                    // Create virtual dummy context (no fetch/POST triggered)
-                    var oDummyContext = Context.create(oModel, null, "/ZI_WR_R_WEIGHBRIDGE('0000000000')");
-                    console.log("Using dummy context for identifyCard..."); // Debug
-                    var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.identifyCard(...)", oDummyContext);
+                    // Bind action directly with key path (no create/submit needed)
+                    console.log("Invoking identifyCard...");
+                    var sActionPath = "/ZI_WR_R_WEIGHBRIDGE('" + sContractId + "')/com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.identifyCard(...)";
+                    var oAction = oModel.bindContext(sActionPath);
                     oAction.setParameter("Vbeln", sContractId);
                     oAction.invoke().then(function (oResult) {
                         console.log("identifyCard invoked successfully."); // Debug: Action succeeded
-                        // Use the returned context (backend sets correct SalesDocument)
+                        // Get the returned context and set it
                         var oContext = oAction.getBoundContext();
                         this.getView().setBindingContext(oContext);
+                        // Refresh context to pull server updates
                         oContext.refresh();
                         // Bind step 2 dynamically
-                        var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')/Set"; 
+                        var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')/Set"; // 
                         var oVBox = this.byId("step2LtContainer");
                         var oTemplate = new Button({
                             text: {
@@ -232,7 +229,10 @@ sap.ui.define([
                 }
             },
             _skipToWeigh: function () {
-                this.getView().getModel("local").setProperty("/loadType", "");
+                var oCtx = this.getView().getBindingContext();
+                if (oCtx) {
+                    this.getView().getModel("local").setProperty("/loadType", "");
+                }
                 this.oWizard.validateStep(this.byId("step2"));
                 this.onWeighStep3();
                 this.oWizard.nextStep();
@@ -246,7 +246,7 @@ sap.ui.define([
                 const sLoadType = oEvent.getSource().getBindingContext().getProperty("Material");
                 const oSessionCtx = this.getView().getBindingContext();
                 if (!oSessionCtx) { return; }
-                this.getView().getModel("local").setProperty("/loadType", sLoadType); // Reset local value
+                this.getView().getModel("local").setProperty("/loadType", sLoadType);
                 //Now call the determineWeight() action from the backend and get weight that will be displayed in Step 3
                 this.onWeighStep3();
                 this.oWizard.validateStep(this.byId("step2"));
@@ -266,7 +266,6 @@ sap.ui.define([
                     MessageToast.show(this.getResourceBundle().getText("noContext"));
                     return;
                 }
-                // Removed submitBatch (no transient entity)
                 console.log("Invoking determineWeight...");
                 // Call the determineWeight action
                 var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.determineWeight(...)", oContext);
@@ -394,7 +393,6 @@ sap.ui.define([
                 var sWeighUnit = aWeightParts[1] || "KG";
                 // Pad contract like in step 1
                 sContractId = sContractId.padStart(10, "0");
-                // Removed submitBatch (no transient entity)
                 // Bind the action to the same context
                 var oAction = oModel.bindContext(
                     "com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.printSlip(...)",
@@ -448,23 +446,22 @@ sap.ui.define([
                         // Refresh & reset to step 1 instead of next step
                         oContext.refresh();
                         this._onObjectMatched();
+                    }.bind(this)).catch(function (oError) {
+                        var sErr = (oError && oError.message) || this.getResourceBundle().getText("failedPdf");
+                        MessageToast.show(sErr);
+                        // Optional: surface server messages (Error)
+                        var aMsgs = Messaging.getMessageModel().getData() || [];
+                        var aErrs = aMsgs.filter(function (m) { return m.getType && m.getType() === "Error"; });
+                        if (aErrs.length > 0) {
+                            MessageToast.show(aErrs[0].getMessage());
+                            Messaging.removeMessages(aErrs);
+                        }
                     }.bind(this));
                 } else {
                     // Refresh & reset to step 1 instead of next step
                     oContext.refresh();
                     this._onObjectMatched();
                 }
-            }.bind(this)).catch(function (oError) {
-                var sErr = (oError && oError.message) || this.getResourceBundle().getText("failedPdf");
-                MessageToast.show(sErr);
-                // Optional: surface server messages (Error)
-                var aMsgs = Messaging.getMessageModel().getData() || [];
-                var aErrs = aMsgs.filter(function (m) { return m.getType && m.getType() === "Error"; });
-                if (aErrs.length > 0) {
-                    MessageToast.show(aErrs[0].getMessage());
-                    Messaging.removeMessages(aErrs);
-                }
-            }.bind(this));
             },
 
             /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
