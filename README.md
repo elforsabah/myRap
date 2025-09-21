@@ -21,7 +21,7 @@ sap.ui.define([
                 PageController.prototype.onInit.apply(this);
                 // Set up i18n model with initial language (English)
                 var oResourceModel = new ResourceModel({
-                    bundleName: "com.prologa.zwrweighbrigefinal.i18n.i18n",
+                    bundleName: "com.prologa.zwrweighbrige.i18n.i18n",
                     bundleLocale: "en"
                 });
                 this.getView().setModel(oResourceModel, "@i18n");
@@ -36,31 +36,29 @@ sap.ui.define([
                 this.oWizard.attachStepActivate(this.onStepActivate, this);
                 // Router
                 var oRouter = this.getAppComponent().getRouter();
-                oRouter.getRoute("ZI_WR_R_WEIGHBRIDGEMain").attachPatternMatched(this._onObjectMatched, this); // Adjusted route name based on new entity
+                oRouter.getRoute("ZI_WR_R_WEIGHBRIDGEMain").attachPatternMatched(this._onObjectMatched, this); // Updated route name based on new entity
                 this._enterWired = false; // guard so we wire Enter only once
                 this._isFromScan = true;
-                // Local model for unbound inputs (combined into one model)
-                this.getView().setModel(new JSONModel({
-                    contractId: "",
-                    grossWeight: "",
-                    teraWeight: "",
-                    loadType: "",
-                    transaction_state: ""
-                }), "local");
+                // Local model for unbound inputs
+                this.getView().setModel(new JSONModel({ contractId: "" }), "local");
+                this.getView().setModel(new JSONModel({ grossWeight: "" }), "local");
+                this.getView().setModel(new JSONModel({ teraWeight: "" }), "local");
+                this.getView().setModel(new JSONModel({ loadType: "" }), "local");
+                this.getView().setModel(new JSONModel({ transaction_state: "" }), "local");
             },
             getResourceBundle: function () {
                 return this.getView().getModel("@i18n").getResourceBundle();
             },
             onSetEnglish: function () {
                 var oResourceModel = new ResourceModel({
-                    bundleName: "com.prologa.zwrweighbrigefinal.i18n.i18n",
+                    bundleName: "com.prologa.zwrweighbrige.i18n.i18n",
                     bundleLocale: "en"
                 });
                 this.getView().setModel(oResourceModel, "@i18n");
             },
             onSetDanish: function () {
                 var oResourceModel = new ResourceModel({
-                    bundleName: "com.prologa.zwrweighbrigefinal.i18n.i18n",
+                    bundleName: "com.prologa.zwrweighbrige.i18n.i18n",
                     bundleLocale: "da"
                 });
                 this.getView().setModel(oResourceModel, "@i18n");
@@ -88,13 +86,14 @@ sap.ui.define([
             },
             _onObjectMatched: function () {
                 var oModel = this.getView().getModel();
-                // No create needed in non-draft mode; reset context
-                this.getView().setBindingContext(null);
-                // Reset local values
-                this.getView().getModel("local").setProperty("/contractId", "");
-                this.getView().getModel("local").setProperty("/grossWeight", "");
-                this.getView().getModel("local").setProperty("/teraWeight", "");
-                this.getView().getModel("local").setProperty("/loadType", "");
+                var oListBinding = oModel.bindList("/ZI_WR_R_WEIGHBRIDGE", undefined, undefined, undefined, { $$updateGroupId: "weighingGroup" }); // Updated entity set
+                var oNewContext = oListBinding.create({}); // No initial data; let backend manage SalesDocument (computed key)
+                this.getView().setBindingContext(oNewContext);
+                oNewContext.requestProperty(["SalesDocument"]).catch(function () { }); // Updated to existing property (removed non-existent ones)
+                this.getView().getModel("local").setProperty("/contractId", ""); // Reset local value
+                this.getView().getModel("local").setProperty("/grossWeight", ""); // Reset local value
+                this.getView().getModel("local").setProperty("/teraWeight", ""); // Reset local value
+                this.getView().getModel("local").setProperty("/loadType", ""); // Reset local value
                 // Clear step 2 items binding to reset load types
                 var oVBox = this.byId("step2LtContainer");
                 if (oVBox) {
@@ -132,6 +131,7 @@ sap.ui.define([
                 }
             },
             onNextStep: function () {
+                var oContext = this.getView().getBindingContext();
                 var oCurrentStep = this.oWizard.getCurrentStep();
                 var sStepId = oCurrentStep.split("--").pop();
                 if (sStepId === "step1") {
@@ -140,27 +140,29 @@ sap.ui.define([
                         MessageToast.show(this.getResourceBundle().getText("enterContractId"));
                         return;
                     }
+                    if (!oContext) {
+                        MessageToast.show(this.getResourceBundle().getText("noContext"));
+                        return;
+                    }
                     // Pad with leading zeros for internal format
                     sContractId = sContractId.padStart(10, '0');
                     // Manual bound action call to avoid automatic popups from editFlow
                     var oModel = this.getView().getModel();
-                    // Bind to the entity using the contract ID as key (non-draft mode)
-                    var sEntityPath = "/ZI_WR_R_WEIGHBRIDGE('" + sContractId + "')";
-                    var oContextBinding = oModel.bindContext(sEntityPath);
-                    oContextBinding.requestObject().then(function () {
-                        var oContext = oContextBinding.getBoundContext();
-                        this.getView().setBindingContext(oContext);
-                        console.log("Entity bound successfully. Invoking identifyCard..."); // Debug: Bind succeeded
-                        var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.identifyCard(...)", oContext);
+                    // Submit batch to persist the entity (create request)
+                    oModel.submitBatch("weighingGroup");
+                    // Wait for persistence confirmation
+                    console.log("Waiting for entity creation..."); // Debug: Start of create chain
+                    oContext.created().then(function () {
+                        console.log("Entity created successfully. Invoking identifyCard..."); // Debug: Create succeeded
+                        var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.identifyCard(...)", oContext); // Namespace from metadata
                         oAction.setParameter("Vbeln", sContractId);
                         return oAction.invoke();
                     }.bind(this)).then(function (oResult) {
                         console.log("identifyCard invoked successfully."); // Debug: Action succeeded
-                        // Refresh context to pull server updates
-                        var oContext = this.getView().getBindingContext();
+                        // Refresh context to pull server-set SalesDocument and any other updates
                         oContext.refresh();
                         // Bind step 2 dynamically
-                        var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')/Set";
+                        var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')/Set"; 
                         var oVBox = this.byId("step2LtContainer");
                         var oTemplate = new Button({
                             text: {
@@ -219,10 +221,10 @@ sap.ui.define([
                         });
 
                         if (aSpecificSuccesses.length > 0) {
-                            this.getView().getModel("local").setProperty("/transaction_state", "2. Weighing"); // Set local value
+                            this.getView().getModel("local").setProperty("/transaction_state", "2. Weighing"); // Reset local value
                         }
                         else {
-                            this.getView().getModel("local").setProperty("/transaction_state", "1. Weighing"); // Set local value
+                            this.getView().getModel("local").setProperty("/transaction_state", "1. Weighing"); // Reset local value
                         }
                         // advance wizard
                         this._clearContractInlineError();
@@ -230,7 +232,7 @@ sap.ui.define([
                         MessageToast.show(this.getResourceBundle().getText("contractValid"))
                         this.oWizard.nextStep();
                     }.bind(this)).catch(function (oError) {
-                        console.error("Error in bind or identifyCard: ", oError); // Debug: Unified catch for full error details
+                        console.error("Error in create or identifyCard: ", oError); // Debug: Unified catch for full error details
                         // Handle failure (original logic consolidated into one catch for simplicity)
                         var sErrorMsg = oError.message || "Unknown error"; // This captures the backend message like "Contract is Invalid"
                         this._setContractInlineError(sErrorMsg); // Display the exact message inline
@@ -238,7 +240,10 @@ sap.ui.define([
                 }
             },
             _skipToWeigh: function () {
-                this.getView().getModel("local").setProperty("/loadType", "");
+                var oCtx = this.getView().getBindingContext();
+                if (oCtx) {
+                    this.getView().getModel("local").setProperty("/loadType", "");
+                }
                 this.oWizard.validateStep(this.byId("step2"));
                 this.onWeighStep3();
                 this.oWizard.nextStep();
@@ -250,7 +255,9 @@ sap.ui.define([
             },
             onChooseLoadType: function (oEvent) {
                 const sLoadType = oEvent.getSource().getBindingContext().getProperty("Material");
-                // No setProperty in non-draft mode; parameters are passed directly to actions
+                const oSessionCtx = this.getView().getBindingContext();
+                if (!oSessionCtx) { return; }
+                // Removed setProperty("LoadType") as property does not exist in new metadata; use local model only
                 this.getView().getModel("local").setProperty("/loadType", sLoadType);
                 // Now call the determineWeight() action from the backend and get weight that will be displayed in Step 3
                 this.onWeighStep3();
@@ -271,15 +278,17 @@ sap.ui.define([
                     MessageToast.show(this.getResourceBundle().getText("noContext"));
                     return;
                 }
-                // No submitBatch in non-draft mode
-                console.log("Invoking determineWeight...");
-                // Call the determineWeight action
-                var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.determineWeight(...)", oContext);
-                var sContractId = oLocalModel.getProperty("/contractId").padStart(10, '0');
-                var sLoadType = oLocalModel.getProperty("/loadType");
-                oAction.setParameter("Vbeln", sContractId);
-                oAction.setParameter("Loadtype", sLoadType);
-                oAction.invoke().then(function (oResult) {
+                // Ensure the entity is persisted before calling the action
+                oModel.submitBatch("weighingGroup").then(function () {
+                    console.log("Entity persisted. Invoking determineWeight...");
+                    // Call the determineWeight action
+                    var oAction = oModel.bindContext("com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.determineWeight(...)", oContext);
+                    var sContractId = this.getView().getModel("local").getProperty("/contractId").padStart(10, '0');
+                    var sLoadType = this.getView().getModel("local").getProperty("/loadType");
+                    oAction.setParameter("Vbeln", sContractId);
+                    oAction.setParameter("Loadtype", sLoadType);
+                    return oAction.invoke();
+                }.bind(this)).then(function (oResult) {
                     console.log("determineWeight invoked successfully.");
                     // NEW: Manually fetch all messages from the message model
                     var aMessages = Messaging.getMessageModel().getData() || [];
@@ -398,66 +407,79 @@ sap.ui.define([
                 var sWeighUnit = aWeightParts[1] || "KG";
                 // Pad contract like in step 1
                 sContractId = sContractId.padStart(10, "0");
-                // No submitBatch in non-draft mode
-                // Bind the function to the same context (printSlip is a bound function)
-                var oAction = oModel.bindContext(
-                    "com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.printSlip(...)",
-                    oContext
-                );
-                oAction.setParameter("Vbeln", sContractId);
-                oAction.setParameter("Loadtype", sLoadType);
-                oAction.setParameter("Weight", sWeight);
-                oAction.setParameter("WeighUnit", sWeighUnit);
-                // Now call the silent print function
-                if (sTeraWeight) { // Print only when there is Tera Weight
-                    oAction.invoke().then(function () {
-                        // Read the result payload from the bound context
-                        var oResCtx = oAction.getBoundContext();
-                        var oRes = oResCtx && oResCtx.getObject ? oResCtx.getObject() : null;
-                        // Support both names/casings. For xstring/Edm.Binary, property value is Base64 on the wire.
-                        var sB64 = oRes && (oRes.pdfraw || oRes.Pdfraw || oRes.PDFRAW ||
-                            oRes.pdfbase64 || oRes.Pdfbase64 || oRes.PDFBASE64);
-                        if (typeof sB64 === "string") {
-                            sB64 = String(sB64);
-                        }
-                        if (sB64 && typeof sB64 === "string") {
-                            try {
-                                // Normalize the base64 string first (using your existing _normalizeToStdBase64 for robustness)
-                                var norm = this._normalizeToStdBase64(sB64);
-                                if (norm.kind === "b64") {
-                                    sB64 = norm.data; // Use the normalized base64 string
-                                } else if (norm.kind === "u8") {
-                                    // If it's already binary, convert to base64 for _printBase64PdfSilently (which expects base64)
-                                    sB64 = btoa(String.fromCharCode.apply(null, norm.data));
-                                }
-
-                                this._printBase64PdfSilently(sB64);  // Print only when there is Teraweight
-                                MessageToast.show(this.getResourceBundle().getText("pdfSent"));
-
-                            } catch (oError) {
-                                console.error("Base64 processing or printing failed: ", oError);
-                                MessageToast.show(this.getResourceBundle().getText("failedPdf"));
+                // Ensure current changes are sent first
+                oModel.submitBatch("weighingGroup").then(function () {
+                    // Bind the action to the same context
+                    var oAction = oModel.bindContext(
+                        "com.sap.gateway.srvd.zsb_wr_weighingbrige.v0001.printSlip(...)",
+                        oContext
+                    );
+                    oAction.setParameter("Vbeln", sContractId);
+                    oAction.setParameter("Loadtype", sLoadType);
+                    oAction.setParameter("Weight", sWeight);
+                    oAction.setParameter("WeighUnit", sWeighUnit);
+                    // Now call the silent print function
+                    if (sTeraWeight) {                     // Print only when there is Tera Weight
+                        return oAction.invoke().then(function () {
+                            // Read the result payload from the bound context
+                            var oResCtx = oAction.getBoundContext();
+                            var oRes = oResCtx && oResCtx.getObject ? oResCtx.getObject() : null;
+                            // Updated to match new metadata (PDFBASE64 uppercase); support variants for robustness
+                            var sB64 = oRes && (oRes.PDFBASE64 || oRes.pdfbase64 || oRes.Pdfbase64);
+                            if (typeof sB64 === "string") {
+                                sB64 = String(sB64);
                             }
-                        } else {
-                            MessageToast.show(this.getResourceBundle().getText("noPdf"));
-                        }
-                        // Optional: surface server messages (Success)
-                        var aMsgs = Messaging.getMessageModel().getData() || [];
-                        console.log("All Messages 3", aMsgs)
-                        var aSucc = aMsgs.filter(function (m) { return m.getType && m.getType() === "Success"; });
-                        if (aSucc.length > 0) {
-                            MessageToast.show(aSucc[0].getMessage());
-                            Messaging.removeMessages(aSucc);
-                        }
+                            if (sB64 && typeof sB64 === "string") {
+                                try {
+                                    // Normalize the base64 string first (using your existing _normalizeToStdBase64 for robustness)
+                                    var norm = this._normalizeToStdBase64(sB64);
+                                    if (norm.kind === "b64") {
+                                        sB64 = norm.data; // Use the normalized base64 string
+                                    } else if (norm.kind === "u8") {
+                                        // If it's already binary, convert to base64 for _printBase64PdfSilently (which expects base64)
+                                        sB64 = btoa(String.fromCharCode.apply(null, norm.data));
+                                    }
+
+                                    this._printBase64PdfSilently(sB64);  // Print only when there is Teraweight
+                                    MessageToast.show(this.getResourceBundle().getText("pdfSent"));
+
+
+                                } catch (oError) {
+                                    console.error("Base64 processing or printing failed: ", oError);
+                                    MessageToast.show(this.getResourceBundle().getText("failedPdf"));
+                                }
+                            } else {
+                                MessageToast.show(this.getResourceBundle().getText("noPdf"));
+                            }
+                            // Optional: surface server messages (Success)
+                            var aMsgs = Messaging.getMessageModel().getData() || [];
+                            console.log("All Messages 3", aMsgs)
+                            var aSucc = aMsgs.filter(function (m) { return m.getType && m.getType() === "Success"; });
+                            if (aSucc.length > 0) {
+                                MessageToast.show(aSucc[0].getMessage());
+                                Messaging.removeMessages(aSucc);
+                            }
+                            // Refresh & reset to step 1 instead of next step
+                            oContext.refresh();
+                            this._onObjectMatched();
+                        }.bind(this));
+                    } else {
                         // Refresh & reset to step 1 instead of next step
                         oContext.refresh();
                         this._onObjectMatched();
-                    }.bind(this));
-                } else {
-                    // Refresh & reset to step 1 instead of next step
-                    oContext.refresh();
-                    this._onObjectMatched();
-                }
+                    }
+
+                }.bind(this)).catch(function (oError) {
+                    var sErr = (oError && oError.message) || this.getResourceBundle().getText("failedPdf");
+                    MessageToast.show(sErr);
+                    // Optional: surface server messages (Error)
+                    var aMsgs = Messaging.getMessageModel().getData() || [];
+                    var aErrs = aMsgs.filter(function (m) { return m.getType && m.getType() === "Error"; });
+                    if (aErrs.length > 0) {
+                        MessageToast.show(aErrs[0].getMessage());
+                        Messaging.removeMessages(aErrs);
+                    }
+                }.bind(this));
             },
 
             /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -515,7 +537,7 @@ sap.ui.define([
                 var oCtx = this.getView().getBindingContext();
                 var oModel = this.getView().getModel();
                 if (oCtx && oModel) {
-                    var sTarget = oCtx.getPath() + "/SalesDocument"; // Adjusted property bound to the input (from metadata)
+                    var sTarget = oCtx.getPath() + "/SalesDocument"; // Updated to SalesDocument
                     var aAll = Messaging.getMessageModel().getData() || [];
                     var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
                     if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
@@ -535,7 +557,7 @@ sap.ui.define([
                 }
                 var oCtx = this.getView().getBindingContext();
                 if (oCtx) {
-                    var sTarget = oCtx.getPath() + "/SalesDocument"; // Adjusted property
+                    var sTarget = oCtx.getPath() + "/SalesDocument"; // Updated to SalesDocument
                     var aAll = Messaging.getMessageModel().getData() || [];
                     var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
                     if (aForField.length) { Messaging.removeMessages(aForField); }
