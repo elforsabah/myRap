@@ -141,107 +141,95 @@ sap.ui.define([
                     sContractId = sContractId.padStart(10, '0');
                     // Manual bound action call to avoid automatic popups from editFlow
                     var oModel = this.getView().getModel();
-                    // Check if entity exists before invoking action
-                    var sEntityPath = "/ZI_WR_R_WEIGHBRIDGE('" + sContractId + "')";
-                    oModel.read(sEntityPath, {
-                        success: function(oData) {
-                            // Entity exists, proceed with action
-                            console.log("Invoking identifyCard...");
-                            var sActionPath = sEntityPath + "/com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.identifyCard(...)";
-                            var oAction = oModel.bindContext(sActionPath);
-                            oAction.setParameter("Vbeln", sContractId);
-                            oAction.invoke().then(function (oResult) {
-                                console.log("identifyCard invoked successfully."); // Debug: Action succeeded
-                                // Get the returned context from action
-                                var oContext = oAction.getBoundContext();
-                                this.getView().setBindingContext(oContext);
-                                // Refresh context to pull server updates
-                                oContext.refresh();
-                                // Bind step 2 dynamically
-                                var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')/Set"; // 
-                                var oVBox = this.byId("step2LtContainer");
-                                var oTemplate = new Button({
-                                    text: {
-                                        parts: [
-                                            { path: 'Avvcode', targetType: 'any' },
-                                            { path: 'Material', targetType: 'any' },
-                                            { path: 'MaterialText', targetType: 'any' }
-                                        ],
-                                        formatter: '.formatter.concatMaterialText'
+                    // Bind action directly with key path (no create/submit needed)
+                    console.log("Invoking identifyCard...");
+                    var sActionPath = "/ZI_WR_R_WEIGHBRIDGE('" + sContractId + "')/com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.identifyCard(...)";
+                    var oAction = oModel.bindContext(sActionPath);
+                    oAction.setParameter("Vbeln", sContractId);
+                    oAction.invoke().then(function (oResult) {
+                        console.log("identifyCard invoked successfully."); // Debug: Action succeeded
+                        // Get the returned context from action
+                        var oContext = oAction.getBoundContext();
+                        this.getView().setBindingContext(oContext);
+                        // Refresh context to pull server updates
+                        oContext.refresh();
+                        // Bind step 2 dynamically
+                        var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')/Set"; // 
+                        var oVBox = this.byId("step2LtContainer");
+                        var oTemplate = new Button({
+                            text: {
+                                parts: [
+                                    { path: 'Avvcode', targetType: 'any' },
+                                    { path: 'Material', targetType: 'any' },
+                                    { path: 'MaterialText', targetType: 'any' }
+                                ],
+                                formatter: '.formatter.concatMaterialText'
+                            },
+                            press: [this.onChooseLoadType, this],
+                            width: "100%"
+                        });
+                        oTemplate.addStyleClass("loadTypeBtn");
+                        if (oVBox) {
+                            try {
+                                oVBox.bindAggregation("items", {
+                                    path: sPath,
+                                    parameters: {
+                                        $select: "SalesOrder,SalesOrderitem,Material,MaterialText,Avvcode,Language",
+                                        $orderby: "SalesOrder,SalesOrderitem"
                                     },
-                                    press: [this.onChooseLoadType, this],
-                                    width: "100%"
-                                });
-                                oTemplate.addStyleClass("loadTypeBtn");
-                                if (oVBox) {
-                                    try {
-                                        oVBox.bindAggregation("items", {
-                                            path: sPath,
-                                            parameters: {
-                                                $select: "SalesOrder,SalesOrderitem,Material,MaterialText,Avvcode,Language",
-                                                $orderby: "SalesOrder,SalesOrderitem"
-                                            },
-                                            template: oTemplate,
-                                            templateShareable: false,
-                                            events: {
-                                                change: function (oEvent) {
-                                                    if (oEvent.getParameter("reason") === "Rejected") {
-                                                        MessageToast.show(this.getResourceBundle().getText("failedLoadTypes"));
-                                                        this._skipToWeigh();
-                                                    }
-                                                }.bind(this)
-                                            }
-                                        });
-                                        // Attach one-time dataReceived to check if empty
-                                        var oBinding = oVBox.getBinding("items");
-                                        oBinding.attachEventOnce("dataReceived", function (oEvent) {
-                                            if (oBinding.getLength() === 0) {
-                                                // No loads, skip step 2
+                                    template: oTemplate,
+                                    templateShareable: false,
+                                    events: {
+                                        change: function (oEvent) {
+                                            if (oEvent.getParameter("reason") === "Rejected") {
+                                                MessageToast.show(this.getResourceBundle().getText("failedLoadTypes"));
                                                 this._skipToWeigh();
                                             }
-                                        }.bind(this));
-                                    } catch (oError) {
-                                        console.error("Binding error: ", oError);
-                                        this._setContractInlineError(this.getResourceBundle().getText("failedMaterials"));
-                                        return; // Prevent advancing
+                                        }.bind(this)
                                     }
-                                } else {
-                                    console.error("step2LtContainer not found");
-                                }
-
-                                //Manually fetch all messages from the message model
-                                var aMessages = Messaging.getMessageModel().getData() || [];
-                                // Filter for the specific success message using getCode() (expected format: 'msgid/msgno')
-                                var aSpecificSuccesses = aMessages.filter(function (oMsg) {
-                                    return oMsg.getType() === "Success" && oMsg.getCode() === 'ZWR_WEIGHBRIGE_MESS/007';
                                 });
-
-                                if (aSpecificSuccesses.length > 0) {
-                                    this.getView().getModel("local").setProperty("/transaction_state", "2. Weighing"); // Reset local value
-                                }
-                                else {
-                                    this.getView().getModel("local").setProperty("/transaction_state", "1. Weighing"); // Reset local value
-                                }
-                                // advance wizard
-                                this._clearContractInlineError();
-                                this.oWizard.validateStep(this.byId("step1"));
-                                MessageToast.show(this.getResourceBundle().getText("contractValid"))
-                                this.oWizard.nextStep();
-                            }.bind(this)).catch(function (oError) {
-                                console.error("Error in identifyCard: ", oError); // Debug: Unified catch for full error details
-                                // Handle failure (original logic consolidated into one catch for simplicity)
-                                var sErrorMsg = oError.message || "Unknown error"; // This captures the backend message like "Contract is Invalid"
-                                this._setContractInlineError(sErrorMsg); // Display the exact message inline
-                            }.bind(this));
-                        }.bind(this),
-                        error: function(oError) {
-                            if (oError.status === 404) {
-                                this._setContractInlineError("Contract not found");
-                            } else {
-                                this._setContractInlineError(oError.message || "Unknown error");
+                                // Attach one-time dataReceived to check if empty
+                                var oBinding = oVBox.getBinding("items");
+                                oBinding.attachEventOnce("dataReceived", function (oEvent) {
+                                    if (oBinding.getLength() === 0) {
+                                        // No loads, skip step 2
+                                        this._skipToWeigh();
+                                    }
+                                }.bind(this));
+                            } catch (oError) {
+                                console.error("Binding error: ", oError);
+                                this._setContractInlineError(this.getResourceBundle().getText("failedMaterials"));
+                                return; // Prevent advancing
                             }
-                        }.bind(this)
-                    });
+                        } else {
+                            console.error("step2LtContainer not found");
+                        }
+
+                        //Manually fetch all messages from the message model
+                        var aMessages = Messaging.getMessageModel().getData() || [];
+                        // Filter for the specific success message using getCode() (expected format: 'msgid/msgno')
+                        var aSpecificSuccesses = aMessages.filter(function (oMsg) {
+                            return oMsg.getType() === "Success" && oMsg.getCode() === 'ZWR_WEIGHBRIGE_MESS/007';
+                        });
+
+                        if (aSpecificSuccesses.length > 0) {
+                            this.getView().getModel("local").setProperty("/transaction_state", "2. Weighing"); // Reset local value
+                        }
+                        else {
+                            this.getView().getModel("local").setProperty("/transaction_state", "1. Weighing"); // Reset local value
+                        }
+                        // advance wizard
+                        this._clearContractInlineError();
+                        this.oWizard.validateStep(this.byId("step1"));
+                        MessageToast.show(this.getResourceBundle().getText("contractValid"))
+                        this.oWizard.nextStep();
+                    }.bind(this)).catch(function (oError) {
+                        console.error("Error in identifyCard: ", oError); // Debug: Unified catch for full error details
+                        // Handle failure (original logic consolidated into one catch for simplicity)
+                        
+                        var sErrorMsg = oError.message || "Unknown error"; // This captures the backend message like "Contract is Invalid"
+                        this._setContractInlineError(sErrorMsg); // Display the exact message inline
+                    }.bind(this));
                 }
             },
             _skipToWeigh: function () {
@@ -409,8 +397,8 @@ sap.ui.define([
                 }
                 // Parse "12345 KG" (fallback unit KG)
                 var aWeightParts = sGrossWeight.trim().split(/\s+/);
-                var sWeight = aWeightParts[0] || "";
-                var sWeighUnit = aWeightParts[1] || "KG";
+                var sWeight = aWeightParts[1] || "";
+                var sWeighUnit = aWeightParts[2] || "KG";
                 // Pad contract like in step 1
                 sContractId = sContractId.padStart(10, "0");
                 // Bind the action using entity path
@@ -528,6 +516,44 @@ sap.ui.define([
                 document.body.appendChild(iframe);
             },
 
+            _setContractInlineError: function (sText) {
+                // Inline on the input
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.setValueState("Error");
+                    oInput.setValueStateText(sText);
+                    oInput.focus();
+                }
+                // Optional: also add a field-bound message (shows in FE message popover / keeps state on rebind)
+                var oCtx = this.getView().getBindingContext();
+                var oModel = this.getView().getModel();
+                if (oCtx && oModel) {
+                    var sTarget = oCtx.getPath() + "/SalesDocument"; // Updated to SalesDocument
+                    var aAll = Messaging.getMessageModel().getData() || [];
+                    var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+                    if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
+                    Messaging.addMessages(new Message({
+                        message: sText,
+                        type: coreLibrary.MessageType.Error,
+                        target: sTarget,
+                        processor: oModel
+                    }));
+                }
+            },
+            _clearContractInlineError: function () {
+                var oInput = this.byId("step1InputContract");
+                if (oInput) {
+                    oInput.setValueState("None");
+                    oInput.setValueStateText("");
+                }
+                var oCtx = this.getView().getBindingContext();
+                if (oCtx) {
+                    var sTarget = oCtx.getPath() + "/SalesDocument"; // Updated to SalesDocument
+                    var aAll = Messaging.getMessageModel().getData() || [];
+                    var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+                    if (aForField.length) { Messaging.removeMessages(aForField); }
+                }
+            },
             onCancel: function () {
                 // Reset the wizard and clear data
                 this._onObjectMatched();
