@@ -1,40 +1,57 @@
-method CL_WEIGHING.
-    data:
-      LS_PROCESS        type ZCL_WR_WAA_TA_SELFWEIGHING=>STY_WEIGHING_REQUEST,
-      LS_PROCESS_RESULT type ZWR_SWAA_SELFWEIGH_RESULT.
+extension implementation in class zbp_e_bp_r_pdmnlservice_ext unique;
 
-    clear:
-      IV_WEIGHING_RESULT.
+extend behavior for Service
+{
 
-    select single *
-      into @data(LS_HW_PROFILE)
-      from EEWA_SCALE_USER
-      where XUSER = @IV_USER.
+action ( precheck, features : global ) assignworkarea parameter ZAE_D_WORKAREA_AB result [0..*] $self;
+}
 
-    if SY-SUBRC is initial.
-      LS_PROCESS-WEIGHINGID = CL_GET_OPEN_WEIGHPROC(
-        exporting
-          IV_CONTRACT   = IV_CONTRACTID
-      ).
+extend behavior for ServiceTask
+{
+}
 
-      LS_PROCESS-DEVICEGROUP = LS_HW_PROFILE-DEVICEGROUPNR.
-      LS_PROCESS-FACILITYID  = LS_HW_PROFILE-WDPLANT.
-      LS_PROCESS-PROCESSTYPE = CL_EEWA_BO_WDORDERWEIGH=>CPROCESSTYPE_INBOUND.
-      LS_PROCESS-SIMULATION  = IV_SIMULATION.
-      LS_PROCESS-WASTEID     = IV_WASTEID.
+extend behavior for ExtCustom
+{
 
-      TA_BEGIN_NAMED_VAR TA ZCL_WR_WAA_TA_SELFWEIGHING=>C_TA_NAME.
-        TA_DO_RAISE_EXCEPTION TA.
-        if IV_COMMIT = ABAP_TRUE.
-          TA_DO_COMMIT TA.
-        else.
-          TA_NO_COMMIT TA.
-        endif.
-        TA_SET_PARAM TA GS_PROCESS_DATA LS_PROCESS.
-        TA_EXECUTE TA ZZ_BOOK_WEIGHING.
-        TA_GET_PARAM TA GS_RESULT_DATA LS_PROCESS_RESULT.
-      TA_END TA.
+mapping for /plce/tpdsrvcst  {
+    zz_tech_fachbe = zz_tech_fachbe;
+ }
 
-    endif.
+field ( readonly : update  ) zz_tech_fachbe;
 
-  endmethod.
+}
+
+extension for projection implementation in class zbp_e_bp_c_pdmnlservicewr_ext unique;
+
+extend behavior for Service
+{
+
+use action assignworkarea;
+
+}
+
+
+
+@Metadata.layer: #CUSTOMER
+annotate entity /PLCE/C_PDMNLServiceWR
+    with 
+{
+
+//  @UI.lineItem: [ { position: 190, importance: #HIGH },
+//  {
+//  type:#FOR_ACTION,
+//  dataAction:'assignworkarea',
+//  label: 'Change ServiceType',
+//  iconUrl: 'sap-icon://wrench',
+//  inline: true,
+//  emphasized: true,
+//  importance: #HIGH,
+//  position: 100,
+//  invocationGrouping: #CHANGE_SET}]
+//  @UI.textArrangement: #TEXT_ONLY
+//  @UI.fieldGroup: [{position: 50, qualifier: 'DefaultInformation' }]
+  @EndUserText.label: 'Fachbereich'
+   Fachbereich;
+}
+
+
