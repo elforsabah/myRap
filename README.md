@@ -1,15 +1,18 @@
-@Metadata.layer: #CUSTOMER
-annotate entity /PLCE/C_PDMNLServiceWR with {
-  @UI.lineItem: [
-    {
-      type                : #FOR_ACTION,
-      dataAction          : 'assignworkarea',   // bound action name
-      label               : 'Change Service Type',
-      requiresSelection   : false,              // => global action
-      invocationGrouping  : #CHANGE_SET,        // optional
-      emphasized          : true,               // optional
-      position            : 100,
-      importance          : #HIGH
-    }
-  ]
+@EndUserText.label: 'Abstract View für Arbeitbereich'
+
+define abstract entity ZAE_D_WORKAREA_AB
+ 
+{
+  @EndUserText.label: 'Neue Arbeitsbereich'
+//  @UI.defaultValue: #( 'ELEMENT_OF_REFERENCED_ENTITY: ServiceType' )
+  @Consumption.valueHelpDefinition:
+                    [{ entity     : { name: 'ZZPD_WORKREA_VH', element: 'WorkArea' },
+                       label      : 'Workarea Value Help'
+                     //  additionalBinding: [{ element: 'SrvtpFr', localElement: 'ServiceTypeFrom', usage: #FILTER } ],
+//                                           { element: 'SrvtpTo', localElement: 'ServiceTypeTo',   usage: #RESULT } ],
+                       //useForValidation: true
+    }]
+    
+   WorkArea : /plce/pdwork_area;
+    
 }
