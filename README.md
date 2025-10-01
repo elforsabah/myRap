@@ -1,78 +1,64 @@
 CLASS zcl_wr_pd_workarea_func_ext DEFINITION
   PUBLIC
   FINAL
-  CREATE PUBLIC.
+  CREATE PUBLIC .
   PUBLIC SECTION.
-    INTERFACES if_amdp_marker_hdb.
-    CLASS-METHODS get_workareas_services_cus
-      FOR TABLE FUNCTION ZE_P_PDWorkAreaServiceFuncExt.
+    INTERFACES if_amdp_marker_hdb .
+    class-methods get_workareas_services_cus
+         for table function ZE_P_PDWorkAreaServiceFuncExt .
   PROTECTED SECTION.
   PRIVATE SECTION.
 ENDCLASS.
 
 CLASS zcl_wr_pd_workarea_func_ext IMPLEMENTATION.
+   method get_workareas_services_cus
+    by database function for hdb
+        language sqlscript
+        options read-only
+        using /plce/r_pdservice /plce/r_pdfunctionallocation /plce/r_pdworkareaprofile /plce/r_pdworkareapostalcode /plce/tpdsrvcst /PLCE/P_PDWORKAREASERVICEFUNC .
 
-  METHOD get_workareas_services_cus
-    BY DATABASE FUNCTION FOR HDB
-    LANGUAGE SQLSCRIPT
-    USING "/PLCE/R_PDSERVICE" "/PLCE/P_PDWORKAREASERVICEFUNC".
+    declare lt_results table (
+        mandt abap.clnt,
+        work_area nvarchar(255),  -- Adjust length to match your work area type
+        service_uuid /plce/pdservice_uuid
+    );
 
-    RETURN
-      WITH base AS (
-        SELECT mandt,
-               service_uuid,
-               zz_additional_workareas AS rest
-          FROM "/PLCE/R_PDSERVICE"
-         WHERE zz_additional_workareas IS NOT NULL
-           AND mandt = :p_client
-      ),
-      split (mandt, service_uuid, part, rest, lvl) AS (
-        /* first chunk */
-        SELECT mandt,
-               service_uuid,
-               CASE WHEN INSTR(rest, ';') = 0
-                    THEN rest
-                    ELSE SUBSTRING(rest, 1, INSTR(rest, ';') - 1)
-               END AS part,
-               CASE WHEN INSTR(rest, ';') = 0
-                    THEN NULL
-                    ELSE SUBSTRING(rest, INSTR(rest, ';') + 1)
-               END AS rest,
-               1 AS lvl
-          FROM base
-        UNION ALL
-        /* subsequent chunks */
-        SELECT mandt,
-               service_uuid,
-               CASE WHEN INSTR(rest, ';') = 0
-                    THEN rest
-                    ELSE SUBSTRING(rest, 1, INSTR(rest, ';') - 1)
-               END AS part,
-               CASE WHEN INSTR(rest, ';') = 0
-                    THEN NULL
-                    ELSE SUBSTRING(rest, INSTR(rest, ';') + 1)
-               END AS rest,
-               lvl + 1
-          FROM split
-         WHERE rest IS NOT NULL AND rest <> ''
-      )
+    -- Insert standard computed assignments into the table variable
+    insert into :lt_results
+    select mandt, work_area, service_uuid
+    from "/PLCE/P_PDWORKAREASERVICEFUNC"( p_client => :p_client );
 
-      SELECT mandt, work_area, service_uuid
-        FROM (
-              /* Standard assignments */
-              SELECT mandt, work_area, service_uuid
-                FROM "/PLCE/P_PDWORKAREASERVICEFUNC"( p_client => :p_client )
+    -- Loop over services with explicit work areas and split them
+    for srvc in (select mandt, service_uuid, zz_additional_workareas
+                 from "/PLCE/R_PDSERVICE"
+                 where zz_additional_workareas is not null) do
+        declare lv_remaining nvarchar(255) := :srvc.zz_additional_workareas;
+        declare lv_pos integer := 0;
+        declare lv_part nvarchar(255) := '';
 
-              UNION ALL
+        while length(:lv_remaining) > 0 do
+            lv_pos := position(';' in :lv_remaining);
+            if :lv_pos = 0 then
+                lv_part := :lv_remaining;
+                lv_remaining := '';
+            else
+                lv_part := substring(:lv_remaining, 1, :lv_pos - 1);
+                lv_remaining := substring(:lv_remaining, :lv_pos + 1);
+            end if;
 
-              /* Additional semicolon-separated work areas */
-              SELECT mandt,
-                     TRIM(part) AS work_area,
-                     service_uuid
-                FROM split
-               WHERE part IS NOT NULL AND TRIM(part) <> ''
-             );
+            if trim(:lv_part) <> '' then
+                insert into :lt_results values (
+                    :srvc.mandt,
+                    :lv_part,
+                    :srvc.service_uuid
+                );
+            end if;
+        end while;
+    end for;
 
-  ENDMETHOD.
+    -- Return distinct results
+    return select distinct mandt, work_area, service_uuid
+           from :lt_results;
 
+  endmethod.
 ENDCLASS.
