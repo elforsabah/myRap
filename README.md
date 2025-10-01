@@ -25,27 +25,44 @@ CLASS zcl_wr_pd_workarea_func_ext IMPLEMENTATION.
    
      union all
    
-* // Add explicit assignments using recursive CTE
-    with recursive split_workareas as (
-        select srvc.mandt,
-               srvc.service_uuid,
-               srvc.zz_additional_workareas as remaining,
-               substring(srvc.zz_additional_workareas, 1, coalesce(nullif(position(';' in srvc.zz_additional_workareas), 0), length(srvc.zz_additional_workareas))) as work_area,
-               position(';' in srvc.zz_additional_workareas) as pos
-        from "/PLCE/R_PDSERVICE" as srvc
-        where srvc.zz_additional_workareas is not null
-        union all
-        select srvc.mandt,
-               srvc.service_uuid,
-               substring(remaining, pos + 1) as remaining,
-               substring(remaining, 1, coalesce(nullif(position(';' in remaining), 0), length(remaining))) as work_area,
-               position(';' in remaining) as pos
-        from split_workareas
-        where pos > 0 and length(remaining) > pos
-    )
-    select mandt, work_area, service_uuid
-    from split_workareas
-    where work_area is not null and trim(work_area) <> ''
-   );
+* // Add explicit assignments by splitting the custom field using substring
+    select srvc.mandt,
+           case when pos1 > 0 then substring(srvc.zz_additional_workareas, 1, pos1 - 1) else srvc.zz_additional_workareas end as work_area,
+           srvc.service_uuid
+    from "/PLCE/R_PDSERVICE" as srvc
+    where srvc.zz_additional_workareas is not null
+      and (pos1 > 0 or srvc.zz_additional_workareas <> '')
+    union all
+    select srvc.mandt,
+           case when pos2 > pos1 + 1 then substring(srvc.zz_additional_workareas, pos1 + 1, pos2 - pos1 - 1) end as work_area,
+           srvc.service_uuid
+    from "/PLCE/R_PDSERVICE" as srvc
+    where srvc.zz_additional_workareas is not null
+      and pos2 > pos1 + 1
+    union all
+    select srvc.mandt,
+           case when pos3 > pos2 + 1 then substring(srvc.zz_additional_workareas, pos2 + 1, pos3 - pos2 - 1) end as work_area,
+           srvc.service_uuid
+    from "/PLCE/R_PDSERVICE" as srvc
+    where srvc.zz_additional_workareas is not null
+      and pos3 > pos2 + 1
+    union all
+    -- Add more UNION ALL for up to 10 splits if needed (e.g., pos4, pos5, etc.)
+    select srvc.mandt,
+           case when length(srvc.zz_additional_workareas) > pos3 + 1 then substring(srvc.zz_additional_workareas, pos3 + 1) end as work_area,
+           srvc.service_uuid
+    from "/PLCE/R_PDSERVICE" as srvc
+    where srvc.zz_additional_workareas is not null
+      and length(srvc.zz_additional_workareas) > pos3 + 1
+   )
+   cross join (
+       select position(';' in srvc.zz_additional_workareas) as pos1,
+              position(';' in srvc.zz_additional_workareas, pos1 + 1) as pos2,
+              position(';' in srvc.zz_additional_workareas, pos2 + 1) as pos3
+       from "/PLCE/R_PDSERVICE" as srvc
+       where srvc.zz_additional_workareas is not null
+       limit 1
+   ) as positions
+   where work_area is not null;
   endmethod.
 ENDCLASS.
