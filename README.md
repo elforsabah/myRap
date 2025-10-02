@@ -1,8 +1,18 @@
-" Step 4: Set action result ($self = Service instances)
-  READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-    ENTITY Service
-      ALL FIELDS WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_service_result).
+@EndUserText.label: 'Abstract View für Arbeitbereich'
 
-  result = VALUE #( FOR ls_service IN lt_service_result ( %tky   = ls_service-%tky
-                                                         %param = ls_service ) ).
+define abstract entity ZAE_D_WORKAREA_AB
+ 
+{
+  @EndUserText.label: 'Neue Arbeitsbereich'
+//  @UI.defaultValue: #( 'ELEMENT_OF_REFERENCED_ENTITY: ServiceType' )
+ @Consumption.valueHelpDefinition: [
+    {
+      entity         : { name: 'ZZPD_WORKREA_VH', element: 'WorkArea' },
+      label          : 'Workarea'
+     
+    }
+  ]
+  
+   WorkArea : /plce/pdwork_area;
+    
+}
