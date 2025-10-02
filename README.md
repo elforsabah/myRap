@@ -94,3 +94,11 @@ FIELDS ( ZZ_TECH_FACHBE )
 FROM CORRESPONDING #( lt_extcustom_update )
 FAILED DATA(lt_failed)
 REPORTED DATA(lt_reported).
+
+*   " Step 3: Single MODIFY with CREATE and UPDATE (path-based, using CORRESPONDING for UPDATE).
+        MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+          ENTITY Service
+            UPDATE FROM CORRESPONDING #( lt_extcustom_update )
+            CREATE BY \_ExtCustom
+              FIELDS ( zz_tech_fachbe ) WITH 'TEC'.
+         
