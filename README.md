@@ -1,4 +1,85 @@
-opfinformationen
+CLASS lhc_service DEFINITION INHERITING FROM cl_abap_behavior_handler.
+
+  PRIVATE SECTION.
+
+    METHODS get_global_features FOR GLOBAL FEATURES
+      IMPORTING REQUEST requested_features FOR Service RESULT result.
+
+    METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
+      IMPORTING REQUEST requested_authorizations FOR Service RESULT result.
+
+    METHODS assignworkarea FOR MODIFY
+      IMPORTING keys FOR ACTION Service~assignworkarea RESULT result.
+
+    METHODS precheck_assignworkarea FOR PRECHECK
+      IMPORTING keys FOR ACTION Service~assignworkarea.
+
+ENDCLASS.
+
+CLASS lhc_service IMPLEMENTATION.
+
+  METHOD get_global_features.
+  ENDMETHOD.
+
+  METHOD get_global_authorizations.
+  ENDMETHOD.
+
+  METHOD assignworkarea.
+
+  " Step 1: Read child to confirm existence and get %tky
+  READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+    ENTITY Service "BY \_ExtCustom
+      FIELDS ( ServiceUUID  )
+      WITH VALUE #( FOR ls_key IN keys ( ServiceUUID = ls_key-ServiceUUID ) )
+    RESULT DATA(lt_extcustom_read).
+
+     " Step 2: Collect updates (direct child type)
+  DATA: lt_extcustom_update TYPE TABLE FOR UPDATE /PLCE/R_PDServiceExtCustom.
+     LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
+    READ TABLE lt_extcustom_read INTO DATA(ls_read) WITH KEY ServiceUUID = <ls_key>-ServiceUUID.
+  IF sy-subrc = 0.
+    APPEND VALUE #( %tky = ls_read-%tky  "// Full key from read
+                      ZZ_TECH_FACHBE = <ls_key>-%param-WorkArea
+                      %control-ZZ_TECH_FACHBE = if_abap_behv=>mk-on )  "// Force update
+             TO lt_extcustom_update.
+
+     ENDIF.
+
+
+
+ ENDLOOP.
+
+
+*   " Step 3: Single MODIFY with CREATE and UPDATE (path-based, using CORRESPONDING for UPDATE).
+        MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+          ENTITY Service
+            UPDATE FROM CORRESPONDING #( lt_extcustom_update ).
+
+
+  if 1 = 2.
+
+
+   ENDIF.
+  ENDMETHOD.
+
+  METHOD precheck_assignworkarea.
+
+    LOOP AT keys INTO DATA(ls_service).
+      " Check if WorkArea is valid (query value help entity if needed).
+      IF ls_service-%param-WorkArea IS INITIAL.
+        APPEND VALUE #( %key = ls_service-%key
+                        %msg = new_message( id = 'Z_MSG_CLASS' number = '000' severity = if_abap_behv_message=>severity-error
+                                            v1 = 'WorkArea is mandatory' ) )
+               TO reported-Service.
+      ENDIF.
+
+    ENDLOOP.
+  ENDMETHOD.
+ENDCLASS.
+
+*"* use this source file for the definition and implementation of
+*"* local helper classes, interface definitions and type
+*"* declarationsopfinformationen
 Was ist passiert?
 Fehleranalyse
 Informationen zur Abbruchstelle
