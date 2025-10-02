@@ -1,40 +1,58 @@
-METHOD assignworkarea.
-  " Step 1: Read child to confirm existence and get %tky
-  READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-    ENTITY Service BY \_ExtCustom
-      FIELDS ( ServiceUUID ZZ_TECH_FACHBE )  // Uppercase
-      WITH VALUE #( FOR ls_key IN keys ( ServiceUUID = ls_key-ServiceUUID ) )
-    RESULT DATA(lt_extcustom_read).
+CLASS lhc_service DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+    METHODS get_global_features FOR GLOBAL FEATURES
+      IMPORTING REQUEST requested_features FOR Service RESULT result.
+    METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
+      IMPORTING REQUEST requested_authorizations FOR Service RESULT result.
+    METHODS assignworkarea FOR MODIFY
+      IMPORTING keys FOR ACTION Service~assignworkarea RESULT result.
+    METHODS precheck_assignworkarea FOR PRECHECK
+      IMPORTING keys FOR ACTION Service~assignworkarea.
+ENDCLASS.
 
-  " Step 2: Collect updates (direct child type)
-  DATA: lt_extcustom_update TYPE TABLE FOR UPDATE /PLCE/R_PDServiceExtCustom.  // Full child entity
+CLASS lhc_service IMPLEMENTATION.
+  METHOD get_global_features. ENDMETHOD.
+  METHOD get_global_authorizations. ENDMETHOD.
 
-  LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
-    " Find matching read or create if missing
-    READ TABLE lt_extcustom_read INTO DATA(ls_read) WITH KEY ServiceUUID = <ls_key>-ServiceUUID.
-    IF sy-subrc = 0.
-      APPEND VALUE #( %tky = ls_read-%tky  // Full key from read
-                      ZZ_TECH_FACHBE = <ls_key>-%param-WorkArea
-                      %control-ZZ_TECH_FACHBE = if_abap_behv=>mk-on )  // Force update
+  METHOD precheck_assignworkarea.
+    READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+      ENTITY Service
+        ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_service).
+    LOOP AT lt_service INTO DATA(ls_service).
+      IF ls_service-%param-WorkArea IS INITIAL.
+        APPEND VALUE #( %key = ls_service-%key
+                        %msg = new_message( id = 'Z_MSG_CLASS' number = '001' severity = if_abap_behv_message=>severity-error
+                                            v1 = 'WorkArea is mandatory' ) )
+               TO reported-Service.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD assignworkarea.
+    DATA: lt_extcustom_update TYPE TABLE FOR UPDATE /PLCE/R_PDService \\ ExtCustom.
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
+      APPEND VALUE #( %key-ServiceUUID = <ls_key>-ServiceUUID
+                      zz_tech_fachbe = <ls_key>-%param-WorkArea )
              TO lt_extcustom_update.
-    ELSE.
-      " Optional: CREATE if child missing (0..1)
-      APPEND VALUE #( %cid = |{ <ls_key>-ServiceUUID }|  // Client ID for create
-                      ServiceUUID = <ls_key>-ServiceUUID
-                      ZZ_TECH_FACHBE = <ls_key>-%param-WorkArea
-                      %control = VALUE #( ServiceUUID = if_abap_behv=>mk-on
-                                          ZZ_TECH_FACHBE = if_abap_behv=>mk-on ) )
-             TO lt_extcustom_update.  // But use separate CREATE table if mixing
-    ENDIF.
-  ENDLOOP.
-
-  " Step 3: MODIFY in root context (path optional for direct child)
-  MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-    ENTITY ExtCustom  // Direct on child node
-      UPDATE FIELDS ( ZZ_TECH_FACHBE )
-      WITH lt_extcustom_update
-    FAILED DATA(lt_failed)
-    REPORTED DATA(lt_reported).
-
-  " Proceed with error mapping, READ, and result as before...
-ENDMETHOD.
+    ENDLOOP.
+    MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+      ENTITY Service
+        UPDATE BY \_ExtCustom
+        FIELDS ( zz_tech_fachbe )
+        WITH lt_extcustom_update
+      FAILED DATA(lt_failed)
+      REPORTED DATA(lt_reported).
+    reported = CORRESPONDING #( DEEP lt_reported ).
+    failed   = CORRESPONDING #( DEEP lt_failed ).
+    READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+      ENTITY Service
+        ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_read)
+      FAILED failed
+      REPORTED reported.
+    result = VALUE #( FOR ls_read IN lt_read
+                      ( %key = ls_read-%key
+                        %data = ls_read-%data ) ).
+  ENDMETHOD.
+ENDCLASS.
