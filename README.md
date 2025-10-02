@@ -82,3 +82,15 @@ ENDMETHOD.
           entity SERVICE
             update from corresponding #( LDATA-SRV_UPD )
             create by \_SERVICETASK set fields with LDATA-TSKS_CREA
+
+
+  " Step 3: Single MODIFY with CREATE and UPDATE (path-based, using CORRESPONDING for UPDATE).
+MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+ENTITY Service
+CREATE BY _ExtCustom
+WITH lt_extcustom_create
+UPDATE BY _ExtCustom
+FIELDS ( ZZ_TECH_FACHBE )
+FROM CORRESPONDING #( lt_extcustom_update )
+FAILED DATA(lt_failed)
+REPORTED DATA(lt_reported).
