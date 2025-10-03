@@ -1,2 +1,23 @@
-Description	Resource	Path	Location	Type
-Für die Zielentität "ZE_P_PDWORKAREASERVICEEXT" der Assoziation "_WorkAreaServicesExt" muss ein Verhalten definiert sein.	ZE_BP_R_PDMNLSERVICE_EXT (Behavior Definition)	.adt/wbobj2/bo/bdef/ze_bp_r_pdmnlservice_ext	line 16	ABAP Activation Problem
+extension implementation in class zbp_e_bp_r_pdmnlservice_ext unique;
+
+extend behavior for Service
+{
+
+action ( precheck, features : global ) assignworkarea parameter ZAE_D_WORKAREA_AB result [0..*] $self;
+// Precheck validates input; action updates ExtCustom.zz_tech_fachbe and returns updated Service
+}
+
+extend behavior for ServiceTask
+{
+}
+
+extend behavior for ExtCustom
+{
+association _WorkAreaServicesExt ;// Expose the new association
+mapping for /plce/tpdsrvcst  {
+    zz_tech_fachbe = zz_tech_fachbe;
+ }
+
+field ( readonly : update ) zz_tech_fachbe;
+
+}
