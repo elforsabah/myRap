@@ -1,2 +1,2 @@
 Description	Resource	Path	Location	Type
-"ZE_P_PDWORKAREASERVICEEXT" ist nicht Teil einer Kompositionshierarchie von CDS-Entitäten.	ZE_BP_R_PDMNLSERVICE_EXT (Behavior Definition)	.adt/wbobj2/bo/bdef/ze_bp_r_pdmnlservice_ext	line 409	ABAP Activation Problem
+Die untergeordnete Entität "ZE_P_PDWorkAreaServiceExt" hat keine to-parent Assoziation auf "/PLCE/R_PDServiceExtCustom"	ZE_R_PDSERVICEEXTCUSTOM (Data Definition)	.adt/ddic/ddlsources/ze_r_pdserviceextcustom	line 2	ABAP Syntax Check Problem
