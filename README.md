@@ -1,18 +1,2 @@
-@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Work Areas Services'
-@Search.searchable: false
-define view entity Z_WORKAREAS_SERVICES
-as select distinct from /PLCE/R_PDSERVICE as SRVC
-  inner join /PLCE/R_PDWORKAREAPROFILE as WAPR
-    on WAPR.PROFILE like SRVC.PROFILE
-  inner join /PLCE/R_PDFUNCTIONALLOCATION as FL
-    on FL.FUNCTIONALLOCATION = SRVC.FUNCTIONALLOCATION
-  inner join /PLCE/R_PDWORKAREAPOSTALCODE as WAPC
-    on  WAPC.WORKAREA = WAPR.WORKAREA
-    and FL.POSTALCODE like WAPC.POSTALCODESQL
-{
-  $session.client as MANDT,
-  WAPC.WORKAREA as WORK_AREA,
-  SRVC.SERVICEUUID as SERVICE_UUID
-}
+Description	Resource	Path	Location	Type
+Vergleichswert der LIKE-Bedingung muss ein zeichenartiges Literal sein	Z_WORKAREAS_SERVICES (Data Definition)	adt/ddic/ddlsources/z_workareas_services	line 8	ABAP Syntax Check Problem
