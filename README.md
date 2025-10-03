@@ -14,9 +14,11 @@ as select distinct from /PLCE/R_PDSERVICE as SRVC
     on  WAPC.WORKAREA = WAPR.WORKAREA
     and FL.POSTALCODE like WAPC.POSTALCODESQL
 {
-  SRVC.MANDT,
+  $session.client as MANDTT,
   WAPC.WORKAREA as WORK_AREA,
   SRVC.SERVICEUUID as SERVICE_UUID
 }
 where
-  SRVC.MANDT = $parameters.P_Client;
+$session.client = $parameters.P_Client;
+Description	Resource	Path	Location	Type
+Unerwartetes Wort "$session.client"	Z_WORKAREAS_SERVICES (Data Definition) dt/ddic/ddlsources/z_workareas_services	line 22	ABAP Syntax Check Problem
