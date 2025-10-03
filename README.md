@@ -1,18 +1,16 @@
-@AbapCatalog.viewEnhancementCategory: [#NONE]
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Work Areas Services'
-@Search.searchable: false
-define view entity Z_WORKAREAS_SERVICES
-as select distinct from /PLCE/R_PDSERVICE as SRVC
-inner join /PLCE/R_PDWORKAREAPROFILE as WAPR
-on WAPR.PROFILE like SRVC.PROFILE
-inner join /PLCE/R_PDFUNCTIONALLOCATION as FL
-on FL.FUNCTIONALLOCATION = SRVC.FUNCTIONALLOCATION
-inner join /PLCE/R_PDWORKAREAPOSTALCODE as WAPC
-on  WAPC.WORKAREA = WAPR.WORKAREA
-and FL.POSTALCODE like WAPC.POSTALCODESQL
+@ClientHandling.type: #CLIENT_DEPENDENT
+@ClientHandling.algorithm: #SESSION_VARIABLE
+@EndUserText.label: 'Extended Work Area Service - Table Function'
+define table function /PLCE/P_PDWorkAreaServiceFuncExt
+  with parameters
+    @Environment.systemField: #CLIENT
+    p_client : abap.clnt
+returns
 {
-$session.client as MANDT,
-WAPC.WORKAREA as WORK_AREA,
-SRVC.SERVICEUUID as SERVICE_UUID
+  mandt : abap.clnt;
+  work_area : /plce/pdwork_area;
+  service_uuid : /plce/pdservice_uuid;
 }
+implemented by method
+  /PLCE/CL_PD_WORKAREA_FUNC_EXT=>GET_WORKAREAS_SERVICES_EXT;  // New custom class/method
