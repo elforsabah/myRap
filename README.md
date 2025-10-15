@@ -1,11 +1,24 @@
+Was ist möglich?
 
-vielen Dank! Kannst du mir bitte den Gefallen tun und deine Schätzung + die Analyse in der Redmine-Aufgabe als Kommentar hinterlegen?
+Fiori Elements (List Report / Object Page)
 
-Wichtig wäre mir dabei auch, dass wir jetzt bei der Schätzung schon überprüfen und sicherstellen:
-•	Können wir an dieser Stelle eine Spalte hinzufügen? (Für 1. Wunsch)
-•	Können wir in der Spalte „Kapazitätsauslastung“ andere Werte darstellen? (Für 2. Wunsch)
+Wenn das Feld bereits im Backend existiert: rein annotation-basiert sichtbar machen und exakt positionieren.
+
+CDS (oder Metadata Extension):
+
+@UI.lineItem: [
+  { position: 45, label: 'Neue Spalte', value: NewField, importance: #HIGH }
+]
 
 
-Für die neuen Umsetzungen muss ich eine Freigabe vom Projektleiter des Kunden einholen. Dazu müssen wir möglichst gut erklären, wie wir das umsetzen wollen (und ggf. welche Wünsche nicht möglich sind).
+→ Spalte erscheint an definierter Stelle.
 
-Viele Grüße
+Wenn das Feld noch nicht existiert:
+
+Persistentes Feld (DB/Tabelle + CDS + Behavior) – wenn das dauerhaft gespeichert werden soll.
+
+Abgeleitetes Feld (z. B. Berechnung/Mapping) über CDS CASE oder virtuelles Element mit ABAP-Klasse (performant, kein DB-Persist).
+
+SmartTable / UI5 (falls keine FE-App)
+
+XML-View: sap.ui.table.Column hinzufügen, Binding auf das neue Feld; ggf. Formatter.
