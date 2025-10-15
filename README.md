@@ -1,6 +1,8 @@
-extend view entity /PLCE/R_PDServiceExtCustom with 
-//association[0..1] to ZE_P_PDWorkAreaServiceExt  as _WorkAreaServicesExt on $projection.ServiceUUID = _WorkAreaServicesExt.ServiceUUID
- {
-/plce/tpdsrvcst.zz_tech_fachbe
-//_WorkAreaServicesExt
-}
+  @UI.lineItem: [{ position: 110, type : #AS_DATAPOINT, label: 'Capacity used (in %)', importance: #HIGH },
+                 { position: 50, type : #AS_DATAPOINT, label: 'Capacity used (in %)', importance: #HIGH, qualifier: 'DefaultMap' }]
+  @UI.dataPoint:{
+    visualization : #PROGRESS,
+    targetValue: 100,
+    criticality: 'TourCapacityColorValue'
+  }
+  @UI.fieldGroup: [{position: 110, qualifier: 'DefaultInformation', type: #AS_DATAPOINT }]
