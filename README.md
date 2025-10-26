@@ -1,26 +1,28 @@
- include EEWA_EL_MACRO_RANGE.
-  data:
-      LORDERNRS   type standard table of EORDERNR,
-      LORDERDATAS type standard table of EWA_ORDER_HEAD,
-      LEXPORTDATA type ISU_WA_ORDERDOWN_S_EROUTE,
-      LLOGHANDLE  type BALLOGHNDL,
-      LLOG        type ref to CL_EEWA_IMPL_BO_CALLBACK_MLOG.
+@UI.lineItem: [
+    { position: 190, importance: #HIGH },
+    {
+      type                : #FOR_ACTION,
+      dataAction          : 'assignworkarea',   // bound action name
+      label               : 'Arbeitsbereich zuweisen',
+      iconUrl: 'sap-icon://wrench',
+//      requiresSelection   : false,              // => global action
+      invocationGrouping  : #CHANGE_SET,        // optional
+      emphasized          : true,               // optional
+      position            : 100,
+      importance          : #HIGH
+      
+    }
+  ]
+  @EndUserText.label: 'Fachbereich'
+  @UI.selectionField: [{position: 20}]
+  @Consumption.valueHelpDefinition: [
+    {
+      entity         : { name: 'ZZPD_WORKREA_VH', element: 'WorkArea' },
+      label          : 'Workarea',
+      useForValidation: true
+    }
+  ]
 
-    LORDERNRS = value #( for L in FCHANGED_DATAS ( L-ORDERNR ) ).
 
-    if LINES( LORDERNRS ) is not initial.
-
-      sort LORDERNRS.
-      delete adjacent duplicates from LORDERNRS.
-      sort FCHANGED_DATAS by KEY.
-
-      DATA_BO_RANGE X.
-      SET_BO_RANGE_KEYS X __KEYS LORDERNRS.
-
-      CL_EEWA_OR_WDORDER=>CL_READ(
-        exporting
-          PAR_OBJTYPE = CL_EEWA_BO_WDORDER=>COT_WDORDER
-          PAR_RANGES  = LRANGEXS
-        importing
-          PAR_TABLE   = LORDERDATAS
-      ).
+  action ( precheck, features : global ) assignworkarea parameter ZAE_D_WORKAREA_AB result [0..*] $self;
+// Precheck validates input; action updates ExtCustom.zz_tech_fachbe and returns updated Service
