@@ -1,2 +1,8 @@
-Description	Resource	Path	Location	Type
-Die Aktion "COMPLETESERVICE" von "/PLCE/R_PDSERVICE" kann nicht in der Erweiterung "ZE_BP_C_PDMNLSERVICEWR_EXT" verwendet werden.	ZE_BP_C_PDMNLSERVICEWR_EXT (Behavior Definition)	adt/wbobj2/bo/bdef/ze_bp_c_pdmnlservicewr_ext	line 6	ABAP Syntax Check Problem
+Grob-Beschreibung:
+
+Es wird eine Funktion gewünscht, um im P&D einen Service zu stornieren oder zu löschen. → Vielleicht als Funktion in der Service-Liste (ähnlich wie “Fachbereich zuweisen”)?
+Dabei muss auch die zugehörige W&R-Entsorgungsauftragsposition negativ zurückgemeldet oder gelöscht werden.
+noch zu klären, welcher der bessere Weg ist (evtl. brainstormen und erfahrene Entwickler fragen. Oder beide Ansätze prüfen/schätzen.)
+A) Status “storniert” am P&D-Service (gibt es so etwas schon? ich glaube nicht) + EAP negativ rückmelden
+B) P&D-Service löschen + EAP negativ rückmelden
+C) P&D-Service löschen + EAP löschen
