@@ -38,3 +38,72 @@ extensible
   action ( features : instance ) completeService;
   action ( features : instance ) confirmService;
 //  action ( features : instance ) TransferSequence;
+
+
+
+
+
+extension implementation in class zbp_e_bp_r_pdmnlservice_ext unique;
+
+extend behavior for Service
+{
+
+
+action ( precheck, features : global ) assignworkarea parameter ZAE_D_WORKAREA_AB result [0..*] $self;
+// Precheck validates input; action updates ExtCustom.zz_tech_fachbe and returns updated Service
+
+ determination Setfachbereich on modify { create; update; }
+
+}
+
+extend behavior for ServiceTask
+{
+}
+
+extend behavior for ExtCustom
+{
+mapping for /plce/tpdsrvcst  {
+    zz_tech_fachbe = zz_tech_fachbe;
+ }
+
+field ( readonly : update ) zz_tech_fachbe;
+
+}
+
+
+extension for projection implementation in class zbp_e_bp_c_pdmnlservicewr_ext unique;
+
+extend behavior for Service
+{
+use action assignworkarea;
+use  delete;
+//use association _WorkAreaServicesExt;
+}
+
+extension implementation in class zbp_e_bp_r_pdmnlservice_ext unique;
+
+extend behavior for Service
+{
+
+use delete;
+action ( precheck, features : global ) assignworkarea parameter ZAE_D_WORKAREA_AB result [0..*] $self;
+// Precheck validates input; action updates ExtCustom.zz_tech_fachbe and returns updated Service
+
+ determination Setfachbereich on modify { create; update; }
+
+}
+
+extend behavior for ServiceTask
+{
+}
+
+extend behavior for ExtCustom
+{
+mapping for /plce/tpdsrvcst  {
+    zz_tech_fachbe = zz_tech_fachbe;
+ }
+
+field ( readonly : update ) zz_tech_fachbe;
+
+}
+
