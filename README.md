@@ -1,185 +1,162 @@
-@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Interface View for weighbridge' 
-@Metadata.ignorePropagatedAnnotations: true 
-@Metadata.allowExtensions: true 
-define root view entity ZI_WR_R_WEIGHBRIDGE  
-  as select from I_SalesDocument  
-  association [0..1] to zwr_weighbridge as _HBRIDGE on _HBRIDGE.salesdocument = $projection.SalesDocument  
-  {  
-    key SalesDocument,  
-    SDDocumentCategory as Korselsnr,  
-    SalesDocumentType as Korselsnrindicator,  
-    _HBRIDGE.pdfbase64 as PDFBASE64,  
-    CreatedByUser,  
-    LastChangedByUser,  
-    CreationDate,  
-    CreationTime,  
-    LastChangeDate,  
-    LastChangeDateTime 
-} where  
-      SalesDocumentType = 'ZKM'
-
-sContractId = sContractId.padStart(10, '0');
-
 sap.ui.define([
-    "sap/fe/core/PageController",
-    "sap/m/MessageToast",
-    "sap/ui/core/Messaging",
-    "sap/ui/core/message/Message",
-    "sap/ui/core/library",
-    "sap/m/Button",
-    "sap/ui/model/json/JSONModel",
-    "sap/ui/model/resource/ResourceModel",
-    "sap/ui/model/Filter",
-    "sap/ui/model/FilterOperator",
-    "jquery.sap.global"
+"sap/fe/core/PageController",
+"sap/m/MessageToast",
+"sap/ui/core/Messaging",
+"sap/ui/core/message/Message",
+"sap/ui/core/library",
+"sap/m/Button",
+"sap/ui/model/json/JSONModel",
+"sap/ui/model/resource/ResourceModel",
+"sap/ui/model/Filter",
+"sap/ui/model/FilterOperator",
+"jquery.sap.global"
 ], function (PageController, MessageToast, Messaging, Message, coreLibrary, Button, JSONModel, ResourceModel, Filter, FilterOperator, jQuery) {
-    "use strict";
-    return PageController.extend("com.prologa.zwrweighbrigefinal.ext.main.Main", {
-        formatter: {
-            concatMaterialText: function (sMaterial, sMaterialText) {
-                return (sMaterial || '') + ' - ' + (sMaterialText || '');
-            }
-        },
-        onInit: function () {
-            PageController.prototype.onInit.apply(this);
-            // Set up i18n model with initial language (English)
-            var oResourceModel = new ResourceModel({
-                bundleName: "com.prologa.zwrweighbrigefinal.i18n.i18n",
-                bundleLocale: "en"
-            });
-            this.getView().setModel(oResourceModel, "@i18n");
-            // Messaging
-            Messaging.registerObject(this.getView(), true);
-            this.getView().setModel(Messaging.getMessageModel(), "message");
-            // Attach to message model change to intercept and handle messages
-            this.oMessageModel = this.getView().getModel("message");
-            this.oMessageModel.attachPropertyChange(this._onMessageChange, this);
-            // Wizard
-            this.oWizard = this.byId("weighingWizard");
-            this.oWizard.attachStepActivate(this.onStepActivate, this);
-            // Router
-            var oRouter = this.getAppComponent().getRouter();
-            oRouter.getRoute("ZI_WR_R_WEIGHBRIDGEMain").attachPatternMatched(this._onObjectMatched, this); // Updated route name based on new entity
-            this._enterWired = false; // guard so we wire Enter only once
-            this._isFromScan = true;
-            // Local model for unbound inputs
-            var oLocalModel = new JSONModel({
-                contractId: "",
-                grossWeight: "",
-                teraWeight: "",
-                loadType: "",
-                transaction_state: "",
-                korselsnr: ""  // NEW: Added for optional Korselsnr step
-            });
-            this.getView().setModel(oLocalModel, "local");
-        },
-        getResourceBundle: function () {
-            return this.getView().getModel("@i18n").getResourceBundle();
-        },
-        onSetEnglish: function () {
-            var oResourceModel = new ResourceModel({
-                bundleName: "com.prologa.zwrweighbrigefinal.i18n.i18n",
-                bundleLocale: "en"
-            });
-            this.getView().setModel(oResourceModel, "@i18n");
-        },
-        onSetDanish: function () {
-            var oResourceModel = new ResourceModel({
-                bundleName: "com.prologa.zwrweighbrigefinal.i18n.i18n",
-                bundleLocale: "da"
-            });
-            this.getView().setModel(oResourceModel, "@i18n");
-        },
-        _onMessageChange: function (oEvent) {
-            var aMessages = this.oMessageModel.getData() || [];
-            var aErrors = aMessages.filter(function (oMsg) {
-                return oMsg.getType() === "Error";
-            });
-            if (aErrors.length > 0) {
-                // Remove error messages to prevent popup/dialog
-                Messaging.removeMessages(aErrors);
-                // Set inline error using the message text (if related to contract)
-                var sErrorText = aErrors[0].getMessage() || this.getResourceBundle().getText("invalidContract");
-                this._setContractInlineError(sErrorText);
-            }
-            var aSuccesses = aMessages.filter(function (oMsg) {
-                return oMsg.getType() === "Success";
-            });
-            if (aSuccesses.length > 0) {
-                // Optionally handle success messages, e.g., show toast and remove
-                MessageToast.show(aSuccesses[0].getMessage());
-                Messaging.removeMessages(aSuccesses);
-            }
-        },
-        _onObjectMatched: function () {
-            this.getView().getModel("local").setProperty("/contractId", ""); // Reset local value
-            this.getView().getModel("local").setProperty("/grossWeight", ""); // Reset local value
-            this.getView().getModel("local").setProperty("/teraWeight", ""); // Reset local value
-            this.getView().getModel("local").setProperty("/loadType", ""); // Reset local value
-            this.getView().getModel("local").setProperty("/korselsnr", ""); // NEW: Reset Korselsnr
-            // Clear step 2 items binding to reset load types
-            var oVBox = this.byId("step2LtContainer");
-            if (oVBox) {
-                oVBox.unbindAggregation("items");
-                oVBox.destroyItems();
-            }
-            // Reset wizard to step 1
-            this.oWizard.setCurrentStep(this.byId("step1"));
-            // Clear any inline errors
-            this._clearContractInlineError();
-            // Hide confirm button
-            var oButton = this.byId("step3BtnConfirm");
-            if (oButton) {
-                oButton.setVisible(false);
-            }
-            var oButton = this.byId("step3BtnConfirm2");
-            if (oButton) {
-                oButton.setVisible(true);
-            }
-        },
-        // === ENTER wiring (ADDED) ===
-        _setupEnterToNext: function () {
-            if (this._enterWired) { return; }
-            this._enterWired = true;
-            // Step 1: Enter on Contract input -> reuse existing onNextStep
-            var oIp = this.byId("step1InputContract");
-            if (oIp) {
-                oIp.addEventDelegate({
-                    onsapenter: function (oEvent) {
-                        oEvent.preventDefault();
-                        oEvent.stopPropagation();
-                        this.onNextStep();
-                    }.bind(this)
-                }, oIp);
-            }
-            // NEW: Enter on Korselsnr input -> call onNextFromK
-            var oIpK = this.byId("stepKInputKorselsnr");
-            if (oIpK) {
-                oIpK.addEventDelegate({
-                    onsapenter: function (oEvent) {
-                        oEvent.preventDefault();
-                        oEvent.stopPropagation();
-                        this.onNextFromK();
-                    }.bind(this)
-                }, oIpK);
-            }
-        },
-        onNextStep: function () {
-            var oCurrentStep = this.oWizard.getCurrentStep();
-            var sStepId = oCurrentStep.split("--").pop();
-            if (sStepId === "step1") {
-                var sContractId = this.getView().getModel("local").getProperty("/contractId");
-                if (!sContractId) {
-                    MessageToast.show(this.getResourceBundle().getText("enterContractId"));
-                    return;
-                }
-                // Pad with leading zeros for internal format
-                sContractId = sContractId.padStart(10, '0');
-                // Manual bound action call to avoid automatic popups from editFlow
-                var oModel = this.getView().getModel();
-                // Check if entity exists before invoking action
-                var oListBinding = oModel.bindList("/ZI_WR_R_WEIGHBRIDGE", undefined, undefined, new Filter("SalesDocument", FilterOperator.EQ, sContractId), { $$ownRequest: true });
+"use strict";
+return PageController.extend("com.prologa.zwrweighbrigefinal.ext.main.Main", {
+formatter: {
+concatMaterialText: function (sMaterial, sMaterialText) {
+return (sMaterial || '') + ' - ' + (sMaterialText || '');
+}
+},
+onInit: function () {
+PageController.prototype.onInit.apply(this);
+// Set up i18n model with initial language (English)
+var oResourceModel = new ResourceModel({
+bundleName: "com.prologa.zwrweighbrigefinal.i18n.i18n",
+bundleLocale: "en"
+});
+this.getView().setModel(oResourceModel, "@i18n");
+// Messaging
+Messaging.registerObject(this.getView(), true);
+this.getView().setModel(Messaging.getMessageModel(), "message");
+// Attach to message model change to intercept and handle messages
+this.oMessageModel = this.getView().getModel("message");
+this.oMessageModel.attachPropertyChange(this._onMessageChange, this);
+// Wizard
+this.oWizard = this.byId("weighingWizard");
+this.oWizard.attachStepActivate(this.onStepActivate, this);
+// Router
+var oRouter = this.getAppComponent().getRouter();
+oRouter.getRoute("ZI_WR_R_WEIGHBRIDGEMain").attachPatternMatched(this._onObjectMatched, this); // Updated route name based on new entity
+this._enterWired = false; // guard so we wire Enter only once
+this._isFromScan = true;
+// Local model for unbound inputs
+var oLocalModel = new JSONModel({
+contractId: "",
+grossWeight: "",
+teraWeight: "",
+loadType: "",
+transaction_state: "",
+korselsnr: "" // NEW: Added for optional Korselsnr step
+});
+this.getView().setModel(oLocalModel, "local");
+},
+getResourceBundle: function () {
+return this.getView().getModel("@i18n").getResourceBundle();
+},
+onSetEnglish: function () {
+var oResourceModel = new ResourceModel({
+bundleName: "com.prologa.zwrweighbrigefinal.i18n.i18n",
+bundleLocale: "en"
+});
+this.getView().setModel(oResourceModel, "@i18n");
+},
+onSetDanish: function () {
+var oResourceModel = new ResourceModel({
+bundleName: "com.prologa.zwrweighbrigefinal.i18n.i18n",
+bundleLocale: "da"
+});
+this.getView().setModel(oResourceModel, "@i18n");
+},
+_onMessageChange: function (oEvent) {
+var aMessages = this.oMessageModel.getData() || [];
+var aErrors = aMessages.filter(function (oMsg) {
+return oMsg.getType() === "Error";
+});
+if (aErrors.length > 0) {
+// Remove error messages to prevent popup/dialog
+Messaging.removeMessages(aErrors);
+// Set inline error using the message text (if related to contract)
+var sErrorText = aErrors[0].getMessage() || this.getResourceBundle().getText("invalidContract");
+this._setContractInlineError(sErrorText);
+}
+var aSuccesses = aMessages.filter(function (oMsg) {
+return oMsg.getType() === "Success";
+});
+if (aSuccesses.length > 0) {
+// Optionally handle success messages, e.g., show toast and remove
+MessageToast.show(aSuccesses[0].getMessage());
+Messaging.removeMessages(aSuccesses);
+}
+},
+_onObjectMatched: function () {
+this.getView().getModel("local").setProperty("/contractId", ""); // Reset local value
+this.getView().getModel("local").setProperty("/grossWeight", ""); // Reset local value
+this.getView().getModel("local").setProperty("/teraWeight", ""); // Reset local value
+this.getView().getModel("local").setProperty("/loadType", ""); // Reset local value
+this.getView().getModel("local").setProperty("/korselsnr", ""); // NEW: Reset Korselsnr
+// Clear step 2 items binding to reset load types
+var oVBox = this.byId("step2LtContainer");
+if (oVBox) {
+oVBox.unbindAggregation("items");
+oVBox.destroyItems();
+}
+// Reset wizard to step 1
+this.oWizard.setCurrentStep(this.byId("step1"));
+// Clear any inline errors
+this._clearContractInlineError();
+// Hide confirm button
+var oButton = this.byId("step3BtnConfirm");
+if (oButton) {
+oButton.setVisible(false);
+}
+var oButton = this.byId("step3BtnConfirm2");
+if (oButton) {
+oButton.setVisible(true);
+}
+},
+// === ENTER wiring (ADDED) ===
+_setupEnterToNext: function () {
+if (this._enterWired) { return; }
+this._enterWired = true;
+// Step 1: Enter on Contract input -> reuse existing onNextStep
+var oIp = this.byId("step1InputContract");
+if (oIp) {
+oIp.addEventDelegate({
+onsapenter: function (oEvent) {
+oEvent.preventDefault();
+oEvent.stopPropagation();
+this.onNextStep();
+}.bind(this)
+}, oIp);
+}
+// NEW: Enter on Korselsnr input -> call onNextFromK
+var oIpK = this.byId("stepKInputKorselsnr");
+if (oIpK) {
+oIpK.addEventDelegate({
+onsapenter: function (oEvent) {
+oEvent.preventDefault();
+oEvent.stopPropagation();
+this.onNextFromK();
+}.bind(this)
+}, oIpK);
+}
+},
+onNextStep: function () {
+var oCurrentStep = this.oWizard.getCurrentStep();
+var sStepId = oCurrentStep.split("--").pop();
+if (sStepId === "step1") {
+var sContractId = this.getView().getModel("local").getProperty("/contractId");
+if (!sContractId) {
+MessageToast.show(this.getResourceBundle().getText("enterContractId"));
+return;
+}
+// Pad with leading zeros for internal format
+sContractId = sContractId.padStart(10, '0');
+// Manual bound action call to avoid automatic popups from editFlow
+var oModel = this.getView().getModel();
+// Check if entity exists before invoking action
+var oListBinding = oModel.bindList("/ZI_WR_R_WEIGHBRIDGE", undefined, undefined, new Filter("SalesDocument", FilterOperator.EQ, sContractId), {  ownRequest: true });
                 oListBinding.requestContexts(0, 1).then(function(aContexts) {
                     if (aContexts.length > 0) {
                         // Entity exists, proceed with action
@@ -350,7 +327,7 @@ sap.ui.define([
                 // NEW: Manually fetch all messages from the message model
                 var aMessages = Messaging.getMessageModel().getData() || [];
                 // Filter for the specific success message using getCode()
-                console.log("All Sucess Messages:", aMessages);
+                console.log("All Success Messages:", aMessages);
                 // Grossweight
                 var aSpecificSuccesses = aMessages.filter(function (oMsg) {
                     return oMsg.getType() === "Success" && oMsg.getCode() === 'ZWR_WEIGHBRIGE_MESS/002';
@@ -413,103 +390,6 @@ sap.ui.define([
                 }
             }.bind(this));
         },
-        // NEW: Handler for next from optional Korselsnr step (analogous to onNextStep)
-        onNextFromK: function () {
-            var sKorselsnr = this.getView().getModel("local").getProperty("/korselsnr");
-            if (!sKorselsnr) {
-                MessageToast.show(this.getResourceBundle().getText("enterContractId")); // Reuse text or add new i18n
-                return;
-            }
-            // Pad with leading zeros for internal format
-            sKorselsnr = sKorselsnr.padStart(10, '0');
-            // Manual bound action call
-            var oModel = this.getView().getModel();
-            // Check if entity exists
-            var oListBinding = oModel.bindList("/ZI_WR_R_WEIGHBRIDGE", undefined, undefined, new Filter("SalesDocument", FilterOperator.EQ, sKorselsnr), { $$ownRequest: true });
-            oListBinding.requestContexts(0, 1).then(function(aContexts) {
-                if (aContexts.length > 0) {
-                    // Entity exists, proceed with action
-                    console.log("Invoking identifyCard for Korselsnr...");
-                    var sEntityPath = "/ZI_WR_R_WEIGHBRIDGE('" + sKorselsnr + "')";
-                    var sActionPath = sEntityPath + "/com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.identifyCard(...)";
-                    var oAction = oModel.bindContext(sActionPath);
-                    oAction.setParameter("Vbeln", sKorselsnr); // Use Korselsnr as input
-                    oAction.invoke().then(function (oResult) {
-                        console.log("identifyCard invoked successfully for Korselsnr.");
-                        // Get the returned context from action
-                        var oContext = oAction.getBoundContext();
-                        this.getView().setBindingContext(oContext);
-                        // Refresh context
-                        oContext.refresh();
-                        // NEW: Update local contractId to the new Korselsnr (switch context)
-                        this.getView().getModel("local").setProperty("/contractId", sKorselsnr);
-                        // Manually fetch messages (similar to step1)
-                        var aMessages = Messaging.getMessageModel().getData() || [];
-                        var aSpecificSuccesses = aMessages.filter(function (oMsg) {
-                            return oMsg.getType() === "Success" && oMsg.getCode() === 'ZWR_WEIGHBRIGE_MESS/007';
-                        });
-                        if (aSpecificSuccesses.length > 0) {
-                            this.getView().getModel("local").setProperty("/transaction_state", "2. Weighing");
-                        } else {
-                            this.getView().getModel("local").setProperty("/transaction_state", "1. Weighing");
-                        }
-                        // Advance wizard
-                        this._clearKorselsnrInlineError(); // NEW: Clear error (define similar to _clearContractInlineError)
-                        this.oWizard.validateStep(this.byId("stepK"));
-                        MessageToast.show(this.getResourceBundle().getText("contractValid")); // Reuse or add new
-                        this.oWizard.nextStep();
-                    }.bind(this)).catch(function (oError) {
-                        console.error("Error in identifyCard for Korselsnr: ", oError);
-                        var sErrorMsg = oError.message || "Unknown error";
-                        this._setKorselsnrInlineError(sErrorMsg); // NEW: Set error (define similar to _setContractInlineError)
-                    }.bind(this));
-                } else {
-                    this._setKorselsnrInlineError(this.getResourceBundle().getText("contrnotfd"));
-                }
-            }.bind(this)).catch(function (oError) {
-                console.error("Entity check error for Korselsnr: ", oError);
-                var sErrorMsg = oError.message || "Unknown error";
-                this._setKorselsnrInlineError(sErrorMsg);
-            }.bind(this));
-        },
-        // NEW: Inline error setters for Korselsnr (analogous to contract)
-        _setKorselsnrInlineError: function (sText) {
-            var oInput = this.byId("stepKInputKorselsnr");
-            if (oInput) {
-                oInput.setValueState("Error");
-                oInput.setValueStateText(sText);
-                oInput.focus();
-            }
-            // Add field-bound message
-            var oCtx = this.getView().getBindingContext();
-            var oModel = this.getView().getModel();
-            if (oCtx && oModel) {
-                var sTarget = oCtx.getPath() + "/SalesDocument"; // Reuse, or change if needed
-                var aAll = Messaging.getMessageModel().getData() || [];
-                var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
-                if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
-                Messaging.addMessages(new Message({
-                    message: sText,
-                    type: coreLibrary.MessageType.Error,
-                    target: sTarget,
-                    processor: oModel
-                }));
-            }
-        },
-        _clearKorselsnrInlineError: function () {
-            var oInput = this.byId("stepKInputKorselsnr");
-            if (oInput) {
-                oInput.setValueState("None");
-                oInput.setValueStateText("");
-            }
-            var oCtx = this.getView().getBindingContext();
-            if (oCtx) {
-                var sTarget = oCtx.getPath() + "/SalesDocument";
-                var aAll = Messaging.getMessageModel().getData() || [];
-                var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
-                if (aForField.length) { Messaging.removeMessages(aForField); }
-            }
-        },
         _normalizeToStdBase64: function (val) {
             // If backend already gave binary (Uint8Array/ArrayBuffer), return as-is
             if (val instanceof Uint8Array) return { kind: "u8", data: val };
@@ -544,10 +424,10 @@ sap.ui.define([
                 MessageToast.show(this.getResourceBundle().getText("missingData"));
                 return;
             }
-            // Parse "12345 KG" (fallback unit KG)
-            var aWeightParts = sGrossWeight.trim().split(/\s+/);
-            var sWeight = aWeightParts[1] || "";
-            var sWeighUnit = aWeightParts[2] || "KG";
+            // Parse weight string to extract number and unit
+            var match = sGrossWeight.match(/(\d+)\s*(\w*)/);
+            var sWeight = match ? match[1] : "";
+            var sWeighUnit = (match && match[2]) ? match[2] : "KG";
             // Pad contract like in step 1
             sContractId = sContractId.padStart(10, "0");
             // Bind the action using entity path
@@ -697,9 +577,106 @@ sap.ui.define([
                 if (aForField.length) { Messaging.removeMessages(aForField); }
             }
         },
-        onCancel: function () {
-            // Reset the wizard and clear data
-            this._onObjectMatched();
-        }
-    });
+        // NEW: Handler for next from optional Korselsnr step (analogous to onNextStep)
+        onNextFromK: function () {
+            var sKorselsnr = this.getView().getModel("local").getProperty("/korselsnr");
+            if (!sKorselsnr) {
+                MessageToast.show(this.getResourceBundle().getText("enterContractId")); // Reuse text or add new i18n
+                return;
+            }
+            // Pad with leading zeros for internal format
+            sKorselsnr = sKorselsnr.padStart(10, '0');
+            // Manual bound action call
+            var oModel = this.getView().getModel();
+            // Check if entity exists
+            var oListBinding = oModel.bindList("/ZI_WR_R_WEIGHBRIDGE", undefined, undefined, new Filter("SalesDocument", FilterOperator.EQ, sKorselsnr), {  ownRequest: true });
+oListBinding.requestContexts(0, 1).then(function(aContexts) {
+if (aContexts.length > 0) {
+// Entity exists, proceed with action
+console.log("Invoking identifyCard for Korselsnr...");
+var sEntityPath = "/ZI_WR_R_WEIGHBRIDGE('" + sKorselsnr + "')";
+var sActionPath = sEntityPath + "/com.sap.gateway.srvd.zsb_wr_weighbrige.v0001.identifyCard(...)";
+var oAction = oModel.bindContext(sActionPath);
+oAction.setParameter("Vbeln", sKorselsnr); // Use Korselsnr as input
+oAction.invoke().then(function (oResult) {
+console.log("identifyCard invoked successfully for Korselsnr.");
+// Get the returned context from action
+var oContext = oAction.getBoundContext();
+this.getView().setBindingContext(oContext);
+// Refresh context
+oContext.refresh();
+// NEW: Update local contractId to the new Korselsnr (switch context)
+this.getView().getModel("local").setProperty("/contractId", sKorselsnr);
+// Manually fetch messages (similar to step1)
+var aMessages = Messaging.getMessageModel().getData() || [];
+var aSpecificSuccesses = aMessages.filter(function (oMsg) {
+return oMsg.getType() === "Success" && oMsg.getCode() === 'ZWR_WEIGHBRIGE_MESS/007';
+});
+if (aSpecificSuccesses.length > 0) {
+this.getView().getModel("local").setProperty("/transaction_state", "2. Weighing");
+} else {
+this.getView().getModel("local").setProperty("/transaction_state", "1. Weighing");
+}
+// Advance wizard
+this._clearKorselsnrInlineError(); // NEW: Clear error (define similar to _clearContractInlineError)
+this.oWizard.validateStep(this.byId("stepK"));
+MessageToast.show(this.getResourceBundle().getText("contractValid")); // Reuse or add new
+this.oWizard.nextStep();
+}.bind(this)).catch(function (oError) {
+console.error("Error in identifyCard for Korselsnr: ", oError);
+var sErrorMsg = oError.message || "Unknown error";
+this._setKorselsnrInlineError(sErrorMsg); // NEW: Set error (define similar to _setContractInlineError)
+}.bind(this));
+} else {
+this._setKorselsnrInlineError(this.getResourceBundle().getText("contrnotfd"));
+}
+}.bind(this)).catch(function (oError) {
+console.error("Entity check error for Korselsnr: ", oError);
+var sErrorMsg = oError.message || "Unknown error";
+this._setKorselsnrInlineError(sErrorMsg);
+}.bind(this));
+},
+// NEW: Inline error setters for Korselsnr (analogous to contract)
+_setKorselsnrInlineError: function (sText) {
+var oInput = this.byId("stepKInputKorselsnr");
+if (oInput) {
+oInput.setValueState("Error");
+oInput.setValueStateText(sText);
+oInput.focus();
+}
+// Add field-bound message
+var oCtx = this.getView().getBindingContext();
+var oModel = this.getView().getModel();
+if (oCtx && oModel) {
+var sTarget = oCtx.getPath() + "/SalesDocument"; // Reuse, or change if needed
+var aAll = Messaging.getMessageModel().getData() || [];
+var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
+Messaging.addMessages(new Message({
+message: sText,
+type: coreLibrary.MessageType.Error,
+target: sTarget,
+processor: oModel
+}));
+}
+},
+_clearKorselsnrInlineError: function () {
+var oInput = this.byId("stepKInputKorselsnr");
+if (oInput) {
+oInput.setValueState("None");
+oInput.setValueStateText("");
+}
+var oCtx = this.getView().getBindingContext();
+if (oCtx) {
+var sTarget = oCtx.getPath() + "/SalesDocument";
+var aAll = Messaging.getMessageModel().getData() || [];
+var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
+if (aForField.length) { Messaging.removeMessages(aForField); }
+}
+},
+onCancel: function () {
+// Reset the wizard and clear data
+this._onObjectMatched();
+}
+});
 });
