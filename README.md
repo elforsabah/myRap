@@ -1,3 +1,4 @@
+
 sap.ui.define([
     "sap/fe/core/PageController",
     "sap/m/MessageToast",
@@ -47,7 +48,7 @@ sap.ui.define([
                 teraWeight: "",
                 loadType: "",
                 transaction_state: "",
-                korselsnr: "" // NEW: Added for optional Korselsnr step
+                korselsnr: ""  // NEW: Added for optional Korselsnr step
             });
             this.getView().setModel(oLocalModel, "local");
         },
@@ -114,8 +115,6 @@ sap.ui.define([
             if (oButton) {
                 oButton.setVisible(true);
             }
-            // Ensure stepK is hidden in progress bar on reset
-            this.oWizard.addStyleClass("hideStepK");
         },
         // === ENTER wiring (ADDED) ===
         _setupEnterToNext: function () {
@@ -262,15 +261,9 @@ sap.ui.define([
             if (oCtx) {
                 this.getView().getModel("local").setProperty("/loadType", "");
             }
-            var sIndicator = oCtx ? oCtx.getProperty("Korselsnrindicator") : "";
-            if (!!sIndicator) {
-                this.oWizard.removeStyleClass("hideStepK");
-                this.oWizard.nextStep(); // to stepK
-            } else {
-                this.oWizard.addStyleClass("hideStepK");
-                this.oWizard.goToStep(this.byId("step3"));
-            }
             this.oWizard.validateStep(this.byId("step2"));
+            // REMOVED: onWeighStep3 call (moved to onStepActivate for step3)
+            this.oWizard.nextStep();
         },
         onAfterRendering: function () {
             var oIp = this.byId("step1InputContract");
@@ -282,22 +275,15 @@ sap.ui.define([
             const oSessionCtx = this.getView().getBindingContext();
             if (!oSessionCtx) { return; }
             this.getView().getModel("local").setProperty("/loadType", sLoadType);
-            // Toggle progress bar visibility for stepK based on indicator
-            var sIndicator = oSessionCtx.getProperty("Korselsnrindicator");
+            // REMOVED: onWeighStep3 call (moved to onStepActivate for step3)
             this.oWizard.validateStep(this.byId("step2"));
-            if (!!sIndicator) {
-                this.oWizard.removeStyleClass("hideStepK");
-                this.oWizard.nextStep(); // Advance to stepK
-            } else {
-                this.oWizard.addStyleClass("hideStepK");
-                this.oWizard.goToStep(this.byId("step3")); // Jump directly to step3
-            }
+            this.oWizard.nextStep();
         },
         onStepActivate: function (oEvent) {
             var oStep = oEvent.getParameter("step");
             if (!oStep) { return; } // Guard against undefined step
             var sId = oStep.getId().split("--").pop();
-            // Fallback: Conditional skip for optional stepK (in case navigated unexpectedly)
+            // NEW: Conditional skip for optional stepK
             if (sId === "stepK") {
                 var sIndicator = this.getView().getBindingContext().getProperty("Korselsnrindicator");
                 if (!sIndicator) {
@@ -311,7 +297,7 @@ sap.ui.define([
                     if (oIp) oIp.focus();
                 }
             }
-            // Call onWeighStep3 when entering step3
+            // NEW: Call onWeighStep3 when entering step3
             if (sId === "step3") {
                 this.onWeighStep3();
             }
@@ -617,7 +603,7 @@ sap.ui.define([
             }
         },
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //// Printing in Kiosk Mode for Chrome
+        //// Printing in Kiosk Mode for Chrome 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         _printBase64PdfSilently: function (sB64) {
             // Ensure it's a string (some backends return ArrayBuffer/Uint8Array)
