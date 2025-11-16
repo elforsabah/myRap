@@ -114,8 +114,8 @@ sap.ui.define([
             if (oButton) {
                 oButton.setVisible(true);
             }
-            // Ensure stepK is hidden on reset
-            this.byId("stepK").setVisible(false);
+            // Ensure stepK is hidden in progress bar on reset
+            this.oWizard.addStyleClass("hideStepK");
         },
         // === ENTER wiring (ADDED) ===
         _setupEnterToNext: function () {
@@ -262,13 +262,15 @@ sap.ui.define([
             if (oCtx) {
                 this.getView().getModel("local").setProperty("/loadType", "");
             }
-            // Ensure stepK is hidden
-            this.byId("stepK").setVisible(false);
-            // Discard progress to refresh bar
-            this.oWizard.discardProgress(this.byId("step1"));
+            var sIndicator = oCtx ? oCtx.getProperty("Korselsnrindicator") : "";
+            if (!!sIndicator) {
+                this.oWizard.removeStyleClass("hideStepK");
+                this.oWizard.nextStep(); // to stepK
+            } else {
+                this.oWizard.addStyleClass("hideStepK");
+                this.oWizard.goToStep(this.byId("step3"));
+            }
             this.oWizard.validateStep(this.byId("step2"));
-            // REMOVED: onWeighStep3 call (moved to onStepActivate for step3)
-            this.oWizard.nextStep();
         },
         onAfterRendering: function () {
             var oIp = this.byId("step1InputContract");
@@ -280,21 +282,22 @@ sap.ui.define([
             const oSessionCtx = this.getView().getBindingContext();
             if (!oSessionCtx) { return; }
             this.getView().getModel("local").setProperty("/loadType", sLoadType);
-            // Toggle stepK visibility based on indicator
+            // Toggle progress bar visibility for stepK based on indicator
             var sIndicator = oSessionCtx.getProperty("Korselsnrindicator");
-            this.byId("stepK").setVisible(!!sIndicator);
-            // Discard progress to refresh the progress bar after visibility change
-            this.oWizard.discardProgress(this.byId("step1"));
-            // Optional: If bar doesn't update, add this hack: this.oWizard.addStyleClass("refresh"); setTimeout(() => this.oWizard.removeStyleClass("refresh"), 0);
-            // REMOVED: onWeighStep3 call (moved to onStepActivate for step3)
             this.oWizard.validateStep(this.byId("step2"));
-            this.oWizard.nextStep();
+            if (!!sIndicator) {
+                this.oWizard.removeStyleClass("hideStepK");
+                this.oWizard.nextStep(); // Advance to stepK
+            } else {
+                this.oWizard.addStyleClass("hideStepK");
+                this.oWizard.goToStep(this.byId("step3")); // Jump directly to step3
+            }
         },
         onStepActivate: function (oEvent) {
             var oStep = oEvent.getParameter("step");
             if (!oStep) { return; } // Guard against undefined step
             var sId = oStep.getId().split("--").pop();
-            // NEW: Conditional skip for optional stepK
+            // Fallback: Conditional skip for optional stepK (in case navigated unexpectedly)
             if (sId === "stepK") {
                 var sIndicator = this.getView().getBindingContext().getProperty("Korselsnrindicator");
                 if (!sIndicator) {
@@ -308,7 +311,7 @@ sap.ui.define([
                     if (oIp) oIp.focus();
                 }
             }
-            // NEW: Call onWeighStep3 when entering step3
+            // Call onWeighStep3 when entering step3
             if (sId === "step3") {
                 this.onWeighStep3();
             }
