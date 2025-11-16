@@ -47,7 +47,7 @@ sap.ui.define([
                 teraWeight: "",
                 loadType: "",
                 transaction_state: "",
-                korselsnr: ""  // NEW: Added for optional Korselsnr step
+                korselsnr: "" // NEW: Added for optional Korselsnr step
             });
             this.getView().setModel(oLocalModel, "local");
         },
@@ -114,10 +114,18 @@ sap.ui.define([
             if (oButton) {
                 oButton.setVisible(true);
             }
+            // Restore stepK to its original position in the wizard
+            var oStepK = this.byId("stepK");
+            var aSteps = this.oWizard.getSteps();
+            if (aSteps.indexOf(oStepK) === -1) {
+                this.oWizard.insertStep(oStepK, 2); // Insert after step2 (index 2)
+            }
         },
         // === ENTER wiring (ADDED) ===
         _setupEnterToNext: function () {
-            if (this._enterWired) { return; }
+            if (this._enterWired) {
+                return;
+            }
             this._enterWired = true;
             // Step 1: Enter on Contract input -> reuse existing onNextStep
             var oIp = this.byId("step1InputContract");
@@ -136,7 +144,7 @@ sap.ui.define([
                 oIpK.addEventDelegate({
                     onsapenter: function (oEvent) {
                         oEvent.preventDefault();
-                        oEvent.stopPropagation()
+                        oEvent.stopPropagation();
                         this.onNextFromK();
                     }.bind(this)
                 }, oIpK);
@@ -156,7 +164,9 @@ sap.ui.define([
                 // Manual bound action call to avoid automatic popups from editFlow
                 var oModel = this.getView().getModel();
                 // Check if entity exists before invoking action
-                var oListBinding = oModel.bindList("/ZI_WR_R_WEIGHBRIDGE", undefined, undefined, new Filter("SalesDocument", FilterOperator.EQ, sContractId), { $$ownRequest: true });
+                var oListBinding = oModel.bindList("/ZI_WR_R_WEIGHBRIDGE", undefined, undefined, new Filter("SalesDocument", FilterOperator.EQ, sContractId), {
+                    $$ownRequest: true
+                });
                 oListBinding.requestContexts(0, 1).then(function (aContexts) {
                     if (aContexts.length > 0) {
                         // Entity exists, proceed with action
@@ -172,16 +182,36 @@ sap.ui.define([
                             this.getView().setBindingContext(oContext);
                             // Refresh context to pull server updates
                             oContext.refresh();
+                            // Dynamically add/remove stepK based on Korselsnrindicator
+                            var sIndicator = this.getView().getBindingContext().getProperty("Korselsnrindicator");
+                            var oStepK = this.byId("stepK");
+                            if (sIndicator && sIndicator.trim() !== "") {
+                                // Ensure stepK is present after step2
+                                var aSteps = this.oWizard.getSteps();
+                                if (aSteps.indexOf(oStepK) === -1) {
+                                    this.oWizard.insertStep(oStepK, 2); // Index 2: after step2
+                                }
+                            } else {
+                                // Remove stepK if present
+                                if (this.oWizard.getSteps().includes(oStepK)) {
+                                    this.oWizard.removeStep(oStepK);
+                                }
+                            }
                             // Bind step 2 dynamically
                             var sPath = "/ZI_WR_SALESITEM_CONTRACTVH(P_SalesOrder='" + sContractId + "')/Set";
                             var oVBox = this.byId("step2LtContainer");
                             var oTemplate = new Button({
                                 text: {
-                                    parts: [
-                                        { path: 'Avvcode', targetType: 'any' },
-                                        { path: 'Material', targetType: 'any' },
-                                        { path: 'MaterialText', targetType: 'any' }
-                                    ],
+                                    parts: [{
+                                        path: 'Avvcode',
+                                        targetType: 'any'
+                                    }, {
+                                        path: 'Material',
+                                        targetType: 'any'
+                                    }, {
+                                        path: 'MaterialText',
+                                        targetType: 'any'
+                                    }],
                                     formatter: '.formatter.concatMaterialText'
                                 },
                                 press: [this.onChooseLoadType, this],
@@ -243,7 +273,8 @@ sap.ui.define([
                             console.error("Error in identifyCard: ", oError); // Debug: Unified catch for full error details
                             // Handle failure (original logic consolidated into one catch for simplicity)
                             var sErrorMsg = oError.message || "Unknown error"; // This captures the backend message like "Contract is Invalid"
-                            this._setContractInlineError(sErrorMsg); // Display the exact message inline
+                            this._setContractInlineError(sErrorMsg);
+                            // Display the exact message inline
                         }.bind(this));
                     } else {
                         this._setContractInlineError(this.getResourceBundle().getText("contrnotfd"));
@@ -266,13 +297,17 @@ sap.ui.define([
         },
         onAfterRendering: function () {
             var oIp = this.byId("step1InputContract");
-            if (oIp) { oIp.focus(); }
+            if (oIp) {
+                oIp.focus();
+            }
             this._setupEnterToNext(); // wire Enter once
         },
         onChooseLoadType: function (oEvent) {
             const sLoadType = oEvent.getSource().getBindingContext().getProperty("Material");
             const oSessionCtx = this.getView().getBindingContext();
-            if (!oSessionCtx) { return; }
+            if (!oSessionCtx) {
+                return;
+            }
             this.getView().getModel("local").setProperty("/loadType", sLoadType);
             // REMOVED: onWeighStep3 call (moved to onStepActivate for step3)
             this.oWizard.validateStep(this.byId("step2"));
@@ -280,7 +315,9 @@ sap.ui.define([
         },
         onStepActivate: function (oEvent) {
             var oStep = oEvent.getParameter("step");
-            if (!oStep) { return; } // Guard against undefined step
+            if (!oStep) {
+                return;
+            } // Guard against undefined step
             var sId = oStep.getId().split("--").pop();
             // NEW: Conditional skip for optional stepK
             if (sId === "stepK") {
@@ -372,7 +409,9 @@ sap.ui.define([
                 var steraweight1 = oLocalModel.getProperty("/teraWeight");
                 console.log("grossweight:", sGrossweight1);
                 console.log("teraweight:", steraweight1);
-                MessageToast.show(this.getResourceBundle().getText("weightCaptured") + sGrossweight1 + "\n" + steraweight1, { duration: 5000 });
+                MessageToast.show(this.getResourceBundle().getText("weightCaptured") + sGrossweight1 + "\n" + steraweight1, {
+                    duration: 5000
+                });
                 jQuery(".sapMMessageToast").addClass("myGreenToast");
             }.bind(this)).catch(function (oError) {
                 console.error("Error in determineWeight: ", oError);
@@ -402,7 +441,9 @@ sap.ui.define([
             // Manual bound action call
             var oModel = this.getView().getModel();
             // Check if entity exists
-            var oListBinding = oModel.bindList("/ZI_WR_R_WEIGHBRIDGE", undefined, undefined, new Filter("Korselsnr", FilterOperator.EQ, sKorselsnr), { $$ownRequest: true });
+            var oListBinding = oModel.bindList("/ZI_WR_R_WEIGHBRIDGE", undefined, undefined, new Filter("Korselsnr", FilterOperator.EQ, sKorselsnr), {
+                $$ownRequest: true
+            });
             oListBinding.requestContexts(0, 1).then(function (aContexts) {
                 if (aContexts.length > 0) {
                     // Entity exists, get the SalesDocument key
@@ -465,8 +506,12 @@ sap.ui.define([
             if (oCtx && oModel) {
                 var sTarget = oCtx.getPath() + "/Korselsnr"; // Use Korselsnr property
                 var aAll = Messaging.getMessageModel().getData() || [];
-                var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
-                if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
+                var aOldForField = aAll.filter(function (m) {
+                    return m.getTarget && m.getTarget() === sTarget;
+                });
+                if (aOldForField.length) {
+                    Messaging.removeMessages(aOldForField);
+                }
                 Messaging.addMessages(new Message({
                     message: sText,
                     type: coreLibrary.MessageType.Error,
@@ -485,14 +530,24 @@ sap.ui.define([
             if (oCtx) {
                 var sTarget = oCtx.getPath() + "/Korselsnr"; // Use Korselsnr property
                 var aAll = Messaging.getMessageModel().getData() || [];
-                var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
-                if (aForField.length) { Messaging.removeMessages(aForField); }
+                var aForField = aAll.filter(function (m) {
+                    return m.getTarget && m.getTarget() === sTarget;
+                });
+                if (aForField.length) {
+                    Messaging.removeMessages(aForField);
+                }
             }
         },
         _normalizeToStdBase64: function (val) {
             // If backend already gave binary (Uint8Array/ArrayBuffer), return as-is
-            if (val instanceof Uint8Array) return { kind: "u8", data: val };
-            if (val && val.buffer instanceof ArrayBuffer) return { kind: "u8", data: new Uint8Array(val) };
+            if (val instanceof Uint8Array) return {
+                kind: "u8",
+                data: val
+            };
+            if (val && val.buffer instanceof ArrayBuffer) return {
+                kind: "u8",
+                data: new Uint8Array(val)
+            };
             var s = String(val || "").trim();
             // Strip any data URL prefix like "data:application/pdf;base64,..."
             s = s.replace(/^data:[^;]+;base64,/, "");
@@ -505,7 +560,10 @@ sap.ui.define([
             if (pad) {
                 s += Array(4 - pad + 1).join("=");
             }
-            return { kind: "b64", data: s };
+            return {
+                kind: "b64",
+                data: s
+            };
         },
         onConfirmStep3: function () {
             var oContext = this.getView().getBindingContext();
@@ -536,400 +594,167 @@ sap.ui.define([
             oAction.setParameter("Loadtype", sLoadType);
             oAction.setParameter("Weight", sWeight);
             oAction.setParameter("WeighUnit", sWeighUnit);
-            // Now call the silent print function
-            if (sTeraWeight) { // Print only when there is Tera Weight
-                oAction.invoke().then(function () {
-                    // Get the returned context from action
-                    var oNewContext = oAction.getBoundContext();
-                    this.getView().setBindingContext(oNewContext);
-                    // Read the result payload from the bound context
-                    var oResCtx = oAction.getBoundContext();
-                    var oRes = oResCtx && oResCtx.getObject() || null;
-                    // Updated to match new metadata (PDFBASE64 uppercase); support variants for robustness
-                    var sB64 = oRes && (oRes.PDFBASE64 || oRes.pdfbase64 || oRes.Pdfbase64);
-                    if (typeof sB64 === "string") {
-                        sB64 = String(sB64);
-                    }
-                    if (sB64 && typeof sB64 === "string") {
-                        try {
-                            // Normalize the base64 string first (using your existing _normalizeToStdBase64 for robustness)
-                            var norm = this._normalizeToStdBase64(sB64);
-                            if (norm.kind === "b64") {
-                                sB64 = norm.data; // Use the normalized base64 string
-                            } else if (norm.kind === "u8") {
-                                // If it's already binary, convert to base64 for _printBase64PdfSilently (which expects base64)
-                                sB64 = btoa(String.fromCharCode.apply(null, norm.data));
-                            }
-                            this._printBase64PdfSilently(sB64); // Print only when there is Teraweight
-                            MessageToast.show(this.getResourceBundle().getText("pdfSent"));
-                        } catch (oError) {
-                            console.error("Base64 processing or printing failed: ", oError);
-                            MessageToast.show(this.getResourceBundle().getText("failedPdf"));
-                        }
-                    } else {
-                        MessageToast.show(this.getResourceBundle().getText("noPdf"));
-                    }
-                    // Optional: surface server messages (Success)
-                    var aMsgs = Messaging.getMessageModel().getData() || [];
-                    console.log("All Messages 3", aMsgs);
-                    var aSucc = aMsgs.filter(function (m) {
-                        return m.getType && m.getType() === "Success";
-                    });
-                    if (aSucc.length > 0) {
-                        MessageToast.show(aSucc[0].getMessage());
-                        Messaging.removeMessages(aSucc);
-                    }
-                    // Refresh & reset to step 1 instead of next step
-                    oNewContext.refresh();
-                    this._onObjectMatched();
-                }.bind(this)).catch(function (oError) {
-                    var sErr = (oError && oError.message) || this.getResourceBundle().getText("failedPdf");
-                    MessageToast.show(sErr);
-                    // Optional: surface server messages (Error)
-                    var aMsgs = Messaging.getMessageModel().getData() || [];
-                    var aErrs = aMsgs.filter(function (m) {
-                        return m.getType && m.getType() === "Error";
-                    });
-                    if (aErrs.length > 0) {
-                        MessageToast.show(aErrs[0].getMessage());
-                        Messaging.removeMessages(aErrs);
-                    }
-                }.bind(this));
-            } else {
-                // Refresh & reset to step 1 instead of next step
-                oContext.refresh();
-                this._onObjectMatched();
-            }
-        },
-
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //// Printing in Kiosk Mode for Chrome 
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        _printBase64PdfSilently: function (sB64) {
-            // Ensure it's a string (some backends return ArrayBuffer/Uint8Array)
-            if (sB64 && sB64.constructor !== String) {
-                try { sB64 = atob(btoa(String.fromCharCode.apply(null, new Uint8Array(sB64)))); }
-                catch (e) { sB64 = typeof sB64.toString === "function" ? sB64.toString() : String(sB64); }
-            }
-            // Create a Blob URL (more reliable than giant data-URIs)
-            var byteChars = atob(sB64);
-            var byteNums = new Array(byteChars.length);
-            for (var i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
-            var blob = new Blob([new Uint8Array(byteNums)], { type: "application/pdf" });
-            var url = URL.createObjectURL(blob);
-            // Hidden iframe
-            var iframe = document.createElement("iframe");
-            iframe.style.position = "absolute";
-            iframe.style.left = "-10000px";
-            iframe.style.top = "-10000px";
-            iframe.style.width = "0px";
-            iframe.style.height = "0px";
-            iframe.style.border = "0";
-            iframe.style.visibility = "hidden";
-            iframe.onload = function () {
-                // Important: call print on the iframe's *contentWindow*
-                setTimeout(function () {
+            // Now call the silent print function if (sTeraWeight) {
+            // Print only when there is Tera Weight
+            oAction.invoke().then(function () {
+                // Get the returned context from action
+                var oNewContext = oAction.getBoundContext();
+                this.getView().setBindingContext(oNewContext);
+                // Read the result payload from the bound context
+                var oResCtx = oAction.getBoundContext();
+                var oRes = oResCtx && oResCtx.getObject() || null;
+                // Updated to match new metadata (PDFBASE64 uppercase); support variants for robustness
+                var sB64 = oRes && (oRes.PDFBASE64 || oRes.pdfbase64 || oRes.Pdfbase64);
+                if (typeof sB64 === "string") {
+                    sB64 = String(sB64);
+                }
+                if (sB64 && typeof sB64 === "string") {
                     try {
-                        iframe.contentWindow.focus();
-                        iframe.contentWindow.print(); // dialog-less if Chrome has --kiosk-printing
-                    } finally {
-                        // Cleanup after a short delay to avoid killing the print job
-                        setTimeout(function () {
-                            URL.revokeObjectURL(url);
-                            iframe.parentNode && iframe.parentNode.removeChild(iframe);
-                        }, 1000);
+                        // Normalize the base64 string first (using your existing _normalizeToStdBase64 for robustness)
+                        var norm = this._normalizeToStdBase64(sB64);
+                        if (norm.kind === "b64") {
+                            sB64 = norm.data; // Use the normalized base64 string
+                        } else if (norm.kind === "u8") {
+                            // If it's already binary, convert to base64 for _printBase64PdfSilently (which expects base64)
+                            sB64 = btoa(String.fromCharCode.apply(null, norm.data));
+                        }
+                        this._printBase64PdfSilently(sB64); // Print only when there is Teraweight
+                        MessageToast.show(this.getResourceBundle().getText("pdfSent"));
+                    } catch (oError) {
+                        console.error("Base64 processing or printing failed: ", oError);
+                        MessageToast.show(this.getResourceBundle().getText("failedPdf"));
                     }
-                }, 200); // give the PDF plugin a moment to render
-            };
-            iframe.src = url;
-            document.body.appendChild(iframe);
-        },
-        _setContractInlineError: function (sText) {
-            // Inline on the input
-            var oInput = this.byId("step1InputContract");
-            if (oInput) {
-                oInput.setValueState("Error");
-                oInput.setValueStateText(sText);
-                oInput.focus();
-            }
-            // Optional: also add a field-bound message (shows in FE message popover / keeps state on rebind)
-            var oCtx = this.getView().getBindingContext();
-            var oModel = this.getView().getModel();
-            if (oCtx && oModel) {
-                var sTarget = oCtx.getPath() + "/SalesDocument"; // Updated to SalesDocument
-                var aAll = Messaging.getMessageModel().getData() || [];
-                var aOldForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
-                if (aOldForField.length) { Messaging.removeMessages(aOldForField); }
-                Messaging.addMessages(new Message({
-                    message: sText,
-                    type: coreLibrary.MessageType.Error,
-                    target: sTarget,
-                    processor: oModel
-                }));
-            }
-        },
-        _clearContractInlineError: function () {
-            var oInput = this.byId("step1InputContract");
-            if (oInput) {
-                oInput.setValueState("None");
-                oInput.setValueStateText("");
-            }
-            var oCtx = this.getView().getBindingContext();
-            if (oCtx) {
-                var sTarget = oCtx.getPath() + "/SalesDocument"; // Updated to SalesDocument
-                var aAll = Messaging.getMessageModel().getData() || [];
-                var aForField = aAll.filter(function (m) { return m.getTarget && m.getTarget() === sTarget; });
-                if (aForField.length) { Messaging.removeMessages(aForField); }
-            }
-        },
-        onCancel: function () {
-            // Reset the wizard and clear data
+                } else {
+                    MessageToast.show(this.getResourceBundle().getText("noPdf"));
+                }
+                // Optional: surface server messages (Success)
+                var aMsgs = Messaging.getMessageModel().getData() || [];
+                console.log("All Messages 3", aMsgs);
+                var aSucc = aMsgs.filter(function (m) {
+                    return m.getType && m.getType() === "Success";
+                });
+                if (aSucc.length > 0) {
+                    MessageToast.show(aSucc[0].getMessage());
+                    Messaging.removeMessages(aSucc);
+                }
+                // Refresh & reset to step 1 instead of next step
+                oNewContext.refresh();
+                this._onObjectMatched();
+            }.bind(this)).catch(function (oError) {
+                var sErr = (oError && oError.message) || this.getResourceBundle().getText("failedPdf");
+                MessageToast.show(sErr);
+                // Optional: surface server messages (Error)
+                var aMsgs = Messaging.getMessageModel().getData() || [];
+                var aErrs = aMsgs.filter(function (m) {
+                    return m.getType && m.getType() === "Error";
+                });
+                if (aErrs.length > 0) {
+                    MessageToast.show(aErrs[0].getMessage());
+                    Messaging.removeMessages(aErrs);
+                }
+            }.bind(this));
+        } else {
+            // Refresh & reset to step 1 instead of next step
+            oContext.refresh();
             this._onObjectMatched();
         }
-    });
+    },
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //// Printing in Kiosk Mode for Chrome
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    _printBase64PdfSilently: function (sB64) {
+        // Ensure it's a string (some backends return ArrayBuffer/Uint8Array)
+        if (sB64 && sB64.constructor !== String) {
+            try {
+                sB64 = atob(btoa(String.fromCharCode.apply(null, new Uint8Array(sB64))));
+            } catch (e) {
+                sB64 = typeof sB64.toString === "function" ? sB64.toString() : String(sB64);
+            }
+        }
+        // Create a Blob URL (more reliable than giant data-URIs)
+        var byteChars = atob(sB64);
+        var byteNums = new Array(byteChars.length);
+        for (var i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+        var blob = new Blob([new Uint8Array(byteNums)], {
+            type: "application/pdf"
+        });
+        var url = URL.createObjectURL(blob);
+        // Hidden iframe
+        var iframe = document.createElement("iframe");
+        iframe.style.position = "absolute";
+        iframe.style.left = "-10000px";
+        iframe.style.top = "-10000px";
+        iframe.style.width = "0px";
+        iframe.style.height = "0px";
+        iframe.style.border = "0";
+        iframe.style.visibility = "hidden";
+        iframe.onload = function () {
+            // Important: call print on the iframe's *contentWindow*
+            setTimeout(function () {
+                try {
+                    iframe.contentWindow.focus();
+                    iframe.contentWindow.print(); // dialog-less if Chrome has --kiosk-printing
+                } finally {
+                    // Cleanup after a short delay to avoid killing the print job
+                    setTimeout(function () {
+                        URL.revokeObjectURL(url);
+                        iframe.parentNode && iframe.parentNode.removeChild(iframe);
+                    }, 1000);
+                }
+            }, 200); // give the PDF plugin a moment to render
+        };
+        iframe.src = url;
+        document.body.appendChild(iframe);
+    },
+    _setContractInlineError: function (sText) {
+        // Inline on the input
+        var oInput = this.byId("step1InputContract");
+        if (oInput) {
+            oInput.setValueState("Error");
+            oInput.setValueStateText(sText);
+            oInput.focus();
+        }
+        // Optional: also add a field-bound message (shows in FE message popover / keeps state on rebind)
+        var oCtx = this.getView().getBindingContext();
+        var oModel = this.getView().getModel();
+        if (oCtx && oModel) {
+            var sTarget = oCtx.getPath() + "/SalesDocument"; // Updated to SalesDocument
+            var aAll = Messaging.getMessageModel().getData() || [];
+            var aOldForField = aAll.filter(function (m) {
+                return m.getTarget && m.getTarget() === sTarget;
+            });
+            if (aOldForField.length) {
+                Messaging.removeMessages(aOldForField);
+            }
+            Messaging.addMessages(new Message({
+                message: sText,
+                type: coreLibrary.MessageType.Error,
+                target: sTarget,
+                processor: oModel
+            }));
+        }
+    },
+    _clearContractInlineError: function () {
+        var oInput = this.byId("step1InputContract");
+        if (oInput) {
+            oInput.setValueState("None");
+            oInput.setValueStateText("");
+        }
+        var oCtx = this.getView().getBindingContext();
+        if (oCtx) {
+            var sTarget = oCtx.getPath() + "/SalesDocument"; // Updated to SalesDocument
+            var aAll = Messaging.getMessageModel().getData() || [];
+            var aForField = aAll.filter(function (m) {
+                return m.getTarget && m.getTarget() === sTarget;
+            });
+            if (aForField.length) {
+                Messaging.removeMessages(aForField);
+            }
+        }
+    },
+    onCancel: function () {
+        // Reset the wizard and clear data
+        this._onObjectMatched();
+    }
 });
-
-
-<mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:macros="sap.fe.macros" xmlns:f="sap.ui.layout.form"
-    xmlns:html="http://www.w3.org/1999/xhtml" controllerName="com.prologa.zwrweighbrigefinal.ext.main.Main" height="100%">
-    <Page id="Main" class="myApp" >
-      <customHeader>
-    <Toolbar id="headerToolbar">
-        <Image id="im1" src="/img/LogoMP.png" alt="Company Logo" width="100px" /> 
-        <HBox id="headHBox1" width="100%" justifyContent="Center" class="bigWeightContainer">
-        <Text id="txt1" text="Marius Pedersen"  class="headText1" />
-        </HBox>
-        <ToolbarSpacer id="toole1"/>
-          <Button id="btn15" icon="https://upload.wikimedia.org/wikipedia/en/thumb/a/ae/Flag_of_the_United_Kingdom.svg/1280px-Flag_of_the_United_Kingdom.svg.png" 
-                press=".onSetEnglish" 
-                type="Transparent" 
-                tooltip="English" /> <!-- Icon as flag; add text="EN" if desired -->
-        <Button id="btn16" icon="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Flag_of_Denmark.svg/1280px-Flag_of_Denmark.svg.png" 
-                press=".onSetDanish" 
-                type="Transparent" 
-                tooltip="Danish" /> <!-- Icon as flag; add text="DK" if desired -->
-    </Toolbar>
-</customHeader>
-<content>
-  <Wizard id="weighingWizard" complete="onWizardComplete" showNextButton="false">
-   <!-- STEP 1: Identification -->
-<WizardStep id="step1" title="{@i18n>step1Title}" validated="true" icon="sap-icon://business-card" >
- <HBox id="step1HBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="step1Rail" width="36rem">
-      <Panel id="step1Panel" class="stepPanel" expandable="false">
-        <content>
-         <f:Form id="step1Form" editable="true">
-          <f:layout>
-              <f:ResponsiveGridLayout
-                id="step1FormLayout"
-                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
-                adjustLabelSpan="false"/>
-            </f:layout>
-            <f:formContainers>
-              <f:FormContainer id="step1FormContainer">
-                <f:formElements>
-                  <!-- Row 1 -->
-                  <f:FormElement id="step1FormElementInput" label="{@i18n>step1Label}">
-                    <f:fields>
-                      <Input id="step1InputContract"
-                             value="{local>/contractId}"
-                             width="100%"
-                             maxLength="10"
-                             required="true"
-                             placeholder="{@i18n>step1Placeholder}"
-                             class="sapUiSizeCompact"
-                             change=".onContractChange"/>
-                    </f:fields>
-                  </f:FormElement>
-                  <!-- Add Cancel Button -->
-<!--                   <f:FormElement id="step1FormElementCancel" label="">
-                    <f:fields>
-                      <HBox id="step1HBoxCancel" width="100%" justifyContent="Start" class="sapUiMediumMarginTop">
-                        <Button id="step1BtnCancel" width="8rem" text="{@i18n>cancel}" press="onCancel" class="sapUiLargeText largeWeighButton"/>
-                      </HBox>
-                    </f:fields>
-                  </f:FormElement> -->
-                </f:formElements>
-              </f:FormContainer>
-            </f:formContainers>
-         </f:Form>
-         </content>
-     </Panel>
-    </VBox>
-  </HBox>
-</WizardStep>   
-
-<!-- STEP 2: Choose Load Type -->
-<WizardStep id="step2" title="{@i18n>step2Title}" validated="false" icon="sap-icon://sap-box">
-  <HBox id="step2HBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="step2Rail" width="36rem">
-      <Panel id="step2Panel" class="stepPanel" expandable="false">
-        <content>
-          <f:Form id="step2Form" editable="true">
-            <f:layout>
-              <f:ResponsiveGridLayout
-                id="step2FormLayout"
-                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
-                adjustLabelSpan="false"/>
-            </f:layout>
-            <f:formContainers>
-              <f:FormContainer id="step2FormContainer">
-                <f:formElements>
-
-                  <!-- Row 1 -->
-                  <f:FormElement id="step2FormElementLoadType" label="">
-                    <f:fields>
-                      <VBox id="step2LtContainer">
-                      </VBox>
-                    </f:fields>
-                  </f:FormElement>
-
-                  <!-- Row 2 -->
-                  <f:FormElement id="step2FormElementSelection" label="">
-                    <f:fields>
-                      <Text id="step2SelectedText"
-                            class="sapUiSmallMarginTop"
-                            text="{= ${SalesDocument} ? ${@i18n>selectedContract} + ${SalesDocument} : ''}"/>
-                    </f:fields>
-                  </f:FormElement>
-
-                  <!-- Add Cancel Button -->
-                  <f:FormElement id="step2FormElementCancel" label="">
-                    <f:fields>
-                      <HBox     id="step2HBoxCancel"    width="100%" justifyContent="Start" class="sapUiMediumMarginTop">
-                        <Button id="step2BtnCancel"     width="8rem" text="{@i18n>cancel}" press="onCancel" class="sapUiLargeText largeWeighButton"/>
-                      </HBox>
-                    </f:fields>
-                  </f:FormElement>
-
-                </f:formElements>
-              </f:FormContainer>
-            </f:formContainers>
-          </f:Form>
-        </content>
-      </Panel>
-    </VBox>
-  </HBox>
-</WizardStep>
-
- <!-- NEW OPTIONAL STEP: Korselsnr Identification (between step2 and step3) -->
- <WizardStep id="stepK" title="{@i18n>stepKTitle}" validated="false" icon="sap-icon://business-card" >
- <HBox id="stepKHBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="stepKRail" width="36rem">
-      <Panel id="stepKPanel" class="stepPanel" expandable="false">
-        <content>
-         <f:Form id="stepKForm" editable="true">
-          <f:layout>
-              <f:ResponsiveGridLayout
-                id="stepKFormLayout"
-                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
-                adjustLabelSpan="false"/>
-            </f:layout>
-            <f:formContainers>
-              <f:FormContainer id="stepKFormContainer">
-                <f:formElements>
-                  <!-- Row 1 -->
-                  <f:FormElement id="stepKFormElementInput" label="{@i18n>stepKLabel}">
-                    <f:fields>
-                      <Input id="stepKInputKorselsnr"
-                             value="{local>/korselsnr}"
-                             width="100%"
-                             maxLength="10"
-                             required="true"
-                             placeholder="{@i18n>stepKPlaceholder}"
-                             class="sapUiSizeCompact"
-                             change=".onContractChange"/> <!-- Reuse change handler if applicable -->
-                    </f:fields>
-                  </f:FormElement>
-                  <!-- Add Cancel Button -->
-                  <f:FormElement id="stepKFormElementCancel" label="">
-                    <f:fields>
-                      <HBox id="stepKHBoxCancel" width="100%" justifyContent="Start" class="sapUiMediumMarginTop">
-                        <Button id="stepKBtnCancel" width="8rem" text="{@i18n>cancel}" press="onCancel" class="sapUiLargeText largeWeighButton"/>
-                      </HBox>
-                    </f:fields>
-                  </f:FormElement>
-                </f:formElements>
-              </f:FormContainer>
-            </f:formContainers>
-         </f:Form>
-         </content>
-     </Panel>
-    </VBox>
-  </HBox> </WizardStep>
-
-<!-- STEP 3: Weighing and the Weight -->
-<WizardStep id="step3" title="{@i18n>step3Title}" validated="false" icon="sap-icon://compare-2">
-  <HBox id="step3HBoxOuter" width="100%" justifyContent="Center">
-    <VBox id="step3Rail" width="36rem">
-      <Panel id="step3Panel" class="stepPanel" expandable="false">
-        <content>
-          <f:Form id="step3Form" editable="true">
-            <f:layout>
-              <f:ResponsiveGridLayout
-                id="step3FormLayout"
-                labelSpanXL="3" labelSpanL="3" labelSpanM="3" labelSpanS="12"
-                adjustLabelSpan="false"/>
-            </f:layout>
-            <f:formContainers>
-              <f:FormContainer id="step3FormContainer">
-                <f:formElements>
-                  <!-- Row 1 -->
-                  <f:FormElement id="step3FormElementInstruction" label="">
-                    <f:fields>
-                      <Text id="step3TextInstruction" text="{@i18n>step3Instruction}" class="sapUiSmallMarginTop"/>
-                    </f:fields>
-                  </f:FormElement>
-                  <!-- Row 2 -->
-                  <f:FormElement id="step3FormElementWeight" label="">
-                    <f:fields>
-                      <HBox id="step3HBoxWeight" width="100%" justifyContent="Center" class="bigWeightContainer">
-                        <VBox id="step3VBoxWeights" class="tightWeights">
-                          <Text
-                            id="step3TextWeight"
-                            text="{local>/grossWeight}"
-                            textAlign="Center"
-                            wrapping="true"
-                            class="bigWeightNumber"/>
-                          <Text
-                            id="step3TextWeight2"
-                            text="{local>/teraWeight}"
-                            textAlign="Center"
-                            wrapping="true"
-                            class="bigWeightNumber"/>
-                        </VBox>
-                      </HBox>
-                    </f:fields>
-                  </f:FormElement>
-                  <!-- Row 3 -->
-                  <f:FormElement id="step3FormElementConfirm" label="">
-                    <f:fields>
-                      <HBox id="step3HBoxConfirm" width="100%" justifyContent="Start" class="sapUiMediumMarginTop">
-                        <Button id="step3BtnConfirm" width="13rem" text="{@i18n>confirmAndPrint}" press="onConfirmStep3" class="sapUiLargeText largeWeighButton" visible="false"/>
-                        <Button id="step3BtnConfirm2" width="8rem" text="{@i18n>confirm}" press="onConfirmStep3" class="sapUiLargeText largeWeighButton" visible="false"/>
-                      </HBox>
-                    </f:fields>
-                  </f:FormElement>
-                  <!-- Add Cancel Button -->
-                  <f:FormElement id="step3FormElementCancel" label="">
-                    <f:fields>
-                      <HBox id="step3HBoxCancel" width="100%" justifyContent="Start" class="sapUiMediumMarginTop">
-                        <Button id="step3BtnCancel" width="8rem" text="{@i18n>cancel}" press="onCancel" class="sapUiLargeText largeWeighButton"/>
-                      </HBox>
-                    </f:fields>
-                  </f:FormElement>
-                </f:formElements>
-              </f:FormContainer>
-            </f:formContainers>
-          </f:Form>
-        </content>
-      </Panel>
-    </VBox>
-  </HBox>
-</WizardStep>
-</Wizard>
-</content>
-</Page>
-</mvc:View>
-
-
+});
