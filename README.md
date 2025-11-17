@@ -1,48 +1,11 @@
-  method CL_WEIGHING.
-    data:
-      LS_PROCESS        type ZCL_WR_WAA_TA_SELFWEIGHING=>STY_WEIGHING_REQUEST,
-      LS_PROCESS_RESULT type ZWR_SWAA_SELFWEIGH_RESULT.
-
-    clear:
-      IV_WEIGHING_RESULT.
-
-    LS_PROCESS-DEVICEGROUP = IV_DEVICEGROUPNR.
-    LS_PROCESS-FACILITYID  = IV_WDPLANT.
-
-    if LS_PROCESS-DEVICEGROUP is initial.
-      select single *
-        into @data(LS_HW_PROFILE)
-        from EEWA_SCALE_USER
-        where XUSER = @IV_USER.
-
-      if sy-subrc is initial.
-        LS_PROCESS-DEVICEGROUP = LS_HW_PROFILE-DEVICEGROUPNR.
-        LS_PROCESS-FACILITYID  = LS_HW_PROFILE-WDPLANT.
-      endif.
-    endif.
-
-    if LS_PROCESS-DEVICEGROUP is not initial.
-      LS_PROCESS-WEIGHINGID = CL_GET_OPEN_WEIGHPROC(
-        exporting
-          IV_CONTRACT   = IV_CONTRACTID
-      ).
-      LS_PROCESS-PROCESSTYPE = CL_EEWA_BO_WDORDERWEIGH=>CPROCESSTYPE_INBOUND.
-      LS_PROCESS-SIMULATION  = IV_SIMULATION.
-      LS_PROCESS-WASTEID     = IV_WASTEID.
-      LS_PROCESS-DELIVERYTYPE = CL_EEWA_BO_MULTIWEIGHPROCHEAD=>CDT_EXTERNAL.
-
-      TA_BEGIN_NAMED_VAR TA ZCL_WR_WAA_TA_SELFWEIGHING=>C_TA_NAME.
-      TA_DO_RAISE_EXCEPTION TA.
-      if IV_COMMIT = ABAP_TRUE.
-        TA_DO_COMMIT TA.
-      else.
-        TA_NO_COMMIT TA.
-      endif.
-      TA_SET_PARAM TA GS_PROCESS_DATA LS_PROCESS.
-      TA_EXECUTE TA ZZ_BOOK_WEIGHING.
-      TA_GET_PARAM TA GS_RESULT_DATA LS_PROCESS_RESULT.
-      TA_END TA.
-
-    endif.
-    IV_WEIGHING_RESULT = LS_PROCESS_RESULT.
-  endmethod.
+INTERFACE zif_ta_weighing.
+  METHODS enable_raise_exception.
+  METHODS set_commit_mode
+    IMPORTING iv_commit_mode TYPE zcl_wr_waa_ta_selfweighing=>ty_commit_mode.
+  METHODS set_process_data
+    IMPORTING is_process TYPE zcl_wr_waa_ta_selfweighing=>sty_weighing_request.
+  METHODS execute
+    IMPORTING iv_operation TYPE zcl_wr_waa_ta_selfweighing=>ty_operation.
+  METHODS get_result_data
+    RETURNING VALUE(rs_result) TYPE zwr_swaa_selfweigh_result.
+ENDINTERFACE.
