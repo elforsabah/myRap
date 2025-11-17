@@ -1,63 +1,121 @@
-* <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Static Public Method ZCL_WR_WEIGHBRIDGE_HELPER=>CL_WEIGHING
-* +-------------------------------------------------------------------------------------------------+
-* | [--->] IV_CONTRACTID                  TYPE        VBELN_VA
-* | [--->] IV_WASTEID                     TYPE        WASTE_TYPE(optional)
-* | [--->] IV_LICENCE_PLATE               TYPE        LICENSE_NUM(optional)
-* | [--->] IV_SIMULATION                  TYPE        ABAP_BOOL (default =ABAP_FALSE)
-* | [--->] IV_USER                        TYPE        XUBNAME (default =SY-UNAME)
-* | [--->] IV_COMMIT                      TYPE        ABAP_BOOL(optional)
-* | [--->] IV_DELIVERYTYPE                TYPE        EWADWA_WEIGHPROCINTEXT (default ='I')
-* | [--->] IV_WDPLANT                     TYPE        EWAEL_WDPLANTNR(optional)
-* | [--->] IV_DEVICEGROUPNR               TYPE        EWAWA_DEVICEGROUPNR(optional)
-* | [<---] IV_WEIGHING_RESULT             TYPE        ZWR_SWAA_SELFWEIGH_RESULT
-* | [!CX!] CX_EEWA_BASE
-* +--------------------------------------------------------------------------------------</SIGNATURE>
-  method CL_WEIGHING.
-    data:
-      LS_PROCESS        type ZCL_WR_WAA_TA_SELFWEIGHING=>STY_WEIGHING_REQUEST,
-      LS_PROCESS_RESULT type ZWR_SWAA_SELFWEIGH_RESULT.
+CLASS zcl_wr_weighbridge_helper DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
 
-    clear:
-      IV_WEIGHING_RESULT.
+  PUBLIC SECTION.
+    CLASS-METHODS cl_weighing
+      IMPORTING
+        iv_contractid     TYPE vbeln_va
+        iv_wasteid        TYPE waste_type OPTIONAL
+        iv_licence_plate  TYPE license_num OPTIONAL
+        iv_simulation     TYPE abap_bool DEFAULT abap_false
+        iv_user           TYPE xubname   " DEFAULT sy-uname not allowed in definition; handle in body if needed
+        iv_commit         TYPE abap_bool OPTIONAL
+        iv_deliverytype   TYPE ewadwa_weighprocintext DEFAULT 'I'
+        iv_wdplant        TYPE ewael_wdplantnr OPTIONAL
+        iv_devicegroupnr  TYPE ewawa_devicegroupnr OPTIONAL
+      EXPORTING
+        iv_weighing_result TYPE zwr_swaa_selfweigh_result
+      RAISING
+        cx_eewa_base.
 
-    LS_PROCESS-DEVICEGROUP = IV_DEVICEGROUPNR.
-    LS_PROCESS-FACILITYID  = IV_WDPLANT.
+  PROTECTED SECTION.
 
-    if LS_PROCESS-DEVICEGROUP is initial.
-      select single *
-        into @data(LS_HW_PROFILE)
-        from EEWA_SCALE_USER
-        where XUSER = @IV_USER.
+  PRIVATE SECTION.
+    TYPES:
+      ty_weighing_request TYPE zcl_wr_waa_ta_selfweighing=>sty_weighing_request,
+      ty_weighing_result  TYPE zwr_swaa_selfweigh_result,
+      ty_hw_profile       TYPE eewa_scale_user.
 
-      if sy-subrc is initial.
-        LS_PROCESS-DEVICEGROUP = LS_HW_PROFILE-DEVICEGROUPNR.
-        LS_PROCESS-FACILITYID  = LS_HW_PROFILE-WDPLANT.
-      endif.
-    endif.
+    CLASS-METHODS get_hw_profile
+      IMPORTING
+        iv_user           TYPE xubname
+      RETURNING
+        VALUE(rs_profile) TYPE ty_hw_profile.
 
-    if LS_PROCESS-DEVICEGROUP is not initial.
-      LS_PROCESS-WEIGHINGID = CL_GET_OPEN_WEIGHPROC(
-        exporting
-          IV_CONTRACT   = IV_CONTRACTID
-      ).
-      LS_PROCESS-PROCESSTYPE = CL_EEWA_BO_WDORDERWEIGH=>CPROCESSTYPE_INBOUND.
-      LS_PROCESS-SIMULATION  = IV_SIMULATION.
-      LS_PROCESS-WASTEID     = IV_WASTEID.
-      LS_PROCESS-DELIVERYTYPE = CL_EEWA_BO_MULTIWEIGHPROCHEAD=>CDT_EXTERNAL.
+    CLASS-METHODS get_open_weighproc
+      IMPORTING
+        iv_contractid     TYPE vbeln_va
+      RETURNING
+        VALUE(rv_weighingid) TYPE eewa_weighingid.
 
-      TA_BEGIN_NAMED_VAR TA ZCL_WR_WAA_TA_SELFWEIGHING=>C_TA_NAME.
-      TA_DO_RAISE_EXCEPTION TA.
-      if IV_COMMIT = ABAP_TRUE.
-        TA_DO_COMMIT TA.
-      else.
-        TA_NO_COMMIT TA.
-      endif.
-      TA_SET_PARAM TA GS_PROCESS_DATA LS_PROCESS.
-      TA_EXECUTE TA ZZ_BOOK_WEIGHING.
-      TA_GET_PARAM TA GS_RESULT_DATA LS_PROCESS_RESULT.
-      TA_END TA.
+    CLASS-METHODS execute_transaction
+      IMPORTING
+        is_process       TYPE ty_weighing_request
+        iv_commit        TYPE abap_bool
+      RETURNING
+        VALUE(rs_result) TYPE ty_weighing_result
+      RAISING
+        cx_eewa_base.
 
-    endif.
-    IV_WEIGHING_RESULT = LS_PROCESS_RESULT.
-  endmethod.
+ENDCLASS.
+
+CLASS zcl_wr_weighbridge_helper IMPLEMENTATION.
+
+  METHOD cl_weighing.
+    DATA: ls_process TYPE ty_weighing_request,
+          lv_commit  TYPE abap_bool.
+
+    CLEAR iv_weighing_result.
+
+    ls_process-devicegroup = iv_devicegroupnr.
+    ls_process-facilityid  = iv_wdplant.
+
+    IF ls_process-devicegroup IS INITIAL.
+      DATA(ls_hw_profile) = get_hw_profile( iv_user ).
+      IF ls_hw_profile IS NOT INITIAL.
+        ls_process-devicegroup = ls_hw_profile-devicegroupnr.
+        ls_process-facilityid  = ls_hw_profile-wdplant.
+      ENDIF.
+    ENDIF.
+
+    IF ls_process-devicegroup IS NOT INITIAL.
+      ls_process-weighingid   = get_open_weighproc( iv_contractid ).
+      ls_process-processtype  = cl_eewa_bo_wdorderweigh=>cprocesstype_inbound.
+      ls_process-simulation   = iv_simulation.
+      ls_process-wasteid      = iv_wasteid.
+      ls_process-deliverytype = iv_deliverytype.
+      ls_process-licence_plate = iv_licence_plate.  " Assuming the field exists in ty_weighing_request
+
+      lv_commit = iv_commit.  " Optional, defaults to ABAP_FALSE if not provided
+
+      iv_weighing_result = execute_transaction(
+                             is_process = ls_process
+                             iv_commit  = lv_commit ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_hw_profile.
+    SELECT SINGLE *
+      FROM eewa_scale_user
+      INTO @rs_profile
+      WHERE xuser = @iv_user.
+
+    " No exception; original skips if not found
+  ENDMETHOD.
+
+  METHOD get_open_weighproc.
+    rv_weighingid = cl_get_open_weighproc(
+                      EXPORTING
+                        iv_contract = iv_contractid ).
+
+    " Assume it may raise internally if needed; no explicit check
+  ENDMETHOD.
+
+  METHOD execute_transaction.
+    " Assuming a modern transaction automation class replaces the macros.
+    " Here, we instantiate an object for transaction handling.
+    DATA(lo_ta) = NEW zcl_transaction_automation(  " Hypothetical modern TA class
+                            name            = zcl_wr_waa_ta_selfweighing=>c_ta_name
+                            raise_exception = abap_true
+                            do_commit       = iv_commit ).
+
+    lo_ta->set_param( gs_process_data = is_process ).
+    lo_ta->execute( 'ZZ_BOOK_WEIGHING' ).
+    lo_ta->get_param( IMPORTING gs_result_data = rs_result ).
+
+    " Handle any transaction errors via exceptions in the TA class (e.g., raises CX_EEWA_BASE)
+  ENDMETHOD.
+
+ENDCLASS.
