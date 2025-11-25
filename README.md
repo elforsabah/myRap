@@ -1,4 +1,1 @@
-sContractId
-
-
-IDCardNr
+sContractId = oEvent.getSource().getBindingContext().getProperty("SalesDocument");
