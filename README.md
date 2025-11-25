@@ -1,1 +1,3 @@
-action ( precheck, features : global ) createtour parameter ZAE_D_TOURTOURTEMPLATE_AB result [0..*] $self;
+result = VALUE #( FOR tour IN tour_result
+                    ( %key   = tour-%key
+                      %param = tour ) ).
