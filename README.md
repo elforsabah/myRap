@@ -16,16 +16,16 @@
         <content>
             <VBox width="100%" height="100%" renderType="Div">
 
-                <!-- TOP TABLE (blue area in your sketch) -->
+                <!-- TOP TABLE (blue area) -->
                 <smartTable:SmartTable
                     id="SmartTableTop"
-                    entitySet="TopEntitySet"              <!-- <-- change to your CDS entity set name -->
+                    entitySet="TopEntitySet"
                     tableType="ResponsiveTable"
                     useVariantManagement="false"
                     useExportToExcel="false"
                     showRowCount="true"
                     header="Top items"
-                    enableAutoBinding="true"              <!-- auto OData read -->
+                    enableAutoBinding="true"
                     persistencyKey="TopTable">
 
                     <!-- underlying sap.m.Table with multi-select -->
@@ -38,10 +38,10 @@
                     </smartTable:table>
                 </smartTable:SmartTable>
 
-                <!-- BOTTOM TABLE (yellow area in your sketch) -->
+                <!-- BOTTOM TABLE (yellow area) -->
                 <smartTable:SmartTable
                     id="SmartTableBottom"
-                    entitySet="BottomEntitySet"           <!-- <-- change to your 2nd CDS entity set -->
+                    entitySet="BottomEntitySet"
                     tableType="ResponsiveTable"
                     useVariantManagement="false"
                     useExportToExcel="false"
