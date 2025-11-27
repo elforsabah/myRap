@@ -3,88 +3,50 @@ sap.ui.define([
 ], function (MessageToast) {
     "use strict";
 
-    // Keep dialog + ExtensionAPI in module scope
-    var oDialog;
-    var oExtAPI;   // sap.fe.core.ExtensionAPI
+    // will hold the Fiori Elements ExtensionAPI instance
+    var oExtAPI;
 
-    return {
+    // we return this object as the "action handler" + dialog controller
+    var oActionHandlers = {
+
         /**
-         * Custom action handler, wired in manifest.json ("press").
-         *
-         * @param {object} oContext          – FE context (not needed here)
-         * @param {sap.ui.model.Context[]} aSelectedContexts – selected rows of the LR table
+         * Custom List Report action.
+         * Works like your uploadcsv: lazy loads the dialog, then reuses it.
          */
         manualattachments: function (oContext, aSelectedContexts) {
+            // In FE V4, "this" is sap.fe.core.ExtensionAPI
+            oExtAPI = /** @type sap.fe.core.ExtensionAPI */ this;
 
-            // In V4 FE, "this" is the ExtensionAPI, not a controller
-            // See sap.fe.core.ExtensionAPI docs (loadFragment, addDependent, getModel, getEditFlow). 
-            oExtAPI = this;
-
-            // If dialog already created -> just open
-            if (oDialog) {
-                oDialog.open();
+            // 1) If dialog already exists, just open it
+            var oExistingDialog = oExtAPI.byId("TwoSmartTablesDialog");
+            if (oExistingDialog) {
+                oExistingDialog.open();
                 return;
             }
 
-            this.loadFragment({
+            // 2) Otherwise lazily load the fragment via ExtensionAPI.loadFragment
+            oExtAPI.loadFragment({
                 id: "TwoSmartTablesDialog",
                 name: "zsb_attachment.ext.fragments.GenerateDocDialog",
-                controller: {
-                    onDialogChoose: function () {
-                        // get the SmartTables
-                        var oSmartTop = oExtAPI.byId("SmartTableTop");
-                        var oSmartBottom = oExtAPI.byId("SmartTableBottom");
+                controller: oActionHandlers        // this object handles .onDialogChoose/.onDialogCancel
+            }).then(function (oDialog) {
 
-                        // underlying inner tables created by SmartTable
-                        var oTopTable = oSmartTop.getTable();
-                        var oBottomTable = oSmartBottom.getTable();
-
-                        function getSelectedObjects(oInnerTable) {
-                            if (!oInnerTable) { return []; }
-
-                            var aContexts = [];
-                            if (oInnerTable.getSelectedContexts) {
-                                // sap.m.Table
-                                aContexts = oInnerTable.getSelectedContexts();
-                            } else if (oInnerTable.getSelectedIndices) {
-                                // sap.ui.table.Table
-                                oInnerTable.getSelectedIndices().forEach(function (iIndex) {
-                                    var oCtx = oInnerTable.getContextByIndex(iIndex);
-                                    if (oCtx) { aContexts.push(oCtx); }
-                                });
-                            }
-                            return aContexts.map(function (oCtx) { return oCtx.getObject(); });
-                        }
-
-                        var aTopSelected = getSelectedObjects(oTopTable);
-                        var aBottomSelected = getSelectedObjects(oBottomTable);
-
-                        if (!aTopSelected.length && !aBottomSelected.length) {
-                            MessageToast.show("Please select at least one row in one of the tables.");
-                            return;
-                        }
-
-                        
-                    },
-
-                    onDialogCancel: function () {
-                        oDialog.close();
-                    }
-                }
-            }).then(function (oLoadedDialog) {
-                oDialog = oLoadedDialog;
+                // Make dialog follow page lifecycle
                 oExtAPI.addDependent(oDialog);
 
-                // OPTIONAL: force multi-select mode on the inner tables
+                // OPTIONAL: enforce multi-select mode on inner tables
                 var fnSetMultiSelect = function (oSmart) {
+                    if (!oSmart) { return; }
+
                     var fn = function () {
                         var oInner = oSmart.getTable();
                         if (oInner && oInner.setMode) {
-                            oInner.setMode("MultiSelect");          // sap.m.Table
+                            oInner.setMode("MultiSelect");            // sap.m.Table
                         } else if (oInner && oInner.setSelectionMode) {
-                            oInner.setSelectionMode("MultiToggle");  // sap.ui.table.Table
+                            oInner.setSelectionMode("MultiToggle");   // sap.ui.table.Table
                         }
                     };
+
                     if (oSmart.getTable()) {
                         fn();
                     } else {
@@ -97,13 +59,68 @@ sap.ui.define([
 
                 oDialog.open();
             });
-
         },
 
-        // you can keep your second handler as-is
+        /**
+         * Press handler of Button "Choose" in the fragment
+         */
+        onDialogChoose: function () {
+            // Access SmartTables via ExtensionAPI
+            var oSmartTop    = oExtAPI.byId("SmartTableTop");
+            var oSmartBottom = oExtAPI.byId("SmartTableBottom");
+
+            var oTopTable    = oSmartTop.getTable();
+            var oBottomTable = oSmartBottom.getTable();
+
+            function getSelectedObjects(oInnerTable) {
+                if (!oInnerTable) { return []; }
+
+                var aContexts = [];
+                if (oInnerTable.getSelectedContexts) {
+                    // sap.m.Table
+                    aContexts = oInnerTable.getSelectedContexts();
+                } else if (oInnerTable.getSelectedIndices) {
+                    // sap.ui.table.Table
+                    oInnerTable.getSelectedIndices().forEach(function (iIndex) {
+                        var oCtx = oInnerTable.getContextByIndex(iIndex);
+                        if (oCtx) { aContexts.push(oCtx); }
+                    });
+                }
+                return aContexts.map(function (oCtx) { return oCtx.getObject(); });
+            }
+
+            var aTopSelected    = getSelectedObjects(oTopTable);
+            var aBottomSelected = getSelectedObjects(oBottomTable);
+
+            if (!aTopSelected.length && !aBottomSelected.length) {
+                MessageToast.show("Please select at least one row in one of the tables.");
+                return;
+            }
+
+            // TODO: call your backend action here with aTopSelected & aBottomSelected
+            MessageToast.show("Selected: "
+                + aTopSelected.length + " top, "
+                + aBottomSelected.length + " bottom");
+
+            // close after processing
+            oActionHandlers.onDialogCancel();
+        },
+
+        /**
+         * Press handler of Cancel button in fragment
+         */
+        onDialogCancel: function () {
+            var oDialog = oExtAPI.byId("TwoSmartTablesDialog");
+            if (oDialog) {
+                oDialog.close();
+            }
+        },
+
+        // just keep your second action
         manualattachments2: function (oContext, aSelectedContexts) {
             MessageToast.show("Custom handler invoked 2.");
         }
     };
-});
 
+    return oActionHandlers;
+});
