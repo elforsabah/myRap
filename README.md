@@ -1,31 +1,82 @@
-sap.ui.define([
-    "sap/m/MessageToast"
-], function (MessageToast) {
-    "use strict";
+<!-- webapp/ext/fragment/TwoSmartTablesDialog.fragment.xml -->
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:smartTable="sap.ui.comp.smarttable">
 
-    return {
-        // Dialog instance
-        _oDialog: null,
+    <!-- Popup dialog -->
+    <Dialog
+        id="TwoSmartTablesDialog"
+        title="Choose items"
+        stretch="true"
+        contentWidth="900px"
+        contentHeight="500px"
+        class="sapUiResponsivePadding">
 
-        manuallyGenerateDocs: function (oEvent, oData) {
-            var oView = this.getView();
+        <content>
+            <VBox width="100%" height="100%" renderType="Div">
 
-            // Lazy-create the dialog
-            if (!this._oDialog) {
-                this._oDialog = sap.ui.xmlfragment(
-                    oView.getId(),
-                    "fragment.Popup"
-                );
-                oView.addDependent(this._oDialog);
-            }
+                <!-- TOP TABLE (blue area in your sketch) -->
+                <smartTable:SmartTable
+                    id="SmartTableTop"
+                    entitySet="TopEntitySet"              <!-- <-- change to your CDS entity set name -->
+                    tableType="ResponsiveTable"
+                    useVariantManagement="false"
+                    useExportToExcel="false"
+                    showRowCount="true"
+                    header="Top items"
+                    enableAutoBinding="true"              <!-- auto OData read -->
+                    persistencyKey="TopTable">
 
-            this._oDialog.open();
-        },
+                    <!-- underlying sap.m.Table with multi-select -->
+                    <smartTable:table>
+                        <Table
+                            id="InnerTopTable"
+                            mode="MultiSelect"
+                            growing="true"
+                            growingScrollToLoad="true" />
+                    </smartTable:table>
+                </smartTable:SmartTable>
 
-        onCloseDialog: function () {
-            if (this._oDialog) {
-                this._oDialog.close();
-            }
-        }
-    };
-});
+                <!-- BOTTOM TABLE (yellow area in your sketch) -->
+                <smartTable:SmartTable
+                    id="SmartTableBottom"
+                    entitySet="BottomEntitySet"           <!-- <-- change to your 2nd CDS entity set -->
+                    tableType="ResponsiveTable"
+                    useVariantManagement="false"
+                    useExportToExcel="false"
+                    showRowCount="true"
+                    header="Bottom items"
+                    enableAutoBinding="true"
+                    persistencyKey="BottomTable">
+
+                    <smartTable:table>
+                        <Table
+                            id="InnerBottomTable"
+                            mode="MultiSelect"
+                            growing="true"
+                            growingScrollToLoad="true" />
+                    </smartTable:table>
+                </smartTable:SmartTable>
+
+            </VBox>
+        </content>
+
+        <!-- "Button A" -->
+        <beginButton>
+            <Button
+                id="btnChoose"
+                text="Choose"
+                type="Emphasized"
+                press=".onDialogChoose" />
+        </beginButton>
+
+        <endButton>
+            <Button
+                id="btnCancel"
+                text="Cancel"
+                press=".onDialogCancel" />
+        </endButton>
+
+    </Dialog>
+</core:FragmentDefinition>
