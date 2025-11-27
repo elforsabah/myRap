@@ -1,82 +1,21 @@
-<!-- webapp/ext/fragment/TwoSmartTablesDialog.fragment.xml -->
-<core:FragmentDefinition
-    xmlns="sap.m"
-    xmlns:core="sap.ui.core"
-    xmlns:smartTable="sap.ui.comp.smarttable">
+sap.ui.define([
+    "sap/m/MessageToast"
+], function(MessageToast) {
+    'use strict';
 
-    <!-- Popup dialog -->
-    <Dialog
-        id="TwoSmartTablesDialog"
-        title="Choose items"
-        stretch="true"
-        contentWidth="900px"
-        contentHeight="500px"
-        class="sapUiResponsivePadding">
+    return {
+        /**
+         * Generated event handler.
+         *
+         * @param oContext the context of the page on which the event was fired. `undefined` for list report page.
+         * @param aSelectedContexts the selected contexts of the table rows.
+         */
+        manualattachments: function(oContext, aSelectedContexts) {
+            MessageToast.show("Custom handler invoked.");
+        },
 
-        <content>
-            <VBox width="100%" height="100%" renderType="Div">
-
-                <!-- TOP TABLE (blue area) -->
-                <smartTable:SmartTable
-                    id="SmartTableTop"
-                    entitySet="TopEntitySet"
-                    tableType="ResponsiveTable"
-                    useVariantManagement="false"
-                    useExportToExcel="false"
-                    showRowCount="true"
-                    header="Top items"
-                    enableAutoBinding="true"
-                    persistencyKey="TopTable">
-
-                    <!-- underlying sap.m.Table with multi-select -->
-                    <smartTable:table>
-                        <Table
-                            id="InnerTopTable"
-                            mode="MultiSelect"
-                            growing="true"
-                            growingScrollToLoad="true" />
-                    </smartTable:table>
-                </smartTable:SmartTable>
-
-                <!-- BOTTOM TABLE (yellow area) -->
-                <smartTable:SmartTable
-                    id="SmartTableBottom"
-                    entitySet="BottomEntitySet"
-                    tableType="ResponsiveTable"
-                    useVariantManagement="false"
-                    useExportToExcel="false"
-                    showRowCount="true"
-                    header="Bottom items"
-                    enableAutoBinding="true"
-                    persistencyKey="BottomTable">
-
-                    <smartTable:table>
-                        <Table
-                            id="InnerBottomTable"
-                            mode="MultiSelect"
-                            growing="true"
-                            growingScrollToLoad="true" />
-                    </smartTable:table>
-                </smartTable:SmartTable>
-
-            </VBox>
-        </content>
-
-        <!-- "Button A" -->
-        <beginButton>
-            <Button
-                id="btnChoose"
-                text="Choose"
-                type="Emphasized"
-                press=".onDialogChoose" />
-        </beginButton>
-
-        <endButton>
-            <Button
-                id="btnCancel"
-                text="Cancel"
-                press=".onDialogCancel" />
-        </endButton>
-
-    </Dialog>
-</core:FragmentDefinition>
+        manualattachments2: function(oContext, aSelectedContexts) {
+            MessageToast.show("Custom handler invoked 2.");
+        }
+    };
+});
