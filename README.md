@@ -1,103 +1,22 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<core:FragmentDefinition
-    xmlns="sap.m"
-    xmlns:core="sap.ui.core">
+onDialogChoose: function () {
+    var oTopTable    = oExtAPI.byId("TopTable");
+    var oBottomTable = oExtAPI.byId("BottomTable");
 
-    <!-- Popup dialog -->
-    <Dialog
-        id="TwoSmartTablesDialog"
-        title="Choose items"
-        stretch="true"
-        contentWidth="900px"
-        contentHeight="500px"
-        class="sapUiResponsivePadding">
+    function getSelectedObjects(oInnerTable) {
+        if (!oInnerTable) { return []; }
+        var aContexts = oInnerTable.getSelectedContexts();
+        return aContexts.map(function (oCtx) { return oCtx.getObject(); });
+    }
 
-        <content>
-            <VBox
-                id="VBoxWrapper"
-                width="100%"
-                height="100%"
-                renderType="Div">
+    var aTopSelected    = getSelectedObjects(oTopTable);
+    var aBottomSelected = getSelectedObjects(oBottomTable);
 
-                <!-- TOP TABLE: /Attachment -->
-                <Table
-                    id="TopTable"
-                    mode="MultiSelect"
-                    growing="true"
-                    growingScrollToLoad="true"
-                    items="{
-                        path: '/Attachment'
-                    }">
+    if (!aTopSelected.length && !aBottomSelected.length) {
+        MessageToast.show("Please select at least one row in one of the tables.");
+        return;
+    }
 
-                    <columns>
-                        <Column id="TopColAttachmentId">
-                            <Text id="TopColAttachmentIdHeader" text="Attachment ID" />
-                        </Column>
-                        <Column id="TopColAttachmentDesc">
-                            <Text id="TopColAttachmentDescHeader" text="Description" />
-                        </Column>
-                    </columns>
-
-                    <items>
-                        <ColumnListItem id="TopRowTemplate">
-                            <cells>
-                                <!-- TODO: adapt property names -->
-                                <Text id="TopCellAttachmentId" text="{AttachmentID}" />
-                                <Text id="TopCellAttachmentDesc" text="{Description}" />
-                            </cells>
-                        </ColumnListItem>
-                    </items>
-                </Table>
-
-                <!-- BOTTOM TABLE: /ServiceWR -->
-                <Table
-                    id="BottomTable"
-                    mode="MultiSelect"
-                    growing="true"
-                    growingScrollToLoad="true"
-                    items="{
-                        path: '/ServiceWR'
-                    }">
-
-                    <columns>
-                        <Column id="BottomColServiceId">
-                            <Text id="BottomColServiceIdHeader" text="Service WR ID" />
-                        </Column>
-                        <Column id="BottomColServiceDesc">
-                            <Text id="BottomColServiceDescHeader" text="Description" />
-                        </Column>
-                    </columns>
-
-                    <items>
-                        <ColumnListItem id="BottomRowTemplate">
-                            <cells>
-                                <!-- TODO: adapt property names -->
-                                <Text id="BottomCellServiceId" text="{ServiceWRID}" />
-                                <Text id="BottomCellServiceDesc" text="{Description}" />
-                            </cells>
-                        </ColumnListItem>
-                    </items>
-                </Table>
-
-            </VBox>
-        </content>
-
-        <!-- "Button A" -->
-        <beginButton>
-            <Button
-                id="BtnChoose"
-                text="Choose"
-                type="Emphasized"
-                press=".onDialogChoose" />
-        </beginButton>
-
-        <!-- Cancel -->
-        <endButton>
-            <Button
-                id="BtnCancel"
-                text="Cancel"
-                press=".onDialogCancel" />
-        </endButton>
-
-    </Dialog>
-</core:FragmentDefinition>
+    // Here you call your backend logic with aTopSelected & aBottomSelected
+    // ...
+    oActionHandlers.onDialogCancel();
+}
