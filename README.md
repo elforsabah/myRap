@@ -29,7 +29,7 @@ sap.ui.define([
             // Use ExtensionAPI.loadFragment so FE wires the models correctly
             this.loadFragment({
                 id: "TwoSmartTablesDialog",                   // fragment root ID
-                name: "project1.ext.fragment.TwoSmartTablesDialog", // <app id>.ext.fragment.<fileName without .xml>
+                name: "project1.ext.fragments.GenerateDocDialog", // <app id>.ext.fragment.<fileName without .xml>
                 controller: {
                     // called when user presses Button A
                     onDialogChoose: function () {
@@ -92,3 +92,21 @@ sap.ui.define([
         }
     };
 });
+
+
+LoaderExtensions-dbg.js:331 Uncaught (in promise) Error: resource project1/ext/fragments/GenerateDocDialog.fragment.xml could not be loaded from ../resources/project1/ext/fragments/GenerateDocDialog.fragment.xml. Check for 'file not found' or parse errors. Reason: 
+    at LoaderExtensions-dbg.js:331:19
+    at SyncPromise-dbg.js:314:14
+    at e (SyncPromise-dbg.js:63:4)
+    at new r (SyncPromise-dbg.js:230:3)
+    at r.then (SyncPromise-dbg.js:313:7)
+    at Object.loadResource (LoaderExtensions-dbg.js:323:5)
+    at sap.ui.predefine.U.loadTemplate (XMLTemplateProcessor-dbg.js:268:27)
+    at Object.Ee [as templateControlFragment] (CommonUtils.ts:1599:25)
+    at e.n [as loadFragment] (ExtensionAPI.ts:289:40)
+    at e.manualattachments (ListReportExt.js:30:18)
+
+
+
+
+
