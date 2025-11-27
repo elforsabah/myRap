@@ -29,7 +29,7 @@ sap.ui.define([
             // Use ExtensionAPI.loadFragment so FE wires the models correctly
             this.loadFragment({
                 id: "TwoSmartTablesDialog",                   // fragment root ID
-                name: "project1.ext.fragments.GenerateDocDialog", // <app id>.ext.fragment.<fileName without .xml>
+                name: "zsb_attachment.ext.fragments.GenerateDocDialog", // <app id>.ext.fragment.<fileName without .xml>
                 controller: {
                     // called when user presses Button A
                     onDialogChoose: function () {
@@ -94,19 +94,86 @@ sap.ui.define([
 });
 
 
-LoaderExtensions-dbg.js:331 Uncaught (in promise) Error: resource project1/ext/fragments/GenerateDocDialog.fragment.xml could not be loaded from ../resources/project1/ext/fragments/GenerateDocDialog.fragment.xml. Check for 'file not found' or parse errors. Reason: 
-    at LoaderExtensions-dbg.js:331:19
-    at SyncPromise-dbg.js:314:14
-    at e (SyncPromise-dbg.js:63:4)
-    at new r (SyncPromise-dbg.js:230:3)
-    at r.then (SyncPromise-dbg.js:313:7)
-    at Object.loadResource (LoaderExtensions-dbg.js:323:5)
-    at sap.ui.predefine.U.loadTemplate (XMLTemplateProcessor-dbg.js:268:27)
-    at Object.Ee [as templateControlFragment] (CommonUtils.ts:1599:25)
-    at e.n [as loadFragment] (ExtensionAPI.ts:289:40)
-    at e.manualattachments (ListReportExt.js:30:18)
 
 
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:smartTable="sap.ui.comp.smarttable">
 
+    <!-- Popup dialog -->
+    <Dialog
+        id="TwoSmartTablesDialog"
+        title="Choose items"
+        stretch="true"
+        contentWidth="900px"
+        contentHeight="500px"
+        class="sapUiResponsivePadding">
 
+        <content>
+            <VBox width="100%" height="100%" renderType="Div">
 
+                <!-- TOP TABLE (blue area) -->
+                <smartTable:SmartTable
+                    id="SmartTableTop"
+                    entitySet="Attachment"
+                    tableType="ResponsiveTable"
+                    useVariantManagement="false"
+                    useExportToExcel="false"
+                    showRowCount="true"
+                    header="Top items"
+                    enableAutoBinding="true"
+                    persistencyKey="TopTable">
+
+                    <!-- underlying sap.m.Table with multi-select -->
+                    <smartTable:table>
+                        <Table
+                            id="InnerTopTable"
+                            mode="MultiSelect"
+                            growing="true"
+                            growingScrollToLoad="true" />
+                    </smartTable:table>
+                </smartTable:SmartTable>
+
+                <!-- BOTTOM TABLE (yellow area) -->
+                <smartTable:SmartTable
+                    id="SmartTableBottom"
+                    entitySet="ServiceWR"
+                    tableType="ResponsiveTable"
+                    useVariantManagement="false"
+                    useExportToExcel="false"
+                    showRowCount="true"
+                    header="Bottom items"
+                    enableAutoBinding="true"
+                    persistencyKey="BottomTable">
+
+                    <smartTable:table>
+                        <Table
+                            id="InnerBottomTable"
+                            mode="MultiSelect"
+                            growing="true"
+                            growingScrollToLoad="true" />
+                    </smartTable:table>
+                </smartTable:SmartTable>
+
+            </VBox>
+        </content>
+
+        <!-- "Button A" -->
+        <beginButton>
+            <Button
+                id="btnChoose"
+                text="Choose"
+                type="Emphasized"
+                press=".onDialogChoose" />
+        </beginButton>
+
+        <endButton>
+            <Button
+                id="btnCancel"
+                text="Cancel"
+                press=".onDialogCancel" />
+        </endButton>
+
+    </Dialog>
+</core:FragmentDefinition>
