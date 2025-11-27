@@ -1,128 +1,71 @@
-<core:FragmentDefinition
-    xmlns="sap.m"
-    xmlns:core="sap.ui.core"
-    xmlns:smartTable="sap.ui.comp.smarttable">
+this.loadFragment({
+    id: "TwoSmartTablesDialog",
+    name: "zsb_attachment.ext.fragments.GenerateDocDialog",
+    controller: {
+        onDialogChoose: function () {
+            // get the SmartTables
+            var oSmartTop    = oExtAPI.byId("SmartTableTop");
+            var oSmartBottom = oExtAPI.byId("SmartTableBottom");
 
-    <!-- Popup dialog -->
-    <Dialog
-        id="TwoSmartTablesDialog"
-        title="Choose items"
-        stretch="true"
-        contentWidth="900px"
-        contentHeight="500px"
-        class="sapUiResponsivePadding">
+            // underlying inner tables created by SmartTable
+            var oTopTable    = oSmartTop.getTable();
+            var oBottomTable = oSmartBottom.getTable();
 
-        <content>
-            <VBox width="100%" height="100%" renderType="Div">
+            function getSelectedObjects(oInnerTable) {
+                if (!oInnerTable) { return []; }
 
-                <!-- TOP TABLE (blue area) -->
-                <smartTable:SmartTable
-                    id="SmartTableTop"
-                    entitySet="Attachment"
-                    tableType="ResponsiveTable"
-                    useVariantManagement="false"
-                    useExportToExcel="false"
-                    showRowCount="true"
-                    header="Top items"
-                    enableAutoBinding="true"
-                    persistencyKey="TopTable" />
+                var aContexts = [];
+                if (oInnerTable.getSelectedContexts) {
+                    // sap.m.Table
+                    aContexts = oInnerTable.getSelectedContexts();
+                } else if (oInnerTable.getSelectedIndices) {
+                    // sap.ui.table.Table
+                    oInnerTable.getSelectedIndices().forEach(function (iIndex) {
+                        var oCtx = oInnerTable.getContextByIndex(iIndex);
+                        if (oCtx) { aContexts.push(oCtx); }
+                    });
+                }
+                return aContexts.map(function (oCtx) { return oCtx.getObject(); });
+            }
 
-                <!-- BOTTOM TABLE (yellow area) -->
-                <smartTable:SmartTable
-                    id="SmartTableBottom"
-                    entitySet="ServiceWR"
-                    tableType="ResponsiveTable"
-                    useVariantManagement="false"
-                    useExportToExcel="false"
-                    showRowCount="true"
-                    header="Bottom items"
-                    enableAutoBinding="true"
-                    persistencyKey="BottomTable" />
+            var aTopSelected    = getSelectedObjects(oTopTable);
+            var aBottomSelected = getSelectedObjects(oBottomTable);
 
-            </VBox>
-        </content>
+            if (!aTopSelected.length && !aBottomSelected.length) {
+                MessageToast.show("Please select at least one row in one of the tables.");
+                return;
+            }
 
-        <!-- "Button A" -->
-        <beginButton>
-            <Button
-                id="btnChoose"
-                text="Choose"
-                type="Emphasized"
-                press=".onDialogChoose" />
-        </beginButton>
+            // ... your invokeAction logic stays as you have it ...
+        },
 
-        <endButton>
-            <Button
-                id="btnCancel"
-                text="Cancel"
-                press=".onDialogCancel" />
-        </endButton>
+        onDialogCancel: function () {
+            oDialog.close();
+        }
+    }
+}).then(function (oLoadedDialog) {
+    oDialog = oLoadedDialog;
+    oExtAPI.addDependent(oDialog);
 
-    </Dialog>
-</core:FragmentDefinition>
+    // OPTIONAL: force multi-select mode on the inner tables
+    var fnSetMultiSelect = function (oSmart) {
+        var fn = function () {
+            var oInner = oSmart.getTable();
+            if (oInner && oInner.setMode) {
+                oInner.setMode("MultiSelect");          // sap.m.Table
+            } else if (oInner && oInner.setSelectionMode) {
+                oInner.setSelectionMode("MultiToggle");  // sap.ui.table.Table
+            }
+        };
+        if (oSmart.getTable()) {
+            fn();
+        } else {
+            oSmart.attachInitialise(fn);
+        }
+    };
 
+    fnSetMultiSelect(oExtAPI.byId("SmartTableTop"));
+    fnSetMultiSelect(oExtAPI.byId("SmartTableBottom"));
 
-<core:FragmentDefinition
-    xmlns="sap.m"
-    xmlns:core="sap.ui.core"
-    xmlns:smartTable="sap.ui.comp.smarttable">
-
-    <!-- Popup dialog -->
-    <Dialog
-        id="TwoSmartTablesDialog"
-        title="Choose items"
-        stretch="true"
-        contentWidth="900px"
-        contentHeight="500px"
-        class="sapUiResponsivePadding">
-
-        <content>
-            <VBox width="100%" height="100%" renderType="Div">
-
-                <!-- TOP TABLE (blue area) -->
-                <smartTable:SmartTable
-                    id="SmartTableTop"
-                    entitySet="Attachment"
-                    tableType="ResponsiveTable"
-                    useVariantManagement="false"
-                    useExportToExcel="false"
-                    showRowCount="true"
-                    header="Top items"
-                    enableAutoBinding="true"
-                    persistencyKey="TopTable" />
-
-                <!-- BOTTOM TABLE (yellow area) -->
-                <smartTable:SmartTable
-                    id="SmartTableBottom"
-                    entitySet="ServiceWR"
-                    tableType="ResponsiveTable"
-                    useVariantManagement="false"
-                    useExportToExcel="false"
-                    showRowCount="true"
-                    header="Bottom items"
-                    enableAutoBinding="true"
-                    persistencyKey="BottomTable" />
-
-            </VBox>
-        </content>
-
-        <!-- "Button A" -->
-        <beginButton>
-            <Button
-                id="btnChoose"
-                text="Choose"
-                type="Emphasized"
-                press=".onDialogChoose" />
-        </beginButton>
-
-        <endButton>
-            <Button
-                id="btnCancel"
-                text="Cancel"
-                press=".onDialogCancel" />
-        </endButton>
-
-    </Dialog>
-</core:FragmentDefinition>
-
-
+    oDialog.open();
+});
