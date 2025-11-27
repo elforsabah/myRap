@@ -14,64 +14,66 @@
 
         <content>
             <VBox
-                id="vb1"
+                id="VBoxWrapper"
                 width="100%"
                 height="100%"
                 renderType="Div">
 
-                <!-- TOP TABLE: binds to /Attachment (OData V4 entity set) -->
+                <!-- TOP TABLE: /Attachment -->
                 <Table
                     id="TopTable"
                     mode="MultiSelect"
                     growing="true"
+                    growingScrollToLoad="true"
                     items="{
                         path: '/Attachment'
                     }">
 
                     <columns>
-                        <Column>
-                            <Text text="Attachment ID" />
+                        <Column id="TopColAttachmentId">
+                            <Text id="TopColAttachmentIdHeader" text="Attachment ID" />
                         </Column>
-                        <Column>
-                            <Text text="Description" />
+                        <Column id="TopColAttachmentDesc">
+                            <Text id="TopColAttachmentDescHeader" text="Description" />
                         </Column>
                     </columns>
 
                     <items>
-                        <ColumnListItem>
+                        <ColumnListItem id="TopRowTemplate">
                             <cells>
-                                <!-- TODO: adjust property names to your CDS view -->
-                                <Text text="{AttachmentID}" />
-                                <Text text="{Description}" />
+                                <!-- TODO: adapt property names -->
+                                <Text id="TopCellAttachmentId" text="{AttachmentID}" />
+                                <Text id="TopCellAttachmentDesc" text="{Description}" />
                             </cells>
                         </ColumnListItem>
                     </items>
                 </Table>
 
-                <!-- BOTTOM TABLE: binds to /ServiceWR (OData V4 entity set) -->
+                <!-- BOTTOM TABLE: /ServiceWR -->
                 <Table
                     id="BottomTable"
                     mode="MultiSelect"
                     growing="true"
+                    growingScrollToLoad="true"
                     items="{
                         path: '/ServiceWR'
                     }">
 
                     <columns>
-                        <Column>
-                            <Text text="Service WR ID" />
+                        <Column id="BottomColServiceId">
+                            <Text id="BottomColServiceIdHeader" text="Service WR ID" />
                         </Column>
-                        <Column>
-                            <Text text="Description" />
+                        <Column id="BottomColServiceDesc">
+                            <Text id="BottomColServiceDescHeader" text="Description" />
                         </Column>
                     </columns>
 
                     <items>
-                        <ColumnListItem>
+                        <ColumnListItem id="BottomRowTemplate">
                             <cells>
-                                <!-- TODO: adjust property names to your CDS view -->
-                                <Text text="{ServiceWRID}" />
-                                <Text text="{Description}" />
+                                <!-- TODO: adapt property names -->
+                                <Text id="BottomCellServiceId" text="{ServiceWRID}" />
+                                <Text id="BottomCellServiceDesc" text="{Description}" />
                             </cells>
                         </ColumnListItem>
                     </items>
@@ -83,7 +85,7 @@
         <!-- "Button A" -->
         <beginButton>
             <Button
-                id="btnChoose"
+                id="BtnChoose"
                 text="Choose"
                 type="Emphasized"
                 press=".onDialogChoose" />
@@ -92,7 +94,7 @@
         <!-- Cancel -->
         <endButton>
             <Button
-                id="btnCancel"
+                id="BtnCancel"
                 text="Cancel"
                 press=".onDialogCancel" />
         </endButton>
