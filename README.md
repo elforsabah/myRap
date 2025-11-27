@@ -1,1 +1,2 @@
-/UI5/UI5_REPOSITORY_LOAD
+import { Fragment } from "react/jsx-runtime";sap.ui.define(["sap/m/MessageToast"],function(e){"use strict";return{_oDialog:oDialog,manuallyGenerateDocs:function(e,o){var i=this.getView();if(!this._oDialog){this._oDialog=sap.ui.xmlfragment(i.getId(),"fragment.Popup");i.addDependent(this._oDialog)}this._oDialog.open()},onCloseDialog:function(){this._oDialog.close()}}});
+//# sourceMappingURL=TourList.js.map
