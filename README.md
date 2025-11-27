@@ -1,126 +1,19 @@
-sap.ui.define([
-    "sap/m/MessageToast"
-], function (MessageToast) {
-    "use strict";
+Log-dbg.js:499 2025-11-27 13:34:20.979899 Error: resource zpdattachment/zsbattachment/changes/changes-bundle.json could not be loaded from ../changes/changes-bundle.json. Check for 'file not found' or parse errors. Reason:  -  
+fetch-dbg.js:209 
+ GET https://port8085-workspaces-ws-bhqcv.eu10.applicationstudio.cloud.sap/resources/zsb_attachment/ext/fragments/GenerateDocDialog.fragment.xml 404 (Not Found)
+Log-dbg.js:499 2025-11-27 13:34:23.772500 Error: resource zsb_attachment/ext/fragments/GenerateDocDialog.fragment.xml could not be loaded from ../resources/zsb_attachment/ext/fragments/GenerateDocDialog.fragment.xml. Check for 'file not found' or parse errors. Reason:  -  
+Log-dbg.js:499 2025-11-27 13:34:23.772800 Error: resource zsb_attachment/ext/fragments/GenerateDocDialog.fragment.xml could not be loaded from ../resources/zsb_attachment/ext/fragments/GenerateDocDialog.fragment.xml. Check for 'file not found' or parse errors. Reason:  -  
+LoaderExtensions-dbg.js:331 Uncaught (in promise) Error: resource zsb_attachment/ext/fragments/GenerateDocDialog.fragment.xml could not be loaded from ../resources/zsb_attachment/ext/fragments/GenerateDocDialog.fragment.xml. Check for 'file not found' or parse errors. Reason: 
+    at LoaderExtensions-dbg.js:331:19
+    at SyncPromise-dbg.js:314:14
+    at e (SyncPromise-dbg.js:63:4)
+    at new r (SyncPromise-dbg.js:230:3)
+    at r.then (SyncPromise-dbg.js:313:7)
+    at Object.loadResource (LoaderExtensions-dbg.js:323:5)
+    at sap.ui.predefine.U.loadTemplate (XMLTemplateProcessor-dbg.js:268:27)
+    at Object.Ee [as templateControlFragment] (CommonUtils.ts:1599:25)
+    at e.n [as loadFragment] (ExtensionAPI.ts:289:40)
+    at e.manualattachments (ListReportExt.js:28:21)
 
-    // will hold the Fiori Elements ExtensionAPI instance
-    var oExtAPI;
+﻿
 
-    // we return this object as the "action handler" + dialog controller
-    var oActionHandlers = {
-
-        /**
-         * Custom List Report action.
-         * Works like your uploadcsv: lazy loads the dialog, then reuses it.
-         */
-        manualattachments: function (oContext, aSelectedContexts) {
-            // In FE V4, "this" is sap.fe.core.ExtensionAPI
-            oExtAPI = /** @type sap.fe.core.ExtensionAPI */ this;
-
-            // 1) If dialog already exists, just open it
-            var oExistingDialog = oExtAPI.byId("TwoSmartTablesDialog");
-            if (oExistingDialog) {
-                oExistingDialog.open();
-                return;
-            }
-
-            // 2) Otherwise lazily load the fragment via ExtensionAPI.loadFragment
-            oExtAPI.loadFragment({
-                id: "TwoSmartTablesDialog",
-                name: "zsb_attachment.ext.fragments.GenerateDocDialog",
-                controller: oActionHandlers        // this object handles .onDialogChoose/.onDialogCancel
-            }).then(function (oDialog) {
-
-                // Make dialog follow page lifecycle
-                oExtAPI.addDependent(oDialog);
-
-                // OPTIONAL: enforce multi-select mode on inner tables
-                var fnSetMultiSelect = function (oSmart) {
-                    if (!oSmart) { return; }
-
-                    var fn = function () {
-                        var oInner = oSmart.getTable();
-                        if (oInner && oInner.setMode) {
-                            oInner.setMode("MultiSelect");            // sap.m.Table
-                        } else if (oInner && oInner.setSelectionMode) {
-                            oInner.setSelectionMode("MultiToggle");   // sap.ui.table.Table
-                        }
-                    };
-
-                    if (oSmart.getTable()) {
-                        fn();
-                    } else {
-                        oSmart.attachInitialise(fn);
-                    }
-                };
-
-                fnSetMultiSelect(oExtAPI.byId("SmartTableTop"));
-                fnSetMultiSelect(oExtAPI.byId("SmartTableBottom"));
-
-                oDialog.open();
-            });
-        },
-
-        /**
-         * Press handler of Button "Choose" in the fragment
-         */
-        onDialogChoose: function () {
-            // Access SmartTables via ExtensionAPI
-            var oSmartTop    = oExtAPI.byId("SmartTableTop");
-            var oSmartBottom = oExtAPI.byId("SmartTableBottom");
-
-            var oTopTable    = oSmartTop.getTable();
-            var oBottomTable = oSmartBottom.getTable();
-
-            function getSelectedObjects(oInnerTable) {
-                if (!oInnerTable) { return []; }
-
-                var aContexts = [];
-                if (oInnerTable.getSelectedContexts) {
-                    // sap.m.Table
-                    aContexts = oInnerTable.getSelectedContexts();
-                } else if (oInnerTable.getSelectedIndices) {
-                    // sap.ui.table.Table
-                    oInnerTable.getSelectedIndices().forEach(function (iIndex) {
-                        var oCtx = oInnerTable.getContextByIndex(iIndex);
-                        if (oCtx) { aContexts.push(oCtx); }
-                    });
-                }
-                return aContexts.map(function (oCtx) { return oCtx.getObject(); });
-            }
-
-            var aTopSelected    = getSelectedObjects(oTopTable);
-            var aBottomSelected = getSelectedObjects(oBottomTable);
-
-            if (!aTopSelected.length && !aBottomSelected.length) {
-                MessageToast.show("Please select at least one row in one of the tables.");
-                return;
-            }
-
-            // TODO: call your backend action here with aTopSelected & aBottomSelected
-            MessageToast.show("Selected: "
-                + aTopSelected.length + " top, "
-                + aBottomSelected.length + " bottom");
-
-            // close after processing
-            oActionHandlers.onDialogCancel();
-        },
-
-        /**
-         * Press handler of Cancel button in fragment
-         */
-        onDialogCancel: function () {
-            var oDialog = oExtAPI.byId("TwoSmartTablesDialog");
-            if (oDialog) {
-                oDialog.close();
-            }
-        },
-
-        // just keep your second action
-        manualattachments2: function (oContext, aSelectedContexts) {
-            MessageToast.show("Custom handler invoked 2.");
-        }
-    };
-
-    return oActionHandlers;
-});
