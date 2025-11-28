@@ -314,6 +314,12 @@
                 <Parameter Name="PlaceBefore" Type="Edm.Boolean" Nullable="false"/>
                 <ReturnType Type="Collection(com.sap.gateway.srvd.zsd_pdattacments.v0001.ServiceWRType)" Nullable="true"/>
             </Action>
+            <Action Name="generatedocuments" EntitySetPath="_it" IsBound="true">
+                <Parameter Name="_it" Type="Collection(com.sap.gateway.srvd.zsd_pdattacments.v0001.TourType)" Nullable="false"/>
+                <Parameter Name="AttachmentItemsjson" Type="Edm.String" Nullable="false"/>
+                <Parameter Name="ServiceWRItemsjson" Type="Edm.String" Nullable="false"/>
+                <ReturnType Type="com.sap.gateway.srvd.zsd_pdattacments.v0001.TourType" Nullable="false"/>
+            </Action>
             <Action Name="RegenerateDocs" IsBound="true">
                 <Parameter Name="_it" Type="com.sap.gateway.srvd.zsd_pdattacments.v0001.TourType" Nullable="false"/>
             </Action>
