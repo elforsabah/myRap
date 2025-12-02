@@ -1,11 +1,9 @@
-      APPEND VALUE #(
-               %cid = <key>-%cid
-               %msg = new_message(
-                        id       = 'Z_MSG_CL_SERVICE_EXT'
-                        number   = '003'
-                        severity = if_abap_behv_message=>severity-error
-                        v1       = |{ lv_start DATE = USER }|
-                      )
-             )
-        TO reported-createtour.
-      lv_failed = abap_true.
+DATA lt_servers TYPE TABLE OF msxxlist.
+
+CALL FUNCTION 'TH_SERVER_LIST'
+  TABLES
+    list = lt_servers.
+
+LOOP AT lt_servers INTO DATA(ls_server).
+  WRITE: / ls_server-host, ls_server-name, ls_server-instno.
+ENDLOOP.
