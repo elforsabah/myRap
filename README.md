@@ -3,7 +3,6 @@
     xmlns:core="sap.ui.core"
     xmlns:macros="sap.fe.macros">
 
-    <!-- Popup dialog -->
     <Dialog
         id="TwoSmartTablesDialog"
         title="Choose Items"
@@ -11,23 +10,25 @@
         contentWidth="1200px"
         contentHeight="600px"
         class="sapUiResponsivePadding">
+
         <content>
             <VBox id="vbMain" width="100%" height="100%" renderType="Div">
+
                 <!-- ========= ATTACHMENT “LIST REPORT” ========= -->
                 <macros:FilterBar
                     id="AttachmentFilterBar"
-                    metaPath="/PrintConfiguration/@com.sap.vocabularies.UI.v1.SelectionFields"
-                    contextPath="/PrintConfiguration" />
+                    contextPath="/PrintConfiguration"
+                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
 
                 <macros:Table
                     id="AttachmentTable"
-                    metaPath="/PrintConfiguration/@com.sap.vocabularies.UI.v1.LineItem"
                     contextPath="/PrintConfiguration"
+                    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
                     filterBar="AttachmentFilterBar"
                     selectionMode="Multi"
+                    selectionBehavior="Row"
                     header="Attachments" />
 
-                <!-- Spacer between the two areas -->
                 <Toolbar id="tbSpacer1" design="Transparent">
                     <ToolbarSpacer id="tb1" />
                 </Toolbar>
@@ -35,21 +36,21 @@
                 <!-- ========= SERVICE WR “LIST REPORT” ========= -->
                 <macros:FilterBar
                     id="ServiceWRFilterBar"
-                    metaPath="/ServiceWR/@com.sap.vocabularies.UI.v1.SelectionFields"
-                    contextPath="/ServiceWR" />
+                    contextPath="/ServiceWR"
+                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
 
                 <macros:Table
                     id="ServiceWRTable"
-                    metaPath="/ServiceWR/@com.sap.vocabularies.UI.v1.LineItem"
                     contextPath="/ServiceWR"
+                    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
                     filterBar="ServiceWRFilterBar"
                     selectionMode="Multi"
+                    selectionBehavior="Row"
                     header="Service WR" />
 
             </VBox>
         </content>
 
-       
         <beginButton>
             <Button
                 id="btnChoose"
