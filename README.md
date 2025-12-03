@@ -1,71 +1,92 @@
 sap.ui.define([
     "sap/m/MessageToast",
-    "sap/m/MessageBox",
-    "sap/ui/model/Filter",
-    "sap/ui/model/FilterOperator"
-], function (MessageToast, MessageBox, Filter, FilterOperator) {
+    "sap/m/MessageBox"
+], function (MessageToast, MessageBox) {
     "use strict";
 
-    var oExtAPI;           // sap.fe.core.ExtensionAPI
-    var oDialog;           // ONE dialog instance
-    var sSelectedTourId;   // TourId from selected ZC_PDTOUR row
+    var oExtAPI;              // sap.fe.core.ExtensionAPI
+    var oDialog;              // Dialog instance
+    var sSelectedTourId;      // TourId from ZC_PDTOUR
+    var oSelectedTourDates = {
+        from: null,
+        to:   null
+    };
 
+    // --- helper: get inner MDC FilterBar created by macros:FilterBar ---
+    function getInnerFilterBar(sMacroId) {
+        // macros:FilterBar -> inner FilterBar has suffix "::FilterBar"
+        return oExtAPI && oExtAPI.byId(sMacroId + "::FilterBar");
+    }
+
+    // --- apply filters and trigger GO on both tables ---
     function applyTourFilters() {
-        if (!oExtAPI) {
-            return;
-        }
+        // ===== SERVICE WR =====
+        var oServiceFB = getInnerFilterBar("ServiceWRFilterBar");
+        if (oServiceFB && oServiceFB.setFilterConditions) {
+            var mCond = oServiceFB.getFilterConditions() || {};
 
-        // --- ATTACHMENTS: trigger GO so data is loaded automatically ---
-        // For macros:FilterBar, the inner MDC FilterBar has id "<id>::FilterBar"
-        var oAttachFB = oExtAPI.byId("AttachmentFilterBar::FilterBar");
-        if (oAttachFB && oAttachFB.search) {
-            oAttachFB.search();
-        }
-
-        // --- SERVICE WR: filter binding by TourId and trigger read ---
-        // For macros:Table, the inner MDC table has id "<id>::Table"
-        var oMdcTable = oExtAPI.byId("ServiceWRTable::Table");
-        if (oMdcTable) {
-            var oBinding = oMdcTable.getRowBinding && oMdcTable.getRowBinding();
-            if (oBinding) {
-                var aFilters = [
-                    new Filter("TourId", FilterOperator.EQ, sSelectedTourId) // <-- adapt property name if needed
-                ];
-
-                // Apply application-level filter (AND with user filters)
-                oBinding.filter(aFilters, "Application");
+            // 1) mandatory RequestedDate on ServiceWR
+            //    -> use tour start / end date as interval
+            if (oSelectedTourDates.from && oSelectedTourDates.to) {
+                mCond.RequestedDate = [{
+                    operator: "BT",
+                    values: [oSelectedTourDates.from, oSelectedTourDates.to],
+                    isEmpty: false
+                }];
             }
+
+            // 2) our hidden TourId filter so we only see services of this tour
+            if (sSelectedTourId) {
+                mCond.TourId = [{
+                    operator: "EQ",
+                    values: [sSelectedTourId],
+                    isEmpty: false
+                }];
+            }
+
+            oServiceFB.setFilterConditions(mCond);
+            oServiceFB.search();               // behaves like pressing GO
+        }
+
+        // ===== ATTACHMENTS (PrintConfiguration) =====
+        // Here you just want data → trigger GO once.
+        var oAttachFB = getInnerFilterBar("AttachmentFilterBar");
+        if (oAttachFB && oAttachFB.search) {
+            var mCondAttach = oAttachFB.getFilterConditions() || {};
+            // (optional) if you also want to restrict attachments by date,
+            // copy the same RequestedDate logic here.
+            oAttachFB.setFilterConditions(mCondAttach);
+            oAttachFB.search();
         }
     }
 
     var oActionHandlers = {
 
         manualattachments: function (oContext, aSelectedContexts) {
-            oExtAPI = this;   // ExtensionAPI in FE V4
+            oExtAPI = this;  // ExtensionAPI in FE V4
 
-            // Take the first selected tour
             var oTourCtx = aSelectedContexts && aSelectedContexts[0];
             if (!oTourCtx) {
                 MessageToast.show("Please select a tour first.");
                 return;
             }
 
-            var oTourObject = oTourCtx.getObject();
-            // >>> Make sure this is the correct field from ZC_PDTOUR <<<
-            sSelectedTourId = oTourObject.TourId;
+            var oTour = oTourCtx.getObject();
+            sSelectedTourId = oTour.TourId;
 
-            if (!sSelectedTourId) {
-                MessageBox.error("No TourId found on selected tour.");
-                return;
-            }
+            // use tour start / end date for mandatory RequestedDate filter
+            oSelectedTourDates.from = oTour.TourStartDate;
+            oSelectedTourDates.to   = oTour.TourEndDate || oTour.TourStartDate;
 
-            // Dialog already created → just open; afterOpen will apply filters
+            // dialog already created
             if (oDialog) {
                 oDialog.open();
+                // ensure new tour’s filters are applied as well
+                setTimeout(applyTourFilters, 0);
                 return;
             }
 
-            // First time: load fragment and wire up afterOpen
+            // first time: load fragment
             oExtAPI.loadFragment({
                 name: "zpdattachment.ext.fragments.GenerateDocDialog",
                 controller: oActionHandlers
@@ -73,18 +94,15 @@ sap.ui.define([
                 oDialog = oLoadedDialog;
                 oExtAPI.addDependent(oDialog);
 
-                // Every time the dialog opens, apply the filters
-                oDialog.attachAfterOpen(function () {
-                    applyTourFilters();
-                });
-
                 oDialog.open();
+                // wait until controls are created, then apply filters
+                setTimeout(applyTourFilters, 0);
             });
         },
 
         onDialogChoose: function () {
-            var oTopTable    = oExtAPI.byId("AttachmentTable::Table") || oExtAPI.byId("AttachmentTable");
-            var oBottomTable = oExtAPI.byId("ServiceWRTable::Table")  || oExtAPI.byId("ServiceWRTable");
+            var oTopTable    = oExtAPI.byId("AttachmentTable");
+            var oBottomTable = oExtAPI.byId("ServiceWRTable");
 
             function getSelectedObjects(oTable) {
                 if (!oTable || !oTable.getSelectedContexts) { return []; }
@@ -133,3 +151,8 @@ sap.ui.define([
 
     return oActionHandlers;
 });
+
+
+
+@Consumption.filter: { mandatory: false, hidden: false, selectionType: #INTERVAL }
+RequestedDate,
