@@ -1,116 +1,50 @@
-<core:FragmentDefinition
-    xmlns="sap.m"
-    xmlns:core="sap.ui.core"
-    xmlns:macros="sap.fe.macros">
-
-    <Dialog
-        id="TwoSmartTablesDialog"
-        title="Choose Items"
-        stretch="true"
-        contentWidth="1200px"
-        contentHeight="600px"
-        class="sapUiResponsivePadding">
-
-        <content>
-            <VBox id="vbMain" width="100%" height="100%" renderType="Div">
-
-                <!-- ========= ATTACHMENT “LIST REPORT” ========= -->
-                <macros:FilterBar
-                    id="AttachmentFilterBar"
-                    contextPath="/PrintConfiguration"
-                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
-
-                    <macros:Table
-                        id="AttachmentTable"
-                        contextPath="/PrintConfiguration"
-                        metaPath="@com.sap.vocabularies.UI.v1.LineItem"
-                        filterBar="AttachmentFilterBar"            
-                        selectionMode="ForceMulti"    
-                        header="Attachments" />
-
-
-
-                <Toolbar id="tbSpacer1" design="Transparent">
-                    <ToolbarSpacer id="tb1" />
-                </Toolbar>
-
-                <!-- ========= SERVICE WR (USE CHILD NAVIGATION) ========= -->
-<!-- SERVICE WR – absolute but filtered by selected TourId -->
-                <macros:FilterBar
-                    id="ServiceWRFilterBar"
-                    contextPath="/ServiceAssignment"
-                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
-
-                <macros:Table
-                    id="ServiceWRTable"
-                    contextPath="/ServiceAsignment"
-                    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
-                    filterBar="ServiceWRFilterBar"
-                    selectionMode="ForceMulti"
-                    header="Service WR"
-                    
-                     />
-
-            </VBox>
-        </content>
-
-        <beginButton>
-            <Button
-                id="btnChoose"
-                text="Choose"
-                type="Emphasized"
-                press=".onDialogChoose" />
-        </beginButton>
-
-        <endButton>
-            <Button
-                id="btnCancel"
-                text="Cancel"
-                press=".onDialogCancel" />
-        </endButton>
-
-    </Dialog>
-</core:FragmentDefinition>
 sap.ui.define([
     "sap/m/MessageToast",
-    "sap/ui/core/Fragment"
-], function (MessageToast, Fragment) {
+    "sap/ui/core/Fragment",
+    "sap/m/MessageBox"
+], function (MessageToast, Fragment, MessageBox) {
     "use strict";
 
     var oExtAPI;
     var oDialog;
 
-    // --------------------------------------------------------------
-    // NEW: Robust function that waits until FilterBars are ready
-    // --------------------------------------------------------------
+    // --- wait until MDC FilterBar is initialized ---
     function waitForFilterBarAndSearch(oFilterBar, fnApply) {
-        if (!oFilterBar) return;
+        if (!oFilterBar) {
+            return;
+        }
 
-        // Case 1: Already initialized → run immediately
-        if (oFilterBar.getMetadata().getName() === "sap.ui.mdc.FilterBar" && oFilterBar.isInitialised?.()) {
+        // Already initialized → run immediately
+        if (oFilterBar.isA("sap.ui.mdc.FilterBar") &&
+            oFilterBar.isInitialised && oFilterBar.isInitialised()) {
             fnApply();
             return;
         }
 
-        // Case 2: Not yet → listen to the real initialization event
+        // Otherwise wait for initialization
         var fnHandler = function () {
-            oFilterBar.detachEvent("initialized", fnHandler);   // one-time
-            oFilterBar.detachEvent("initialise", fnHandler);    // fallback
+            if (oFilterBar.detachInitialized) {
+                oFilterBar.detachInitialized(fnHandler);
+            }
+            if (oFilterBar.detachInitialise) {
+                oFilterBar.detachInitialise(fnHandler);
+            }
             fnApply();
         };
 
-        oFilterBar.attachInitialized(fnHandler);
-        oFilterBar.attachInitialise(fnHandler);   // older UI5 versions use this
+        if (oFilterBar.attachInitialized) {
+            oFilterBar.attachInitialized(fnHandler);
+        } else if (oFilterBar.attachInitialise) {
+            oFilterBar.attachInitialise(fnHandler);
+        }
     }
 
     function applyFiltersAndSearch(sTourId) {
-        // Use the dialog's own view to resolve IDs correctly (no prefix issue!)
-        var oView = oDialog.getParent(); // oDialog is the Dialog → parent is the Fragment view
+        // *** IMPORTANT: use oExtAPI.byId, not oDialog.getParent().byId ***
+        var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
+        var oAttachFB  = oExtAPI.byId("AttachmentFilterBar");
 
-        var oServiceFB = oView.byId("ServiceWRFilterBar");
-        var oAttachFB   = oView.byId("AttachmentFilterBar");
-
-        // Service WR table – filter by TourId
+        // Service WR – filter by TourId
         waitForFilterBarAndSearch(oServiceFB, function () {
             var mCond = oServiceFB.getFilterConditions() || {};
             mCond.TourId = [{
@@ -119,10 +53,10 @@ sap.ui.define([
                 isEmpty: false
             }];
             oServiceFB.setFilterConditions(mCond);
-            oServiceFB.search();               // this now really works
+            oServiceFB.search();
         });
 
-        // PrintConfiguration table – just load everything
+        // Attachments – just trigger GO
         waitForFilterBarAndSearch(oAttachFB, function () {
             oAttachFB.search();
         });
@@ -130,9 +64,10 @@ sap.ui.define([
 
     var oActionHandlers = {
         manualattachments: function (oContext, aSelectedContexts) {
-            oExtAPI = this;
+            oExtAPI = this; // ExtensionAPI
+            var oView = oExtAPI.getView();
 
-            var oTourCtx = aSelectedContexts?.[0];
+            var oTourCtx = aSelectedContexts && aSelectedContexts[0];
             if (!oTourCtx) {
                 MessageToast.show("Please select a tour first.");
                 return;
@@ -140,9 +75,11 @@ sap.ui.define([
             var sTourId = oTourCtx.getProperty("TourId");
 
             if (oDialog) {
-                // REOPEN case
-                oDialog._currentTourId = sTourId;                    // remember for later
-                oDialog.detachAfterOpen(oDialog._afterOpenHandler);
+                // Re-open: re-wire afterOpen and use new TourId
+                oDialog._currentTourId = sTourId;
+                if (oDialog._afterOpenHandler) {
+                    oDialog.detachAfterOpen(oDialog._afterOpenHandler);
+                }
                 oDialog._afterOpenHandler = function () {
                     applyFiltersAndSearch(sTourId);
                 };
@@ -151,12 +88,14 @@ sap.ui.define([
                 return;
             }
 
-            // FIRST OPEN
-            oExtAPI.loadFragment({
-                name: "zpdattachment.ext.fragments.GenerateDocDialog"
+            // FIRST OPEN – use Fragment.load with the VIEW ID as "id"
+            Fragment.load({
+                id: oView.getId(),                                  // << crucial
+                name: "zpdattachment.ext.fragments.GenerateDocDialog",
+                controller: oActionHandlers                          // .onDialogChoose / .onDialogCancel
             }).then(function (oLoadedDialog) {
                 oDialog = oLoadedDialog;
-                oExtAPI.addDependent(oDialog);
+                oView.addDependent(oDialog);                        // host dialog on the view
                 oDialog._currentTourId = sTourId;
 
                 oDialog._afterOpenHandler = function () {
@@ -168,7 +107,8 @@ sap.ui.define([
             });
         },
 
-               onDialogChoose: function () {
+        onDialogChoose: function () {
+            // These already worked – unchanged, still use oExtAPI.byId
             var oTopTable    = oExtAPI.byId("AttachmentTable");
             var oBottomTable = oExtAPI.byId("ServiceWRTable");
 
@@ -187,14 +127,10 @@ sap.ui.define([
                 return;
             }
 
-            var aAttachmentItems = aTopSelected;
-            var aServiceWRItems  = aBottomSelected;
-
-            var sAttachmentJson = JSON.stringify(aAttachmentItems);
-            var sServiceWRJson  = JSON.stringify(aServiceWRItems);
+            var sAttachmentJson = JSON.stringify(aTopSelected);
+            var sServiceWRJson  = JSON.stringify(aBottomSelected);
 
             var oModel = oExtAPI.getModel();
-
             var oActionBinding = oModel.bindContext(
                 "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
             );
@@ -206,7 +142,7 @@ sap.ui.define([
                 MessageToast.show("Documents were generated successfully.");
                 oModel.refresh();
             }).catch(function (oError) {
-                sap.m.MessageBox.error(oError.message || "Error while generating documents.");
+                MessageBox.error(oError.message || "Error while generating documents.");
             });
 
             if (oDialog) {
@@ -220,7 +156,6 @@ sap.ui.define([
             }
         }
     };
-
 
     return oActionHandlers;
 });
