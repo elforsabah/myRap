@@ -8,6 +8,27 @@ sap.ui.define([
     var oExtAPI;        // sap.fe.core.ExtensionAPI
     var oDialog;        // ONE dialog instance
 
+    function applyFiltersAndSearch(sTourId) {
+        // --- Service WR: Filter by TourId ---
+        var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
+        if (oServiceFB && oServiceFB.setFilterConditions) {
+            var mCond = oServiceFB.getFilterConditions() || {};
+            mCond.TourId = [{
+                operator: "EQ",
+                values: [sTourId],
+                isEmpty: false
+            }];
+            oServiceFB.setFilterConditions(mCond);
+            oServiceFB.search();  // Triggers immediate load (like pressing GO)
+        }
+
+        // --- Attachments: load all (NO TourId filter) ---
+        var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
+        if (oAttachFB && oAttachFB.search) {
+            oAttachFB.search();  // Triggers immediate load (like pressing GO)
+        }
+    }
+
     var oActionHandlers = {
         manualattachments: function (oContext, aSelectedContexts) {
             oExtAPI = this; // ExtensionAPI in FE V4
@@ -22,26 +43,11 @@ sap.ui.define([
 
             // 2) Open dialog and pre-filter tables
             if (oDialog) {
-                // For reopen: Apply filters and trigger searches
-                // --- Service WR: Filter by TourId ---
-                var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
-                if (oServiceFB && oServiceFB.setFilterConditions) {
-                    var mCond = oServiceFB.getFilterConditions() || {};
-                    mCond.TourId = [{
-                        operator: "EQ",
-                        values: [sTourId],
-                        isEmpty: false
-                    }];
-                    oServiceFB.setFilterConditions(mCond);
-                    oServiceFB.search();  // Triggers immediate load (like pressing GO)
-                }
-
-                // --- Attachments: load all (NO TourId filter) ---
-                var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
-                if (oAttachFB && oAttachFB.search) {
-                    oAttachFB.search();  // Triggers immediate load (like pressing GO)
-                }
-
+                // For reopen: Open first, then apply in afterOpen to ensure controls are ready
+                oDialog.attachAfterOpen({ sTourId: sTourId }, function(oEvent) {
+                    var sId = oEvent.getParameter("sTourId");
+                    applyFiltersAndSearch(sId);
+                });
                 oDialog.open();
                 return;
             }
@@ -53,32 +59,10 @@ sap.ui.define([
                 oDialog = oLoadedDialog;
                 oExtAPI.addDependent(oDialog);
 
-                // For initial open: Apply filters and trigger searches
-                // --- Service WR: Filter by TourId ---
-                var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
-                if (oServiceFB && oServiceFB.setFilterConditions) {
-                    var mCond = oServiceFB.getFilterConditions() || {};
-                    mCond.TourId = [{
-                        operator: "EQ",
-                        values: [sTourId],
-                        isEmpty: false
-                    }];
-                    oServiceFB.setFilterConditions(mCond);
-                    oServiceFB.search();  // Triggers immediate load (like pressing GO)
-                }
-
-                // --- Attachments: load all (NO TourId filter) ---
-                var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
-                if (oAttachFB && oAttachFB.search) {
-                    oAttachFB.search();  // Triggers immediate load (like pressing GO)
-                }
-
-                // Optional: If timing issues (e.g., controls not ready), attach to afterOpen
-                oDialog.attachAfterOpen(function () {
-                    var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
-                    oServiceFB?.search();
-                    var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
-                    oAttachFB?.search();
+                // For initial open: Apply in afterOpen to ensure controls are rendered
+                oDialog.attachAfterOpen({ sTourId: sTourId }, function(oEvent) {
+                    var sId = oEvent.getParameter("sTourId");
+                    applyFiltersAndSearch(sId);
                 });
 
                 oDialog.open();
