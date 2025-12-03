@@ -1,7 +1,9 @@
 sap.ui.define([
     "sap/m/MessageToast",
-    "sap/m/MessageBox"
-], function (MessageToast, MessageBox) {
+    "sap/m/MessageBox",
+    "sap/ui/model/Filter",
+    "sap/ui/model/FilterOperator"
+], function (MessageToast, MessageBox, Filter, FilterOperator) {
     "use strict";
 
     var oExtAPI;           // sap.fe.core.ExtensionAPI
@@ -13,26 +15,26 @@ sap.ui.define([
             return;
         }
 
-        // --- SERVICE WR TABLE: filter by TourId and trigger GO ---
-        var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
-        if (oServiceFB && oServiceFB.setFilterConditions) {
-            var mCond = oServiceFB.getFilterConditions() || {};
-
-            // Hidden filter on property TourId (ServiceWRType.TourId)
-            mCond.TourId = [{
-                operator: "EQ",
-                values: [sSelectedTourId],
-                isEmpty: false
-            }];
-
-            oServiceFB.setFilterConditions(mCond);
-            oServiceFB.search();   // behaves like pressing GO
+        // --- ATTACHMENTS: trigger GO so data is loaded automatically ---
+        // For macros:FilterBar, the inner MDC FilterBar has id "<id>::FilterBar"
+        var oAttachFB = oExtAPI.byId("AttachmentFilterBar::FilterBar");
+        if (oAttachFB && oAttachFB.search) {
+            oAttachFB.search();
         }
 
-        // --- ATTACHMENTS TABLE: just trigger GO (no special filter) ---
-        var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
-        if (oAttachFB && oAttachFB.search) {
-            oAttachFB.search();    // loads attachments / print config
+        // --- SERVICE WR: filter binding by TourId and trigger read ---
+        // For macros:Table, the inner MDC table has id "<id>::Table"
+        var oMdcTable = oExtAPI.byId("ServiceWRTable::Table");
+        if (oMdcTable) {
+            var oBinding = oMdcTable.getRowBinding && oMdcTable.getRowBinding();
+            if (oBinding) {
+                var aFilters = [
+                    new Filter("TourId", FilterOperator.EQ, sSelectedTourId) // <-- adapt property name if needed
+                ];
+
+                // Apply application-level filter (AND with user filters)
+                oBinding.filter(aFilters, "Application");
+            }
         }
     }
 
@@ -49,7 +51,13 @@ sap.ui.define([
             }
 
             var oTourObject = oTourCtx.getObject();
-            sSelectedTourId = oTourObject.TourId;  // field from ZC_PDTOUR
+            // >>> Make sure this is the correct field from ZC_PDTOUR <<<
+            sSelectedTourId = oTourObject.TourId;
+
+            if (!sSelectedTourId) {
+                MessageBox.error("No TourId found on selected tour.");
+                return;
+            }
 
             // Dialog already created → just open; afterOpen will apply filters
             if (oDialog) {
@@ -75,8 +83,8 @@ sap.ui.define([
         },
 
         onDialogChoose: function () {
-            var oTopTable    = oExtAPI.byId("AttachmentTable");
-            var oBottomTable = oExtAPI.byId("ServiceWRTable");
+            var oTopTable    = oExtAPI.byId("AttachmentTable::Table") || oExtAPI.byId("AttachmentTable");
+            var oBottomTable = oExtAPI.byId("ServiceWRTable::Table")  || oExtAPI.byId("ServiceWRTable");
 
             function getSelectedObjects(oTable) {
                 if (!oTable || !oTable.getSelectedContexts) { return []; }
@@ -108,7 +116,7 @@ sap.ui.define([
                 MessageToast.show("Documents were generated successfully.");
                 oModel.refresh();
             }).catch(function (oError) {
-                sap.m.MessageBox.error(oError.message || "Error while generating documents.");
+                MessageBox.error(oError.message || "Error while generating documents.");
             });
 
             if (oDialog) {
@@ -125,78 +133,3 @@ sap.ui.define([
 
     return oActionHandlers;
 });
-
-
-
-<core:FragmentDefinition
-    xmlns="sap.m"
-    xmlns:core="sap.ui.core"
-    xmlns:macros="sap.fe.macros">
-
-    <Dialog
-        id="TwoSmartTablesDialog"
-        title="Choose Items"
-        stretch="true"
-        contentWidth="1200px"
-        contentHeight="600px"
-        class="sapUiResponsivePadding">
-
-        <content>
-            <VBox id="vbMain" width="100%" height="100%" renderType="Div">
-
-                <!-- ========= ATTACHMENT “LIST REPORT” ========= -->
-                <macros:FilterBar
-                    id="AttachmentFilterBar"
-                    contextPath="/PrintConfiguration"
-                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
-
-                    <macros:Table
-                        id="AttachmentTable"
-                        contextPath="/PrintConfiguration"
-                        metaPath="@com.sap.vocabularies.UI.v1.LineItem"
-                        filterBar="AttachmentFilterBar"            
-                        selectionMode="ForceMulti"    
-                        header="Attachments" />
-
-
-
-                <Toolbar id="tbSpacer1" design="Transparent">
-                    <ToolbarSpacer id="tb1" />
-                </Toolbar>
-
-          <!-- ========= SERVICE WR “LIST REPORT” ========= -->
-                <macros:FilterBar
-                    id="ServiceWRFilterBar"
-                    contextPath="/ServiceWR"
-                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
-                <macros:Table
-                    id="ServiceWRTable"
-                    contextPath="/ServiceWR"
-                    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
-                    filterBar="ServiceWRFilterBar"
-                    selectionMode="ForceMulti"
-                    header="Service WR" />
-
-            </VBox>
-        </content>
-
-        <beginButton>
-            <Button
-                id="btnChoose"
-                text="Choose"
-                type="Emphasized"
-                press=".onDialogChoose" />
-        </beginButton>
-
-        <endButton>
-            <Button
-                id="btnCancel"
-                text="Cancel"
-                press=".onDialogCancel" />
-        </endButton>
-
-    </Dialog>
-</core:FragmentDefinition>
-
-
-
