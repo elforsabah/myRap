@@ -1,25 +1,3 @@
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Projection View of ZI_PRINTCONFIG'
-@Metadata.ignorePropagatedAnnotations: true
-define root view entity ZC_PRINTCONFIG 
-provider contract transactional_query
-as projection on ZI_PRINTCONFIG
-
-{
-   @UI.selectionField: [{ position: 10 }]
-   @UI.lineItem: [{ position: 10 }]
-    key Field,
-    @UI.lineItem: [{ position: 20 }]
-    key Printform,
-    @UI.lineItem: [{ position: 30 }]
-    key Formtype,
-    @UI.lineItem: [{ position: 40 }]
-    ParameterIn,
-    @UI.lineItem: [{ position: 50 }]
-    Filenameteemplate
-}
-
-
 @EndUserText.label: 'Service WR'
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 @Metadata.allowExtensions: true
@@ -232,76 +210,73 @@ define root view entity /PLCE/C_PDMNLServiceWR
 }
 
 
-<core:FragmentDefinition
-    xmlns="sap.m"
-    xmlns:core="sap.ui.core"
-    xmlns:macros="sap.fe.macros">
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Consumption View (Tour WR)'
+@Search.searchable: true
+@Metadata.allowExtensions: true
+define root view entity ZC_PDTOUR
+  provider contract transactional_query
+  as projection on ZR_PDTOUR
 
-    <Dialog
-        id="TwoSmartTablesDialog"
-        title="Choose Items"
-        stretch="true"
-        contentWidth="1200px"
-        contentHeight="600px"
-        class="sapUiResponsivePadding">
+{
+  key TourUuid,
+      @Consumption.valueHelpDefinition: [{ entity: { name: '/PLCE/C_PDTourWA_VH', element: 'TourId' } }]
+      @Search: { defaultSearchElement: true, ranking: #HIGH }
+      TourId,
 
-        <content>
-            <VBox id="vbMain" width="100%" height="100%" renderType="Div">
+      @EndUserText.label: 'Tour Template'
+      @ObjectModel.text.element: ['TourTemplateName']
+      @Consumption.valueHelpDefinition: [{ entity: { name: '/PLCE/C_PDTourTemplateWA_VH', element: 'TourTemplate' } }]
+      @Search: { defaultSearchElement: true }
+      TourTemplate,
+      @EndUserText.label: 'Template Description'
+      @Consumption.filter.hidden: true
+      @Semantics.text: true
+      _TourTemplate._Text.TourTemplateName         as TourTemplateName : localized,
+      @UI.hidden: true
+      _TourTemplate.ColorTour                      as ColorTour,
 
-             <!-- ========= SERVICE WR “LIST REPORT” ========= -->
-                <macros:FilterBar
-                    id="ServiceWRFilterBar"
-                    contextPath="/ServiceWR"
-                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
+      @EndUserText.label: 'Tour Status'
+      @ObjectModel.text.element: ['TourStatusText']
+      @Consumption.valueHelpDefinition: [{ entity: { name: '/PLCE/C_PDTourStatus_VH', element: 'TourStatus' } }]
+      @Consumption.filter: { multipleSelections: true, selectionType: #SINGLE }
+      TourStatus,
+      @Semantics.text: true
+      @UI.hidden: true
+      _PDTourStatusText.Description                as TourStatusText   : localized,
+      @UI.hidden: true
+      _TourLookup.TourStatusColorValue             as TourStatusColorValue,
+      @Consumption.filter.hidden: true
+      _PDTourStatusText.IconURL                    as TourStatusIcon   : localized,
 
-                <macros:Table
-                    id="ServiceWRTable"
-                    contextPath="/ServiceWR"
-                    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
-                    filterBar="ServiceWRFilterBar"
-                    selectionMode="Multi"
-                    header="Service WR" />
+      @Consumption.filter: { mandatory: true, hidden: false, selectionType: #INTERVAL }
+      StartDate                                    as TourStartDate,
+      @Consumption.filter.selectionType: #INTERVAL
+      EndDate                                      as TourEndDate,
+      @Consumption.filter.selectionType: #INTERVAL
+      ScheduledDateTimeStart,
+
+      @Consumption.valueHelpDefinition: [{ entity: { name: '/PLCE/C_PDResource_VH', element: 'ResourceId'} }]
+      MainResourceId,
+
+      @EndUserText.label: 'Work Status'
+      @UI.textArrangement: #TEXT_ONLY
+      @ObjectModel.text.element: ['WorkStatusText']
+      @Consumption.valueHelpDefinition: [{ entity: { name: '/PLCE/C_PDWorkStatus_VH', element: 'Value'} }]
+      _TourLookup.WorkStatus,
+      @UI.hidden: true
+      _TourLookup._WorkStatusText.Description      as WorkStatusText   : localized,
+      @Consumption.filter.hidden: true
+      _TourLookup._WorkStatusText.IconURL          as WorkStatusIcon   : localized,
+      _TourLookup._TourCriticality.TourCriticality as TourCriticality,
+
+      /* Associations */
+      _Attachments        : redirected to composition child ZC_PDATTACHMENT,
+      _ServiceAssignments : redirected to composition child ZC_PDTOURSERVICEASGMT
+}
 
 
-                <Toolbar id="tbSpacer1" design="Transparent">
-                    <ToolbarSpacer id="tb1" />
-                </Toolbar>
 
-
-                <!-- ========= ATTACHMENT “LIST REPORT” ========= -->
-                <macros:FilterBar
-                    id="AttachmentFilterBar"
-                    contextPath="/PrintConfiguration"
-                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
-
-                    <macros:Table
-                        id="AttachmentTable"
-                        contextPath="/PrintConfiguration"
-                        metaPath="@com.sap.vocabularies.UI.v1.LineItem"
-                        filterBar="AttachmentFilterBar"            
-                        selectionMode="Multi"    
-                        header="Attachments" />
-
-            </VBox>
-        </content>
-
-        <beginButton>
-            <Button
-                id="btnChoose"
-                text="Choose"
-                type="Emphasized"
-                press=".onDialogChoose" />
-        </beginButton>
-
-        <endButton>
-            <Button
-                id="btnCancel"
-                text="Cancel"
-                press=".onDialogCancel" />
-        </endButton>
-
-    </Dialog>
-</core:FragmentDefinition>
 
 
 
