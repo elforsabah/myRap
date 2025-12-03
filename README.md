@@ -1,106 +1,89 @@
-var oTopTable    = oDialog && oDialog.byId("AttachmentTable");
-var oBottomTable = oDialog && oDialog.byId("ServiceWRTable");
+sap.ui.define([
+    "sap/ui/core/mvc/ControllerExtension",
+    "sap/m/MessageToast",
+    "sap/m/MessageBox",
+    "sap/base/Log"
+], function (ControllerExtension, MessageToast, MessageBox, Log) {
+    "use strict";
 
+    return ControllerExtension.extend("zpdattachment.ext.controller.ListReportExt", {
 
+        // --------------------------------------------------------------------
+        // Helper to access extensionAPI
+        // --------------------------------------------------------------------
+        _getExtensionAPI: function () {
+            return this.base.getExtensionAPI();
+        },
 
-// Assume your custom action is triggered from the Tour ListReport toolbar
-// → FE passes ExtensionAPI as `this` so you can get selected Tours:
-var aTourContexts = oExtAPI.getSelectedContexts() || [];
-if (!aTourContexts.length) {
-    MessageToast.show("Please select at least one Tour first.");
-    return;
-}
+        // --------------------------------------------------------------------
+        // Custom action handler (wired via Guided Development / manifest)
+        // --------------------------------------------------------------------
+        manuallyGenerateDocs: function () {
+            var oExtAPI = this._getExtensionAPI();
+            var oView   = this.base.getView();
+            var that    = this;
 
-// For a collection-bound action, you still need one context to build the path:
-var sPath = aTourContexts[0].getPath(); // "/Tour(TourUuid=...)"
+            // Function to actually open the dialog once fragment is available
+            var fnOpenDialog = function (oDialog) {
+                that._oAttachmentDialog = oDialog;
 
-// Build action binding
-var oActionBinding = oModel.bindContext(
-    sPath + "/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
-);
+                // Add as dependent so models / busy / lifecycle work correctly
+                oView.addDependent(oDialog);
 
-// Set parameters
-oActionBinding.setParameter("AttachmentItemsjson", sAttachmentJson);
-oActionBinding.setParameter("ServiceWRItemsjson",  sServiceWRJson);
+                oDialog.open();
+            };
 
-// Execute with the tour-context groupId or $auto
-oActionBinding.execute("$auto").then(function (oResultContext) {
-    MessageToast.show("Documents were generated successfully.");
-    oModel.refresh();
-}).catch(function (oError) {
-    sap.m.MessageBox.error(oError.message || "Error while generating documents.");
-});
+            // If we already created the dialog once, just reopen it
+            if (this._oAttachmentDialog) {
+                this._oAttachmentDialog.open();
+                return;
+            }
 
+            // First time → load fragment
+            oExtAPI.loadFragment({
+                name: "zpdattachment.ext.fragment.GenerateDocDialog", // adjust name if different
+                controller: this
+            }).then(fnOpenDialog).catch(function (oError) {
+                Log.error("Error loading GenerateDocDialog fragment", oError);
+                MessageBox.error("The attachment dialog could not be opened. Please contact IT.");
+            });
+        },
 
+        // --------------------------------------------------------------------
+        // Dialog: Cancel
+        // --------------------------------------------------------------------
+        onAttachmentDialogCancel: function () {
+            if (this._oAttachmentDialog) {
+                this._oAttachmentDialog.close();
+            }
+        },
 
+        // --------------------------------------------------------------------
+        // Dialog: OK / Confirm
+        // --------------------------------------------------------------------
+        onAttachmentDialogOk: function () {
+            var oView = this.base.getView();
+            var oTable = oView.byId("AttachmentTable"); // macros:Table
 
+            var iCount = 0;
 
+            // In many UI5 versions, sap.fe.macros.Table / mdc.Table exposes getSelectedContexts().
+            // If it's not available in your version, this will just return 0 and NOT crash.
+            if (oTable && typeof oTable.getSelectedContexts === "function") {
+                var aContexts = oTable.getSelectedContexts() || [];
+                iCount = aContexts.length;
 
+                // TODO: Here you can send the selected attachment IDs to the backend
+                // Example:
+                // var aAttachmentIds = aContexts.map(function (oCtx) {
+                //     return oCtx.getObject().AttachmentID;
+                // });
+                // ... call an action, function import, etc.
+            }
 
+            MessageToast.show(iCount + " attachment(s) selected.");
 
-oExtAPI.loadFragment({
-    name: "zpdattachment.ext.fragments.GenerateDocDialog",
-    controller: oActionHandlers
-});
-
-
-
-onDialogChoose: function () {
-    // 1) Get the macro tables via the dialog
-    var oTopTable    = oDialog && oDialog.byId("AttachmentTable");
-    var oBottomTable = oDialog && oDialog.byId("ServiceWRTable");
-
-    function getSelectedObjects(oTable) {
-        if (!oTable || !oTable.getSelectedContexts) { return []; }
-        var aCtx = oTable.getSelectedContexts() || [];
-        return aCtx.map(function (oCtx) { return oCtx.getObject(); });
-    }
-
-    var aTopSelected    = getSelectedObjects(oTopTable);
-    var aBottomSelected = getSelectedObjects(oBottomTable);
-
-    if (!aTopSelected.length && !aBottomSelected.length) {
-        MessageToast.show("Please select at least one row in one of the tables.");
-        return;
-    }
-
-    var sAttachmentJson = JSON.stringify(aTopSelected);
-    var sServiceWRJson  = JSON.stringify(aBottomSelected);
-
-    var oModel = oExtAPI.getModel();
-
-    // 2) Get at least one Tour context to bind the bound action
-    var aTourContexts = oExtAPI.getSelectedContexts() || [];
-    if (!aTourContexts.length) {
-        MessageToast.show("Please select at least one Tour first.");
-        return;
-    }
-
-    var sPath = aTourContexts[0].getPath();
-
-    var oActionBinding = oModel.bindContext(
-        sPath + "/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
-    );
-
-    oActionBinding.setParameter("AttachmentItemsjson", sAttachmentJson);
-    oActionBinding.setParameter("ServiceWRItemsjson",  sServiceWRJson);
-
-    oActionBinding.execute("$auto").then(function (oResultContext) {
-        MessageToast.show("Documents were generated successfully.");
-        oModel.refresh();
-    }).catch(function (oError) {
-        sap.m.MessageBox.error(oError.message || "Error while generating documents.");
+            this.onAttachmentDialogCancel();
+        }
     });
-
-    MessageToast.show(
-        "Selected: " + aTopSelected.length + " top, " +
-        aBottomSelected.length + " bottom"
-    );
-
-    if (oDialog) {
-        oDialog.close();
-    }
-}
-
-
-
+});
