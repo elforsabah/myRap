@@ -1,127 +1,96 @@
 sap.ui.define([
     "sap/m/MessageToast",
-    "sap/ui/core/Fragment",
     "sap/m/MessageBox"
-], function (MessageToast, Fragment, MessageBox) {
+], function (MessageToast, MessageBox) {
     "use strict";
 
-    var oExtAPI;   // sap.fe.core.ExtensionAPI
+    var oExtAPI;   // sap.fe.templates.ListReport.ExtensionAPI
     var oDialog;   // Dialog instance
 
-    // ================================================================
-    // Helper: resolve a control by its *local* ID
-    // (works even with FE/macros prefixes and in fragments)
-    // ================================================================
-    function resolveControl(sLocalId) {
-        var oCtrl = oExtAPI && oExtAPI.byId && oExtAPI.byId(sLocalId);
-        if (oCtrl) {
-            return oCtrl;
+    // ------------------------------------------------------------------------
+    // Helper: find the inner sap.ui.mdc.FilterBar by a fragment alias
+    // ------------------------------------------------------------------------
+    function resolveFilterBar(sAlias) {
+        var oFB = null;
+
+        // 1) Try via ExtensionAPI.byId (if available)
+        if (oExtAPI && oExtAPI.byId) {
+            // sometimes the alias is on the macro wrapper, sometimes on the inner FB
+            oFB = oExtAPI.byId(sAlias) || oExtAPI.byId(sAlias + "::FilterBar");
         }
 
+        // If this is the macro wrapper, try to get inner mdc FilterBar
+        if (oFB && oFB.getInnerFilterBar && !oFB.isA("sap.ui.mdc.FilterBar")) {
+            oFB = oFB.getInnerFilterBar();
+        }
+
+        if (oFB && oFB.isA && oFB.isA("sap.ui.mdc.FilterBar")) {
+            return oFB;
+        }
+
+        // 2) Fallback: scan all elements in Core and look for sap.ui.mdc.FilterBar
         var mElements = sap.ui.getCore().mElements || {};
-        for (var sId in mElements) {
-            if (!Object.prototype.hasOwnProperty.call(mElements, sId)) {
-                continue;
-            }
-
-            // match plain, with "--", and with "::"
+        Object.keys(mElements).some(function (sId) {
+            var oElement = mElements[sId];
             if (
-                sId === sLocalId ||
-                sId.endsWith("--" + sLocalId) ||
-                sId.indexOf(sLocalId) >= 0
+                sId.indexOf(sAlias) !== -1 &&
+                oElement &&
+                oElement.isA &&
+                oElement.isA("sap.ui.mdc.FilterBar")
             ) {
-                return mElements[sId];
+                oFB = oElement;
+                return true; // break
             }
-        }
+            return false;
+        });
 
-        return null;
+        return oFB;
     }
 
-    // ================================================================
-    // Helper: wait until inner sap.ui.mdc.FilterBar is initialized
-    // ================================================================
-    function waitForFilterBarAndRun(oFilterBar, fnApply) {
-        if (!oFilterBar) {
-            return;
-        }
-
-        var bIsMdc = oFilterBar.isA && oFilterBar.isA("sap.ui.mdc.FilterBar");
-
-        if (bIsMdc && oFilterBar.isInitialised && oFilterBar.isInitialised()) {
-            fnApply();
-            return;
-        }
-
-        var fnHandler = function () {
-            if (oFilterBar.detachInitialized) {
-                oFilterBar.detachInitialized(fnHandler);
-            }
-            if (oFilterBar.detachInitialise) {
-                oFilterBar.detachInitialise(fnHandler);
-            }
-            fnApply();
-        };
-
-        if (oFilterBar.attachInitialized) {
-            oFilterBar.attachInitialized(fnHandler);
-        }
-        if (oFilterBar.attachInitialise) {
-            oFilterBar.attachInitialise(fnHandler);
-        }
-    }
-
-    // ================================================================
-    // Apply filters + trigger GO on both tables
-    // ================================================================
+    // ------------------------------------------------------------------------
+    // Apply filters & trigger search on both tables
+    // ------------------------------------------------------------------------
     function applyFiltersAndSearch(sTourId) {
-        // We want the *inner* MDC FilterBars behind the macros:FilterBar
-        // → ID pattern: <macroId>::FilterBar
-        var oServiceFB = resolveControl("ServiceWRFilterBar::FilterBar");
-        var oAttachFB  = resolveControl("AttachmentFilterBar::FilterBar");
+        // Try to resolve the FilterBars *after* they exist in the dialog
+        var oServiceFB = resolveFilterBar("ServiceWRFilterBar");
+        var oAttachFB  = resolveFilterBar("AttachmentFilterBar");
 
-        // --- SERVICE WR: TourId = selected Tour ---
-        waitForFilterBarAndRun(oServiceFB, function () {
+        // Attachments: just trigger search (no additional filters)
+        if (oAttachFB && oAttachFB.search) {
+            oAttachFB.search();
+        }
+
+        // Service WR: set TourId = selected Tour and trigger search
+        if (oServiceFB &&
+            oServiceFB.getFilterConditions &&
+            oServiceFB.setFilterConditions &&
+            oServiceFB.search) {
+
             var mCond = oServiceFB.getFilterConditions() || {};
-
             mCond.TourId = [{
-                operator : "EQ",
-                values   : [sTourId],
-                isEmpty  : false
+                operator: "EQ",
+                values: [sTourId],
+                isEmpty: false
             }];
 
             oServiceFB.setFilterConditions(mCond);
             oServiceFB.search();
-        });
-
-        // --- ATTACHMENTS: just trigger GO ---
-        waitForFilterBarAndRun(oAttachFB, function () {
-            oAttachFB.search();
-        });
-    }
-
-    // ================================================================
-    // Helper: get selected row objects from a macros:Table
-    // (the macros table itself already supports getSelectedContexts)
-    // ================================================================
-    function getSelectedObjectsFromTableId(sTableId) {
-        var oTable = oExtAPI && oExtAPI.byId && oExtAPI.byId(sTableId);
-        if (!oTable || !oTable.getSelectedContexts) {
-            return [];
+        } else {
+            // debug helper: you’ll see this if we still don’t find the FilterBar
+            jQuery.sap.log.warning(
+                "ServiceWR FilterBar not found or no MDC API",
+                "",
+                "zpdattachment.ext.controller.ListReportExt"
+            );
         }
-
-        var aContexts = oTable.getSelectedContexts() || [];
-        return aContexts.map(function (oCtx) {
-            return oCtx.getObject();
-        });
     }
 
-    // ================================================================
-    // Action handlers
-    // ================================================================
     var oActionHandlers = {
-        // Called from FE action "manualattachments"
+        // --------------------------------------------------------------------
+        // Action: open dialog + prefilter tables by selected Tour
+        // --------------------------------------------------------------------
         manualattachments: function (oContext, aSelectedContexts) {
-            oExtAPI = this; // ExtensionAPI
+            oExtAPI = this; // in FE V4 action handler, `this` is ExtensionAPI
 
             var oTourCtx = aSelectedContexts && aSelectedContexts[0];
             if (!oTourCtx) {
@@ -131,60 +100,71 @@ sap.ui.define([
 
             var sTourId = oTourCtx.getProperty("TourId");
 
-            // --- Dialog already created → just reopen and re-apply filters ---
+            // Re-use existing dialog
             if (oDialog) {
                 oDialog._currentTourId = sTourId;
-
-                if (oDialog._afterOpenHandler) {
-                    oDialog.detachAfterOpen(oDialog._afterOpenHandler);
-                }
-                oDialog._afterOpenHandler = function () {
-                    applyFiltersAndSearch(sTourId);
-                };
-                oDialog.attachAfterOpen(oDialog._afterOpenHandler);
-
                 oDialog.open();
+
+                // Run filter logic shortly after open so that inner controls exist
+                setTimeout(function () {
+                    applyFiltersAndSearch(sTourId);
+                }, 0);
                 return;
             }
 
-            // --- First time: load fragment, then open ---
+            // First-time load
             oExtAPI.loadFragment({
                 name: "zpdattachment.ext.fragments.GenerateDocDialog",
-                controller: oActionHandlers      // for onDialogChoose / onDialogCancel
+                controller: oActionHandlers        // for .onDialogChoose / .onDialogCancel
             }).then(function (oLoadedDialog) {
                 oDialog = oLoadedDialog;
                 oExtAPI.addDependent(oDialog);
                 oDialog._currentTourId = sTourId;
 
-                oDialog._afterOpenHandler = function () {
-                    applyFiltersAndSearch(sTourId);
-                };
-                oDialog.attachAfterOpen(oDialog._afterOpenHandler);
+                oDialog.attachAfterOpen(function () {
+                    // Extra tick to be safe that the macros created all inner controls
+                    setTimeout(function () {
+                        applyFiltersAndSearch(sTourId);
+                    }, 0);
+                });
 
                 oDialog.open();
             });
         },
 
-        // "Choose" button in the dialog
+        // --------------------------------------------------------------------
+        // Choose button: collect selected rows from both tables & call RAP action
+        // --------------------------------------------------------------------
         onDialogChoose: function () {
-            var aAttachmentItems = getSelectedObjectsFromTableId("AttachmentTable");
-            var aServiceWRItems  = getSelectedObjectsFromTableId("ServiceWRTable");
+            var oTopTable    = oExtAPI.byId && oExtAPI.byId("AttachmentTable");
+            var oBottomTable = oExtAPI.byId && oExtAPI.byId("ServiceWRTable");
+
+            function getSelectedObjects(oTable) {
+                if (!oTable || !oTable.getSelectedContexts) {
+                    return [];
+                }
+                var aCtx = oTable.getSelectedContexts() || [];
+                return aCtx.map(function (oCtx) {
+                    return oCtx.getObject();
+                });
+            }
+
+            var aAttachmentItems = getSelectedObjects(oTopTable);
+            var aServiceWRItems  = getSelectedObjects(oBottomTable);
 
             if (!aAttachmentItems.length && !aServiceWRItems.length) {
                 MessageToast.show("Please select at least one row in one of the tables.");
                 return;
             }
 
-            var sAttachmentJson = JSON.stringify(aAttachmentItems);
-            var sServiceWRJson  = JSON.stringify(aServiceWRItems);
-
             var oModel = oExtAPI.getModel();
+
             var oActionBinding = oModel.bindContext(
                 "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
             );
 
-            oActionBinding.setParameter("AttachmentItemsjson", sAttachmentJson);
-            oActionBinding.setParameter("ServiceWRItemsjson",  sServiceWRJson);
+            oActionBinding.setParameter("AttachmentItemsjson", JSON.stringify(aAttachmentItems));
+            oActionBinding.setParameter("ServiceWRItemsjson",  JSON.stringify(aServiceWRItems));
 
             oActionBinding.execute("$auto").then(function () {
                 MessageToast.show("Documents were generated successfully.");
@@ -198,7 +178,6 @@ sap.ui.define([
             }
         },
 
-        // "Cancel" button
         onDialogCancel: function () {
             if (oDialog) {
                 oDialog.close();
