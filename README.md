@@ -1,151 +1,75 @@
 sap.ui.define([
-    "sap/m/MessageToast",
-    "sap/m/MessageBox"
-], function (MessageToast, MessageBox) {
+    "sap/m/MessageToast"
+], function (MessageToast) {
     "use strict";
 
-    var oExtAPI;              // sap.fe.core.ExtensionAPI
-    var oDialog;              // Dialog instance
-    var sSelectedTourId;      // TourId from ZC_PDTOUR
-    var oSelectedTourDates = {
-        from: null,
-        to:   null
-    };
+    var oExtAPI;        // sap.fe.core.ExtensionAPI
+    var oDialog;        // ONE dialog instance
+    var oSelectedTourCtx; // Binding context of selected Tour row (instead of just TourId)
 
-    // --- helper: get inner MDC FilterBar created by macros:FilterBar ---
-    function getInnerFilterBar(sMacroId) {
-        // macros:FilterBar -> inner FilterBar has suffix "::FilterBar"
-        return oExtAPI && oExtAPI.byId(sMacroId + "::FilterBar");
-    }
-
-    // --- apply filters and trigger GO on both tables ---
     function applyTourFilters() {
-        // ===== SERVICE WR =====
-        var oServiceFB = getInnerFilterBar("ServiceWRFilterBar");
-        if (oServiceFB && oServiceFB.setFilterConditions) {
-            var mCond = oServiceFB.getFilterConditions() || {};
-
-            // 1) mandatory RequestedDate on ServiceWR
-            //    -> use tour start / end date as interval
-            if (oSelectedTourDates.from && oSelectedTourDates.to) {
-                mCond.RequestedDate = [{
-                    operator: "BT",
-                    values: [oSelectedTourDates.from, oSelectedTourDates.to],
-                    isEmpty: false
-                }];
-            }
-
-            // 2) our hidden TourId filter so we only see services of this tour
-            if (sSelectedTourId) {
-                mCond.TourId = [{
-                    operator: "EQ",
-                    values: [sSelectedTourId],
-                    isEmpty: false
-                }];
-            }
-
-            oServiceFB.setFilterConditions(mCond);
-            oServiceFB.search();               // behaves like pressing GO
+        if (!oExtAPI) {
+            return;
         }
 
-        // ===== ATTACHMENTS (PrintConfiguration) =====
-        // Here you just want data → trigger GO once.
-        var oAttachFB = getInnerFilterBar("AttachmentFilterBar");
+        // --- Attachments/Print Configs: load all (NO Tour filter) ---
+        var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
         if (oAttachFB && oAttachFB.search) {
-            var mCondAttach = oAttachFB.getFilterConditions() || {};
-            // (optional) if you also want to restrict attachments by date,
-            // copy the same RequestedDate logic here.
-            oAttachFB.setFilterConditions(mCondAttach);
-            oAttachFB.search();
+            // uses whatever default conditions/variant exist
+            oAttachFB.search();  // behaves like pressing GO, loads immediately
+        }
+
+        // --- Service WR: No manual filter needed; composition handles it ---
+        // If FilterBar is present and you want to trigger search (e.g., for additional filters), do it here
+        var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
+        if (oServiceFB && oServiceFB.search) {
+            oServiceFB.search();  // Optional: triggers immediate load if not auto-loading
         }
     }
 
     var oActionHandlers = {
-
         manualattachments: function (oContext, aSelectedContexts) {
-            oExtAPI = this;  // ExtensionAPI in FE V4
+            oExtAPI = this; // ExtensionAPI in FE V4
 
-            var oTourCtx = aSelectedContexts && aSelectedContexts[0];
-            if (!oTourCtx) {
+            // 1) Get selected tour context (use first selected row)
+            oSelectedTourCtx = aSelectedContexts && aSelectedContexts[0];
+            if (!oSelectedTourCtx) {
                 MessageToast.show("Please select a tour first.");
                 return;
             }
 
-            var oTour = oTourCtx.getObject();
-            sSelectedTourId = oTour.TourId;
-
-            // use tour start / end date for mandatory RequestedDate filter
-            oSelectedTourDates.from = oTour.TourStartDate;
-            oSelectedTourDates.to   = oTour.TourEndDate || oTour.TourStartDate;
-
-            // dialog already created
+            // 2) Open dialog and apply bindings/filters
             if (oDialog) {
+                oDialog.setBindingContext(oSelectedTourCtx);  // Re-bind for new tour
+                applyTourFilters();
                 oDialog.open();
-                // ensure new tour’s filters are applied as well
-                setTimeout(applyTourFilters, 0);
                 return;
             }
 
-            // first time: load fragment
             oExtAPI.loadFragment({
                 name: "zpdattachment.ext.fragments.GenerateDocDialog",
                 controller: oActionHandlers
             }).then(function (oLoadedDialog) {
                 oDialog = oLoadedDialog;
                 oExtAPI.addDependent(oDialog);
+                oDialog.setBindingContext(oSelectedTourCtx);  // Initial bind
+                applyTourFilters();  // Initial load
+
+                // Optional: If timing issues, move applyTourFilters to afterOpen
+                oDialog.attachAfterOpen(function () {
+                    applyTourFilters();
+                });
 
                 oDialog.open();
-                // wait until controls are created, then apply filters
-                setTimeout(applyTourFilters, 0);
             });
         },
 
         onDialogChoose: function () {
-            var oTopTable    = oExtAPI.byId("AttachmentTable");
-            var oBottomTable = oExtAPI.byId("ServiceWRTable");
-
-            function getSelectedObjects(oTable) {
-                if (!oTable || !oTable.getSelectedContexts) { return []; }
-                return (oTable.getSelectedContexts() || []).map(function (oCtx) {
-                    return oCtx.getObject();
-                });
-            }
-
-            var aTopSelected    = getSelectedObjects(oTopTable);
-            var aBottomSelected = getSelectedObjects(oBottomTable);
-
-            if (!aTopSelected.length && !aBottomSelected.length) {
-                MessageToast.show("Please select at least one row in one of the tables.");
-                return;
-            }
-
-            var sAttachmentJson = JSON.stringify(aTopSelected);
-            var sServiceWRJson  = JSON.stringify(aBottomSelected);
-
-            var oModel = oExtAPI.getModel();
-            var oActionBinding = oModel.bindContext(
-                "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
-            );
-
-            oActionBinding.setParameter("AttachmentItemsjson", sAttachmentJson);
-            oActionBinding.setParameter("ServiceWRItemsjson",  sServiceWRJson);
-
-            oActionBinding.execute("$auto").then(function () {
-                MessageToast.show("Documents were generated successfully.");
-                oModel.refresh();
-            }).catch(function (oError) {
-                MessageBox.error(oError.message || "Error while generating documents.");
-            });
-
-            if (oDialog) {
-                oDialog.close();
-            }
+            // ... (unchanged)
         },
 
         onDialogCancel: function () {
-            if (oDialog) {
-                oDialog.close();
-            }
+            // ... (unchanged)
         }
     };
 
@@ -153,6 +77,73 @@ sap.ui.define([
 });
 
 
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:macros="sap.fe.macros">
 
-@Consumption.filter: { mandatory: false, hidden: false, selectionType: #INTERVAL }
-RequestedDate,
+    <Dialog
+        id="TwoSmartTablesDialog"
+        title="Choose Items"
+        stretch="true"
+        contentWidth="1200px"
+        contentHeight="600px"
+        class="sapUiResponsivePadding">
+
+        <content>
+            <VBox id="vbMain" width="100%" height="100%" renderType="Div">
+
+                <!-- ========= ATTACHMENTS (UPDATE TO CHILD IF APPLICABLE) ========= -->
+                <!-- If this is print configs, keep as-is (absolute path, loads all). -->
+                <!-- If actual attachments, change to contextPath="_Attachments" and metaPath to match ZC_PDATTACHMENT annotations. -->
+                <macros:FilterBar
+                    id="AttachmentFilterBar"
+                    contextPath="/PrintConfiguration"  <!-- Change to "_Attachments" if showing tour-specific attachments -->
+                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
+
+                <macros:Table
+                    id="AttachmentTable"
+                    contextPath="/PrintConfiguration"  <!-- Change to "_Attachments" if showing tour-specific attachments -->
+                    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
+                    filterBar="AttachmentFilterBar"            
+                    selectionMode="ForceMulti"    
+                    header="Attachments" />  <!-- Or rename header to "Print Configurations" for clarity -->
+
+                <Toolbar id="tbSpacer1" design="Transparent">
+                    <ToolbarSpacer id="tb1" />
+                </Toolbar>
+
+                <!-- ========= SERVICE WR (USE CHILD NAVIGATION) ========= -->
+                <macros:FilterBar
+                    id="ServiceWRFilterBar"
+                    contextPath="_ServiceAssignments"  <!-- Relative to dialog's binding context (selected tour) -->
+                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
+
+                <macros:Table
+                    id="ServiceWRTable"
+                    contextPath="_ServiceAssignments"  <!-- Relative to dialog's binding context (selected tour) -->
+                    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
+                    filterBar="ServiceWRFilterBar"
+                    selectionMode="ForceMulti"
+                    header="Service WR" />
+
+            </VBox>
+        </content>
+
+        <beginButton>
+            <Button
+                id="btnChoose"
+                text="Choose"
+                type="Emphasized"
+                press=".onDialogChoose" />
+        </beginButton>
+
+        <endButton>
+            <Button
+                id="btnCancel"
+                text="Cancel"
+                press=".onDialogCancel" />
+        </endButton>
+
+    </Dialog>
+</core:FragmentDefinition>
