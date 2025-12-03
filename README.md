@@ -1,121 +1,17 @@
-sap.ui.define([
-    "sap/m/MessageToast",
-    "sap/m/MessageBox"
-], function (MessageToast, MessageBox) {
-    "use strict";
-
-    var oExtAPI;   // sap.fe.core.ExtensionAPI
-    var oDialog;   // single dialog instance
-
-    // Bind the dialog to the selected Tour and trigger searches
-    function initDialogForTour(oTourCtx) {
-        // Bind dialog to selected Tour (needed for relative _ServiceAssignments)
-        oDialog.setModel(oExtAPI.getModel());
-        oDialog.setBindingContext(oTourCtx);
-
-        // Trigger searches so data is loaded immediately (no GO press)
-        var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
-        if (oServiceFB && oServiceFB.search) {
-            oServiceFB.search();
-        }
-
-        var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
-        if (oAttachFB && oAttachFB.search) {
-            oAttachFB.search();
-        }
-    }
-
-    // Helper: collect selected row objects from a table
-    function getSelectedObjectsFromTable(oTable) {
-        if (!oTable || !oTable.getSelectedContexts) {
-            return [];
-        }
-        var aContexts = oTable.getSelectedContexts() || [];
-        return aContexts.map(function (oCtx) {
-            return oCtx.getObject();
-        });
-    }
-
-    var oActionHandlers = {
-
-        // Called from the “Generate Documents” button on the Tour ListReport
-        manualattachments: function (oContext, aSelectedContexts) {
-            oExtAPI = this; // in FE V4 this is ExtensionAPI
-
-            // Use the first selected Tour
-            var oTourCtx = aSelectedContexts && aSelectedContexts[0];
-            if (!oTourCtx) {
-                MessageToast.show("Please select a tour first.");
-                return;
-            }
-
-            if (oDialog) {
-                initDialogForTour(oTourCtx);
-                oDialog.open();
-                return;
-            }
-
-            oExtAPI.loadFragment({
-                name: "zpdattachment.ext.fragments.GenerateDocDialog",
-                controller: oActionHandlers   // .onDialogChoose / .onDialogCancel
-            }).then(function (oLoadedDialog) {
-                oDialog = oLoadedDialog;
-                oExtAPI.addDependent(oDialog);
-
-                initDialogForTour(oTourCtx);
-                oDialog.open();
-            });
-        },
-
-        // User presses "Choose" in the dialog
-        onDialogChoose: function () {
-            var oTopTable    = oExtAPI.byId("AttachmentTable");
-            var oBottomTable = oExtAPI.byId("ServiceWRTable");
-
-            var aAttachmentItems = getSelectedObjectsFromTable(oTopTable);
-            var aServiceWRItems  = getSelectedObjectsFromTable(oBottomTable);
-
-            if (!aAttachmentItems.length && !aServiceWRItems.length) {
-                MessageToast.show("Please select at least one row in one of the tables.");
-                return;
-            }
-
-            var oModel = oExtAPI.getModel();
-
-            // Bound action on the Tour to which the dialog is bound
-            var oTourCtx = oDialog.getBindingContext();
-            if (!oTourCtx) {
-                MessageBox.error("No tour context available for action execution.");
-                return;
-            }
-
-            var sActionPath = oTourCtx.getPath() +
-                "/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)";
-
-            var oActionBinding = oModel.bindContext(sActionPath);
-
-            oActionBinding.setParameter("AttachmentItemsjson", JSON.stringify(aAttachmentItems));
-            oActionBinding.setParameter("ServiceWRItemsjson",  JSON.stringify(aServiceWRItems));
-
-            oActionBinding.execute("$auto").then(function () {
-                MessageToast.show("Documents were generated successfully.");
-                oModel.refresh(); // refresh ListReport data
-            }).catch(function (oError) {
-                var sMsg = (oError && oError.message) || "Error while generating documents.";
-                MessageBox.error(sMsg);
-            });
-
-            if (oDialog) {
-                oDialog.close();
-            }
-        },
-
-        onDialogCancel: function () {
-            if (oDialog) {
-                oDialog.close();
-            }
-        }
-    };
-
-    return oActionHandlers;
-});
+Log-dbg.js:499 2025-12-03 11:19:51.663600 Failed to get contexts for /sap/opu/odata4/sap/zsb_pdattacments/srvd/sap/zsd_pdattacments/0001/Tour/_ServiceAssignments with start index 0 and length 30 - Text hidden for information disclosure. See the SAP Gateway Error Log for the actual exception text
+Error: Communication error: 400 Bad Request
+    at Object.createError (_Helper-dbg.js:582:15)
+    at _Requestor-dbg.js:1321:23
+    at Array.forEach (<anonymous>)
+    at a (_Requestor-dbg.js:1303:14)
+    at :44300/sap/bc/ui5_ui5/ui2/ushell/resources/~20241106120400~/sap/ushell_abap/bootstrap/evo/core-ext-light-2.js:421:12005 sap.ui.model.odata.v4.ODataListBinding
+g @ Log-dbg.js:499Understand this error
+Log-dbg.js:499 2025-12-03 11:19:51.665800 Failed to get contexts for /sap/opu/odata4/sap/zsb_pdattacments/srvd/sap/zsd_pdattacments/0001/Tour/_ServiceAssignments with start index 0 and length 30 - Text hidden for information disclosure. See the SAP Gateway Error Log for the actual exception text
+Error: Communication error: 400 Bad Request
+    at Object.createError (_Helper-dbg.js:582:15)
+    at _Requestor-dbg.js:1321:23
+    at Array.forEach (<anonymous>)
+    at a (_Requestor-dbg.js:1303:14)
+    at :44300/sap/bc/ui5_ui5/ui2/ushell/resources/~20241106120400~/sap/ushell_abap/bootstrap/evo/core-ext-light-2.js:421:12005 sap.ui.model.odata.v4.ODataListBinding
+g @ Log-dbg.js:499Understand this error
+Log-dbg.js:499 2025-12-03 11:19:52.148800 sessionTimeoutReminderInMinutes needs to be higher than sessionTimeoutIntervalInMinutes. sessionTimeoutReminderInMinutes adapted to: 4 - SessionHandler 
