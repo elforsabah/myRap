@@ -1,303 +1,123 @@
-{
-  "_version": "1.60.0",
-  "sap.app": {
-    "id": "zpdattachment",
-    "type": "application",
-    "i18n": "i18n/i18n.properties",
-    "applicationVersion": {
-      "version": "0.0.1"
-    },
-    "title": "{{appTitle}}",
-    "description": "{{appDescription}}",
-    "resources": "resources.json",
-    "sourceTemplate": {
-      "id": "@sap/generator-fiori:lrop",
-      "version": "1.19.6",
-      "toolsId": "789bd532-597f-4b72-9e2d-7d05f9d76347"
-    },
-    "dataSources": {
-      "annotation": {
-        "type": "ODataAnnotation",
-        "uri": "annotations/annotation.xml",
-        "settings": {
-          "localUri": "annotations/annotation.xml"
+sap.ui.define([
+    "sap/m/MessageToast"
+], function (MessageToast) {
+    "use strict";
+
+    var oExtAPI;        // sap.fe.core.ExtensionAPI
+    var oDialog;        // ONE dialog instance
+    var sSelectedTourId; // TourId of selected Tour row
+
+    function applyTourFilters() {
+        if (!oExtAPI) {
+            return;
         }
-      },
-      "mainService": {
-        "uri": "/sap/opu/odata4/sap/zsb_pdattacments/srvd/sap/zsd_pdattacments/0001/",
-        "type": "OData",
-        "settings": {
-          "annotations": [
-            "annotation"
-          ],
-          "localUri": "localService/mainService/metadata.xml",
-          "odataVersion": "4.0"
-        }
-      }
-    }
-  },
-  "sap.ui": {
-    "technology": "UI5",
-    "icons": {
-      "icon": "",
-      "favIcon": "",
-      "phone": "",
-      "phone@2": "",
-      "tablet": "",
-      "tablet@2": ""
-    },
-    "deviceTypes": {
-      "desktop": true,
-      "tablet": true,
-      "phone": true
-    }
-  },
-  "sap.ui5": {
-    "flexEnabled": true,
-    "dependencies": {
-      "minUI5Version": "1.120.23",
-      "libs": {
-        "sap.m": {},
-        "sap.ui.core": {},
-        "sap.fe.templates": {}
-      }
-    },
-    "contentDensities": {
-      "compact": true,
-      "cozy": true
-    },
-    "models": {
-      "i18n": {
-        "type": "sap.ui.model.resource.ResourceModel",
-        "settings": {
-          "bundleName": "zpdattachment.i18n.i18n"
-        }
-      },
-      "": {
-        "dataSource": "mainService",
-        "preload": true,
-        "settings": {
-          "operationMode": "Server",
-          "autoExpandSelect": true,
-          "earlyRequests": true
-        }
-      },
-      "@i18n": {
-        "type": "sap.ui.model.resource.ResourceModel",
-        "uri": "i18n/i18n.properties"
-      }
-    },
-    "resources": {
-      "css": []
-    },
-    "routing": {
-      "config": {},
-      "routes": [
-        {
-          "pattern": ":?query:",
-          "name": "TourList",
-          "target": "TourList"
-        },
-        {
-          "pattern": "Tour({key}):?query:",
-          "name": "TourObjectPage",
-          "target": "TourObjectPage"
-        }
-      ],
-      "targets": {
-        "TourList": {
-          "type": "Component",
-          "id": "TourList",
-          "name": "sap.fe.templates.ListReport",
-          "options": {
-            "settings": {
-              "contextPath": "/Tour",
-              "variantManagement": "Page",
-              "navigation": {
-                "Tour": {
-                  "detail": {
-                    "route": "TourObjectPage"
-                  }
-                }
-              },
-              "controlConfiguration": {
-                "@com.sap.vocabularies.UI.v1.LineItem": {
-                  "tableSettings": {
-                    "type": "ResponsiveTable",
-                    "selectionmode": "forcesingle"
-                  },
-                  "actions": {
-                    "ListReportExt": {
-                      "press": "zpdattachment.ext.controller.ListReportExt.manualattachments",
-                      "visible": true,
-                      "enabled": true,
-                      "requiresSelection": false,
-                      "text": "Generate Documents"
-                    }
-                  }
-                }
-              }
+
+        // --- Service WR: Filter by TourId ---
+        if (sSelectedTourId) {
+            var oServiceFB = oExtAPI.byId("ServiceWRFilterBar"); // macros:FilterBar id
+            if (oServiceFB && oServiceFB.setFilterConditions) {
+                var mCond = oServiceFB.getFilterConditions() || {};
+                mCond.TourId = [{
+                    operator: "EQ",
+                    values: [sSelectedTourId],
+                    isEmpty: false
+                }];
+                oServiceFB.setFilterConditions(mCond);
+                oServiceFB.search();          // behaves like pressing GO
             }
-          }
-        },
-        "TourObjectPage": {
-          "type": "Component",
-          "id": "TourObjectPage",
-          "name": "sap.fe.templates.ObjectPage",
-          "options": {
-            "settings": {
-              "editableHeaderContent": false,
-              "contextPath": "/Tour"
-            }
-          }
         }
-      }
+
+        // --- Attachments: load all (NO TourId filter) ---
+        var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
+        if (oAttachFB && oAttachFB.search) {
+            // uses whatever default conditions/variant exist, but no TourId
+            oAttachFB.search();               // behaves like pressing GO
+        }
     }
-  },
-  "sap.fiori": {
-    "registrationIds": [],
-    "archeType": "transactional"
-  }
-}
 
+    var oActionHandlers = {
+        manualattachments: function (oContext, aSelectedContexts) {
+            oExtAPI = this; // ExtensionAPI in FE V4
 
+            // 1) Get selected tour (use first selected row)
+            var oTourCtx = aSelectedContexts && aSelectedContexts[0];
+            if (!oTourCtx) {
+                MessageToast.show("Please select a tour first.");
+                return;
+            }
+            var oTour = oTourCtx.getObject();
+            sSelectedTourId = oTour.TourId;   // field from ZC_PDTOUR
 
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Consumption View (Tour WR)'
-@Search.searchable: true
-@Metadata.allowExtensions: true
-define root view entity ZC_PDTOUR
-  provider contract transactional_query
-  as projection on ZR_PDTOUR
+            // 2) Open dialog and pre-filter tables
+            if (oDialog) {
+                applyTourFilters();           // re-apply for new TourId
+                oDialog.open();
+                return;
+            }
 
-{
-  key TourUuid,
-      @Consumption.valueHelpDefinition: [{ entity: { name: '/PLCE/C_PDTourWA_VH', element: 'TourId' } }]
-      @Search: { defaultSearchElement: true, ranking: #HIGH }
-      TourId,
+            oExtAPI.loadFragment({
+                name: "zpdattachment.ext.fragments.GenerateDocDialog",
+                controller: oActionHandlers
+            }).then(function (oLoadedDialog) {
+                oDialog = oLoadedDialog;
+                oExtAPI.addDependent(oDialog);
+                applyTourFilters();           // initial filter on first open
+                oDialog.open();
+            });
+        },
 
-      @EndUserText.label: 'Tour Template'
-      @ObjectModel.text.element: ['TourTemplateName']
-      @Consumption.valueHelpDefinition: [{ entity: { name: '/PLCE/C_PDTourTemplateWA_VH', element: 'TourTemplate' } }]
-      @Search: { defaultSearchElement: true }
-      TourTemplate,
-      @EndUserText.label: 'Template Description'
-      @Consumption.filter.hidden: true
-      @Semantics.text: true
-      _TourTemplate._Text.TourTemplateName         as TourTemplateName : localized,
-      @UI.hidden: true
-      _TourTemplate.ColorTour                      as ColorTour,
+        onDialogChoose: function () {
+            var oTopTable    = oExtAPI.byId("AttachmentTable");
+            var oBottomTable = oExtAPI.byId("ServiceWRTable");
 
-      @EndUserText.label: 'Tour Status'
-      @ObjectModel.text.element: ['TourStatusText']
-      @Consumption.valueHelpDefinition: [{ entity: { name: '/PLCE/C_PDTourStatus_VH', element: 'TourStatus' } }]
-      @Consumption.filter: { multipleSelections: true, selectionType: #SINGLE }
-      TourStatus,
-      @Semantics.text: true
-      @UI.hidden: true
-      _PDTourStatusText.Description                as TourStatusText   : localized,
-      @UI.hidden: true
-      _TourLookup.TourStatusColorValue             as TourStatusColorValue,
-      @Consumption.filter.hidden: true
-      _PDTourStatusText.IconURL                    as TourStatusIcon   : localized,
+            function getSelectedObjects(oTable) {
+                if (!oTable || !oTable.getSelectedContexts) { return []; }
+                return (oTable.getSelectedContexts() || []).map(function (oCtx) {
+                    return oCtx.getObject();
+                });
+            }
 
-      @Consumption.filter: { mandatory: true, hidden: false, selectionType: #INTERVAL }
-      StartDate                                    as TourStartDate,
-      @Consumption.filter.selectionType: #INTERVAL
-      EndDate                                      as TourEndDate,
-      @Consumption.filter.selectionType: #INTERVAL
-      ScheduledDateTimeStart,
+            var aTopSelected    = getSelectedObjects(oTopTable);
+            var aBottomSelected = getSelectedObjects(oBottomTable);
 
-      @Consumption.valueHelpDefinition: [{ entity: { name: '/PLCE/C_PDResource_VH', element: 'ResourceId'} }]
-      MainResourceId,
+            if (!aTopSelected.length && !aBottomSelected.length) {
+                MessageToast.show("Please select at least one row in one of the tables.");
+                return;
+            }
 
-      @EndUserText.label: 'Work Status'
-      @UI.textArrangement: #TEXT_ONLY
-      @ObjectModel.text.element: ['WorkStatusText']
-      @Consumption.valueHelpDefinition: [{ entity: { name: '/PLCE/C_PDWorkStatus_VH', element: 'Value'} }]
-      _TourLookup.WorkStatus,
-      @UI.hidden: true
-      _TourLookup._WorkStatusText.Description      as WorkStatusText   : localized,
-      @Consumption.filter.hidden: true
-      _TourLookup._WorkStatusText.IconURL          as WorkStatusIcon   : localized,
-      _TourLookup._TourCriticality.TourCriticality as TourCriticality,
+            var aAttachmentItems = aTopSelected;
+            var aServiceWRItems  = aBottomSelected;
 
-      /* Associations */
-      _Attachments        : redirected to composition child ZC_PDATTACHMENT,
-      _ServiceAssignments : redirected to composition child ZC_PDTOURSERVICEASGMT
-}
+            var sAttachmentJson = JSON.stringify(aAttachmentItems);
+            var sServiceWRJson  = JSON.stringify(aServiceWRItems);
 
+            var oModel = oExtAPI.getModel();
 
-@Metadata.layer: #CORE
-@UI: {
-  headerInfo: {
-    typeName: 'Tour',
-    typeNamePlural: 'Tours',
-    title: {
-      type: #STANDARD, value: 'TourId'
-    },
-    description: {
-      type: #STANDARD, value: 'TourTemplateName'
-    }
-  },
-  lineItem: [{ criticality: 'TourCriticality' }],
+            var oActionBinding = oModel.bindContext(
+                "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
+            );
 
-  presentationVariant: [{
-    sortOrder: [{
-      by: 'TourId', direction:  #ASC
-    }], visualizations: [{ type: #AS_LINEITEM }]
-  },{
-    sortOrder: [{
-      by: 'TourId', direction:  #ASC
-    }], visualizations: [{ type: #AS_LINEITEM, qualifier: 'DefaultMap' }], qualifier: 'DefaultMap'
-  }]
-}
-annotate entity ZC_PDTOUR with
-{
-  @UI.facet: [{ label: 'Services',
-                type: #LINEITEM_REFERENCE,
-                id: 'SrvLineItemRef',
-                purpose: #STANDARD,
-                targetElement: '_ServiceAssignments' },
-              { label: 'Documents',
-                type: #LINEITEM_REFERENCE,
-                id: 'DocLineItemRef',
-                purpose: #STANDARD,
-                targetElement: '_Attachments' }]
+            oActionBinding.setParameter("AttachmentItemsjson", sAttachmentJson);
+            oActionBinding.setParameter("ServiceWRItemsjson",  sServiceWRJson);
 
-  @UI.lineItem: [{ position: 1 },
-                 { hidden: true },
-                 { type:#FOR_ACTION, dataAction:'RegenerateDocs', label:'Regenerate Documents', invocationGrouping: #CHANGE_SET, position: 10 }]
-  TourUuid;
+            oActionBinding.execute("$auto").then(function () {
+                MessageToast.show("Documents were generated successfully.");
+                oModel.refresh();
+            }).catch(function (oError) {
+                sap.m.MessageBox.error(oError.message || "Error while generating documents.");
+            });
 
-  @UI.lineItem: [{ position: 10, importance: #HIGH }]
-  @UI.identification: [{ position: 10 }]
-  TourId;
+            if (oDialog) {
+                oDialog.close();
+            }
+        },
 
-  @UI.lineItem: [{ position: 20, importance: #HIGH }]
-  @UI.textArrangement: #TEXT_SEPARATE
-  TourTemplate;
+        onDialogCancel: function () {
+            if (oDialog) {
+                oDialog.close();
+            }
+        }
+    };
 
-  @UI.lineItem: [{ position: 30, importance: #HIGH, cssDefault.width: '5rem' }]
-  WorkStatusIcon;
-
-  @UI.lineItem: [{ position: 40, criticality: 'TourStatusColorValue', criticalityRepresentation: #WITH_ICON, importance: #HIGH }]
-  @UI.textArrangement: #TEXT_ONLY
-  TourStatus;
-  @UI.lineItem: [{ hidden: true }]
-  TourStatusColorValue;
-  @UI.lineItem: [{ position: 50,  importance: #HIGH, cssDefault.width: '5rem' }]
-  TourStatusIcon;
-
-  @UI.selectionField: [{ position: 10}]
-  TourStartDate;
-  @UI.lineItem: [{ position: 60 }]
-  ScheduledDateTimeStart;
-
-  @UI.lineItem: [{ position: 70 }]
-  MainResourceId;
-
-  @UI.hidden: true
-  TourCriticality;
-
-}
+    return oActionHandlers;
+});
