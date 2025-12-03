@@ -159,3 +159,14 @@ sap.ui.define([
 
     return oActionHandlers;
 });
+
+
+<macros:Table
+    id="ServiceWRTable"
+    contextPath="/ServiceAssignment"        <!-- not /ServiceAsignment -->
+    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
+    filterBar="ServiceWRFilterBar"
+    selectionMode="ForceMulti"
+    header="Service WR" />
+
+
