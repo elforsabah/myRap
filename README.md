@@ -1,68 +1,142 @@
-<!-- ATTACHMENTS / PRINT CONFIGS (global) -->
-<macros:FilterBar id="AttachmentFilterBar" contextPath="/PrintConfiguration" ... />
-<macros:Table id="AttachmentTable" contextPath="/PrintConfiguration" ... />
+sap.ui.define([
+    "sap/m/MessageToast",
+    "sap/ui/model/Filter",
+    "sap/ui/model/FilterOperator"
+], function (MessageToast, Filter, FilterOperator) {
+    "use strict";
 
-<!-- SERVICE WR – absolute but filtered by selected TourId -->
-<macros:FilterBar
-    id="ServiceWRFilterBar"
-    contextPath="/ServiceWR"
-    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
+    var oExtAPI;        // sap.fe.core.ExtensionAPI
+    var oDialog;        // ONE dialog instance
 
-<macros:Table
-    id="ServiceWRTable"
-    contextPath="/ServiceWR"
-    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
-    filterBar="ServiceWRFilterBar"
-    selectionMode="ForceMulti"
-    header="Service WR"
-    binding="{ 
-        path: '/ServiceWR',
-        parameters: {
-            $$filter: 'TourId eq ''' + ${/TourId} + ''''
+    var oActionHandlers = {
+        manualattachments: function (oContext, aSelectedContexts) {
+            oExtAPI = this; // ExtensionAPI in FE V4
+
+            // 1) Get selected tour (use first selected row)
+            var oTourCtx = aSelectedContexts && aSelectedContexts[0];
+            if (!oTourCtx) {
+                MessageToast.show("Please select a tour first.");
+                return;
+            }
+            var sTourId = oTourCtx.getProperty("TourId");
+
+            // 2) Open dialog and pre-filter tables
+            if (oDialog) {
+                // For reopen: Apply filters and trigger searches
+                // --- Service WR: Filter by TourId ---
+                var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
+                if (oServiceFB && oServiceFB.setFilterConditions) {
+                    var mCond = oServiceFB.getFilterConditions() || {};
+                    mCond.TourId = [{
+                        operator: "EQ",
+                        values: [sTourId],
+                        isEmpty: false
+                    }];
+                    oServiceFB.setFilterConditions(mCond);
+                    oServiceFB.search();  // Triggers immediate load (like pressing GO)
+                }
+
+                // --- Attachments: load all (NO TourId filter) ---
+                var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
+                if (oAttachFB && oAttachFB.search) {
+                    oAttachFB.search();  // Triggers immediate load (like pressing GO)
+                }
+
+                oDialog.open();
+                return;
+            }
+
+            oExtAPI.loadFragment({
+                name: "zpdattachment.ext.fragments.GenerateDocDialog",
+                controller: oActionHandlers
+            }).then(function (oLoadedDialog) {
+                oDialog = oLoadedDialog;
+                oExtAPI.addDependent(oDialog);
+
+                // For initial open: Apply filters and trigger searches
+                // --- Service WR: Filter by TourId ---
+                var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
+                if (oServiceFB && oServiceFB.setFilterConditions) {
+                    var mCond = oServiceFB.getFilterConditions() || {};
+                    mCond.TourId = [{
+                        operator: "EQ",
+                        values: [sTourId],
+                        isEmpty: false
+                    }];
+                    oServiceFB.setFilterConditions(mCond);
+                    oServiceFB.search();  // Triggers immediate load (like pressing GO)
+                }
+
+                // --- Attachments: load all (NO TourId filter) ---
+                var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
+                if (oAttachFB && oAttachFB.search) {
+                    oAttachFB.search();  // Triggers immediate load (like pressing GO)
+                }
+
+                // Optional: If timing issues (e.g., controls not ready), attach to afterOpen
+                oDialog.attachAfterOpen(function () {
+                    var oServiceFB = oExtAPI.byId("ServiceWRFilterBar");
+                    oServiceFB?.search();
+                    var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
+                    oAttachFB?.search();
+                });
+
+                oDialog.open();
+            });
+        },
+
+        onDialogChoose: function () {
+            var oTopTable    = oExtAPI.byId("AttachmentTable");
+            var oBottomTable = oExtAPI.byId("ServiceWRTable");
+
+            function getSelectedObjects(oTable) {
+                if (!oTable || !oTable.getSelectedContexts) { return []; }
+                return (oTable.getSelectedContexts() || []).map(function (oCtx) {
+                    return oCtx.getObject();
+                });
+            }
+
+            var aTopSelected    = getSelectedObjects(oTopTable);
+            var aBottomSelected = getSelectedObjects(oBottomTable);
+
+            if (!aTopSelected.length && !aBottomSelected.length) {
+                MessageToast.show("Please select at least one row in one of the tables.");
+                return;
+            }
+
+            var aAttachmentItems = aTopSelected;
+            var aServiceWRItems  = aBottomSelected;
+
+            var sAttachmentJson = JSON.stringify(aAttachmentItems);
+            var sServiceWRJson  = JSON.stringify(aServiceWRItems);
+
+            var oModel = oExtAPI.getModel();
+
+            var oActionBinding = oModel.bindContext(
+                "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
+            );
+
+            oActionBinding.setParameter("AttachmentItemsjson", sAttachmentJson);
+            oActionBinding.setParameter("ServiceWRItemsjson",  sServiceWRJson);
+
+            oActionBinding.execute("$auto").then(function () {
+                MessageToast.show("Documents were generated successfully.");
+                oModel.refresh();
+            }).catch(function (oError) {
+                sap.m.MessageBox.error(oError.message || "Error while generating documents.");
+            });
+
+            if (oDialog) {
+                oDialog.close();
+            }
+        },
+
+        onDialogCancel: function () {
+            if (oDialog) {
+                oDialog.close();
+            }
         }
-    }" />
+    };
 
-
-    manualattachments: function (oContext, aSelectedContexts) {
-    oExtAPI = this;
-
-    const oTourCtx = aSelectedContexts?.[0];
-    if (!oTourCtx) {
-        MessageToast.show("Please select a tour first.");
-        return;
-    }
-
-    const sTourId = oTourCtx.getProperty("TourId");
-
-    if (oDialog) {
-        // re-bind the ServiceWR table with the new TourId
-        const oTable = oExtAPI.byId("ServiceWRTable");
-        oTable.getBinding("rows")?.filter(new sap.ui.model.Filter("TourId", "EQ", sTourId));
-
-        const oAttachFB = oExtAPI.byId("AttachmentFilterBar");
-        oAttachFB?.search(); // load print configs
-
-        oDialog.open();
-        return;
-    }
-
-    oExtAPI.loadFragment({
-        name: "zpdattachment.ext.fragments.GenerateDocDialog",
-        controller: oActionHandlers
-    }).then(function (oLoadedDialog) => {
-        oDialog = oLoadedDialog;
-        oExtAPI.addDependent(oDialog);
-
-        // bind the table with filter for the selected tour
-        const oTable = oExtAPI.byId("ServiceWRTable");
-        oTable.bindRows({
-            path: "/ServiceWR",
-            filters: [new sap.ui.model.Filter("TourId", "EQ", sTourId)]
-        });
-
-        // load print configurations immediately
-        oExtAPI.byId("AttachmentFilterBar").search();
-
-        oDialog.open();
-    });
-}
+    return oActionHandlers;
+});
