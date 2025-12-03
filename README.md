@@ -136,4 +136,75 @@ sap.ui.define([
                 oDialog._currentTourId = sTourId;
 
                 if (oDialog._afterOpenHandler) {
-                    oDialog.
+                    oDialog.detachAfterOpen(oDialog._afterOpenHandler);
+                }
+                oDialog._afterOpenHandler = function () {
+                    applyFiltersAndSearch(sTourId);
+                };
+                oDialog.attachAfterOpen(oDialog._afterOpenHandler);
+
+                oDialog.open();
+                return;
+            }
+
+            // --- First time: load fragment, then open ---
+            oExtAPI.loadFragment({
+                name: "zpdattachment.ext.fragments.GenerateDocDialog",
+                controller: oActionHandlers      // for onDialogChoose / onDialogCancel
+            }).then(function (oLoadedDialog) {
+                oDialog = oLoadedDialog;
+                oExtAPI.addDependent(oDialog);
+                oDialog._currentTourId = sTourId;
+
+                oDialog._afterOpenHandler = function () {
+                    applyFiltersAndSearch(sTourId);
+                };
+                oDialog.attachAfterOpen(oDialog._afterOpenHandler);
+
+                oDialog.open();
+            });
+        },
+
+        // "Choose" button in the dialog
+        onDialogChoose: function () {
+            var aAttachmentItems = getSelectedObjectsFromTableId("AttachmentTable");
+            var aServiceWRItems  = getSelectedObjectsFromTableId("ServiceWRTable");
+
+            if (!aAttachmentItems.length && !aServiceWRItems.length) {
+                MessageToast.show("Please select at least one row in one of the tables.");
+                return;
+            }
+
+            var sAttachmentJson = JSON.stringify(aAttachmentItems);
+            var sServiceWRJson  = JSON.stringify(aServiceWRItems);
+
+            var oModel = oExtAPI.getModel();
+            var oActionBinding = oModel.bindContext(
+                "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
+            );
+
+            oActionBinding.setParameter("AttachmentItemsjson", sAttachmentJson);
+            oActionBinding.setParameter("ServiceWRItemsjson",  sServiceWRJson);
+
+            oActionBinding.execute("$auto").then(function () {
+                MessageToast.show("Documents were generated successfully.");
+                oModel.refresh();
+            }).catch(function (oError) {
+                MessageBox.error(oError.message || "Error while generating documents.");
+            });
+
+            if (oDialog) {
+                oDialog.close();
+            }
+        },
+
+        // "Cancel" button
+        onDialogCancel: function () {
+            if (oDialog) {
+                oDialog.close();
+            }
+        }
+    };
+
+    return oActionHandlers;
+});
