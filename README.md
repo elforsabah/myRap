@@ -8,33 +8,29 @@ sap.ui.define([
     var sSelectedTourId; // TourId of selected Tour row
 
     function applyTourFilters() {
-        if (!oExtAPI || !sSelectedTourId) {
+        if (!oExtAPI) {
             return;
         }
 
-        // --- Filter Service WR by TourId ---
-        var oServiceFB = oExtAPI.byId("ServiceWRFilterBar"); // macros:FilterBar id
-        if (oServiceFB && oServiceFB.setFilterConditions) {
-            var mCond = oServiceFB.getFilterConditions() || {};
-            mCond.TourId = [{
-                operator: "EQ",
-                values: [sSelectedTourId],
-                isEmpty: false
-            }];
-            oServiceFB.setFilterConditions(mCond);
-            oServiceFB.search();              // behaves like pressing GO
+        // --- Service WR: Filter by TourId ---
+        if (sSelectedTourId) {
+            var oServiceFB = oExtAPI.byId("ServiceWRFilterBar"); // macros:FilterBar id
+            if (oServiceFB && oServiceFB.setFilterConditions) {
+                var mCond = oServiceFB.getFilterConditions() || {};
+                mCond.TourId = [{
+                    operator: "EQ",
+                    values: [sSelectedTourId],
+                    isEmpty: false
+                }];
+                oServiceFB.setFilterConditions(mCond);
+                oServiceFB.search();          // behaves like pressing GO
+            }
         }
 
-        // --- (Optional) Filter Attachments by TourId too ---
+        // --- Attachments: load all (NO TourId filter) ---
         var oAttachFB = oExtAPI.byId("AttachmentFilterBar");
-        if (oAttachFB && oAttachFB.setFilterConditions) {
-            var mCondA = oAttachFB.getFilterConditions() || {};
-            mCondA.TourId = [{
-                operator: "EQ",
-                values: [sSelectedTourId],
-                isEmpty: false
-            }];
-            oAttachFB.setFilterConditions(mCondA);
+        if (oAttachFB && oAttachFB.search) {
+            // uses whatever default conditions/variant exist, but no TourId
             oAttachFB.search();               // behaves like pressing GO
         }
     }
@@ -104,7 +100,7 @@ sap.ui.define([
             oActionBinding.setParameter("AttachmentItemsjson", sAttachmentJson);
             oActionBinding.setParameter("ServiceWRItemsjson",  sServiceWRJson);
 
-            oActionBinding.execute("$auto").then(function (oResultContext) {
+            oActionBinding.execute("$auto").then(function () {
                 MessageToast.show("Documents were generated successfully.");
                 oModel.refresh();
             }).catch(function (oError) {
