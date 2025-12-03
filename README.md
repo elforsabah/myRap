@@ -87,3 +87,61 @@ sap.ui.define([
         }
     });
 });
+
+
+
+
+
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:macros="sap.fe.macros">
+
+    <!-- Popup dialog -->
+    <Dialog
+        id="TwoSmartTablesDialog"
+        title="Choose Attachments"
+        stretch="true"
+        contentWidth="1200px"
+        contentHeight="600px"
+        class="sapUiResponsivePadding">
+
+        <content>
+            <VBox id="vbMain" width="100%" height="100%" renderType="Div">
+
+                <!-- ========= ATTACHMENT FILTER BAR ========= -->
+                <macros:FilterBar
+                    id="AttachmentFilterBar"
+                    contextPath="/PrintConfiguration"
+                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
+
+                <!-- ========= ATTACHMENT TABLE ========= -->
+                <macros:Table
+                    id="AttachmentTable"
+                    contextPath="/PrintConfiguration"
+                    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
+                    filterBar="AttachmentFilterBar"
+                    type="GridTable"
+                    selectionMode="Multi"
+                    header="Attachments" />
+
+            </VBox>
+        </content>
+
+        <!-- Buttons -->
+        <beginButton>
+            <Button
+                text="OK"
+                type="Emphasized"
+                press=".onAttachmentDialogOk" />
+        </beginButton>
+
+        <endButton>
+            <Button
+                text="Cancel"
+                press=".onAttachmentDialogCancel" />
+        </endButton>
+
+    </Dialog>
+</core:FragmentDefinition>
+
