@@ -4,7 +4,14 @@ onNextFromK: function () {
     var oModel      = oView.getModel();
     var sKorselsnr  = oLocalModel.getProperty("/korselsnr");
 
-    // ... your checks + padding etc. ...
+    // (Optional) Required check + padding
+    if (!sKorselsnr) {
+        MessageToast.show("Please enter Korselsnr");
+        return;
+    }
+    // If you need 70 chars:
+    // sKorselsnr = sKorselsnr.padStart(70, "0");
+    // oLocalModel.setProperty("/korselsnr", sKorselsnr);
 
     var oSessionCtx = oView.getBindingContext();
     if (!oSessionCtx) {
@@ -36,10 +43,20 @@ onNextFromK: function () {
             oView.setBindingContext(oResultCtx);
         }
 
-        // your success logic (transaction_state, wizard.nextStep, etc.)
+        // 🔹🔹 NEW / IMPORTANT PART 🔹🔹
+        // Move wizard to the next step after the action finished
+        var oWizard = this.oWizard || this.byId("WeighBridgeWizard");
+        var oStepK  = this.byId("stepK");
+
+        if (oWizard && oStepK) {
+            oWizard.validateStep(oStepK);   // mark step as completed
+            // If you still have some "weigh" init logic, call it here:
+            // this.onWeighStep3();
+            oWizard.nextStep();             // go to next step
+        }
+        // 🔹🔹 END NEW PART 🔹🔹
 
     }.bind(this)).catch(function (oError) {
-        // your error handling
         var sMsg = (oError && oError.message) || "Error calling identifyKorsel";
         MessageToast.show(sMsg);
     }.bind(this));
