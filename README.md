@@ -1,203 +1,161 @@
-CLASS lhc_Tour DEFINITION INHERITING FROM cl_abap_behavior_handler.
+CLASS lhc_service DEFINITION INHERITING FROM cl_abap_behavior_handler.
+
   PRIVATE SECTION.
 
+    METHODS get_global_features FOR GLOBAL FEATURES
+      IMPORTING REQUEST requested_features FOR Service RESULT result.
+
     METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
-      IMPORTING REQUEST requested_authorizations FOR Tour RESULT result.
+      IMPORTING REQUEST requested_authorizations FOR Service RESULT result.
 
-    METHODS createtour FOR MODIFY
-      IMPORTING keys FOR ACTION Tour~createtour RESULT result.
+    METHODS assignworkarea FOR MODIFY
+      IMPORTING keys FOR ACTION Service~assignworkarea RESULT result.
 
-    METHODS precheck_createtour FOR PRECHECK
-      IMPORTING keys FOR ACTION Tour~createtour .
+    METHODS precheck_assignworkarea FOR PRECHECK
+      IMPORTING keys FOR ACTION Service~assignworkarea.
+
+     methods Setfachbereich for determine on modify
+      importing KEYS for Service~Setfachbereich.
 
 ENDCLASS.
 
-CLASS lhc_Tour IMPLEMENTATION.
+CLASS lhc_service IMPLEMENTATION.
+
+METHOD Setfachbereich.
+
+ READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+      ENTITY Service
+      FIELDS ( ReferenceId ServiceUUID ) " // Use CDS casing; add ServiceUUID for key
+      WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_services)
+      FAILED DATA(lt_failed).
+
+    LOOP AT lt_services ASSIGNING FIELD-SYMBOL(<ls_service>).
+      DATA lv_zz_tech_fachbe TYPE ewa_order_object .
+      SELECT SINGLE zz_tech_fachbe
+        FROM ewa_order_object
+        WHERE POBJNR = @<ls_service>-ReferenceId
+        INTO @lv_zz_tech_fachbe.
+
+      IF sy-subrc = 0 AND lv_zz_tech_fachbe IS NOT INITIAL.
+*     " // Check if ExtCustom exists; read it first
+        READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+          ENTITY ExtCustom
+          FIELDS ( ServiceUUID )  "// Minimal to check existence
+          WITH VALUE #( ( ServiceUUID = <ls_service>-ServiceUUID ) )
+          RESULT DATA(lt_extcustom).
+
+        IF lt_extcustom IS INITIAL.
+*        // Create if missing
+          DATA: lv_cid        TYPE string VALUE '$abap_cid1_',
+                lt_ext_create TYPE TABLE FOR CREATE /PLCE/R_PDService\_ExtCustom.
+          APPEND INITIAL LINE TO lt_ext_create ASSIGNING FIELD-SYMBOL(<ls_ext_create>).
+          <ls_ext_create>-ServiceUUID = <ls_service>-ServiceUUID. " // %tky or key
+          <ls_ext_create>-%target = VALUE #( ( %cid = lv_cid ) ).
+
+          MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+            ENTITY Service
+            CREATE BY \_ExtCustom
+            AUTO FILL CID SET FIELDS WITH lt_ext_create
+            MAPPED DATA(lmapped)
+            FAILED DATA(lfailed)
+            REPORTED DATA(lreported).
+*        // Handle errors if needed
+        ENDIF.
+
+*      // Now update the field
+        MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+          ENTITY ExtCustom
+          UPDATE FIELDS ( zz_tech_fachbe )
+          WITH VALUE #( ( %key-ServiceUUID = <ls_service>-ServiceUUID
+                          zz_tech_fachbe = lv_zz_tech_fachbe ) )
+          FAILED DATA(lt_failed_update)
+          REPORTED DATA(lt_reported_update).
+
+          " Step 4: Set action result ($self = Service instances). This ensures that the values are shown on the UI
+      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY Service
+          ALL FIELDS WITH CORRESPONDING #( keys )
+        RESULT DATA(lt_service_result).
+
+      CLEAR: lt_ext_create,  lt_reported_update,  lt_failed_update,  lreported, lfailed, lmapped.
+      ENDIF.
+     ENDLOOP.
+ ENDMETHOD.
+
+  METHOD get_global_features.
+  ENDMETHOD.
 
   METHOD get_global_authorizations.
   ENDMETHOD.
 
-  METHOD createtour.
+  METHOD assignworkarea.
 
-    DATA lv_cid          TYPE abp_behv_cid.
-    DATA lv_first_date   TYPE /plce/date.
-    DATA lv_last_date    TYPE /plce/date.
-    DATA lv_current_date TYPE /plce/date.
+    READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+    ENTITY Service
+    FIELDS ( ReferenceId ServiceUUID ) " // Use CDS casing; add ServiceUUID for key
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_services)
+    FAILED DATA(lt_failed).
 
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(<key>)
-         GROUP BY ( template   = <key>-%param-tour_template
-                    first_date = <key>-%param-start_date
-                    last_date  = <key>-%param-end_date )
-         ASSIGNING FIELD-SYMBOL(<group>).
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_service>).
+*     " // Check if ExtCustom exists; read it first
+      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY ExtCustom
+        FIELDS ( ServiceUUID )  "// Minimal to check existence
+        WITH VALUE #( ( ServiceUUID = <ls_service>-ServiceUUID ) )
+        RESULT DATA(lt_extcustom).
 
-      " 1) Determine date range for this request
-      lv_first_date = <group>-first_date.
-      " If no last_date was entered, use first_date (create just one tour)
-      lv_last_date  = COND /plce/date(
-                         WHEN <group>-last_date IS INITIAL
-                         THEN lv_first_date
-                         ELSE <group>-last_date ).
+      IF lt_extcustom IS INITIAL.
+*        // Create if missing
+        DATA: lv_cid        TYPE string VALUE '$abap_cid1_',
+              lt_ext_create TYPE TABLE FOR CREATE /PLCE/R_PDService\_ExtCustom.
+        APPEND INITIAL LINE TO lt_ext_create ASSIGNING FIELD-SYMBOL(<ls_ext_create>).
+        <ls_ext_create>-ServiceUUID = <ls_service>-ServiceUUID. " // %tky or key
+        <ls_ext_create>-%target = VALUE #( ( %cid = lv_cid ) ).
 
-      " Simple safety: if user swapped dates, flip them
-      IF lv_last_date < lv_first_date.
-        DATA(lv_tmp) = lv_first_date.
-        lv_first_date = lv_last_date.
-        lv_last_date  = lv_tmp.
+        MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+          ENTITY Service
+          CREATE BY \_ExtCustom
+          AUTO FILL CID SET FIELDS WITH lt_ext_create
+          MAPPED DATA(lmapped)
+          FAILED DATA(lfailed)
+          REPORTED DATA(lreported).
+*        // Handle errors if needed
       ENDIF.
 
-      lv_current_date = lv_first_date.
+*      // Now update the field
+      MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY ExtCustom
+        UPDATE FIELDS ( zz_tech_fachbe )
+        WITH VALUE #( ( %key-ServiceUUID = <ls_service>-ServiceUUID
+                        zz_tech_fachbe = <ls_service>-%param-WorkArea ) )
+        FAILED DATA(lt_failed_update)
+        REPORTED DATA(lt_reported_update).
 
-      " 2) Create one tour per day in the range
-      WHILE lv_current_date <= lv_last_date.
 
-        " unique CID for this inner action call
-        lv_cid = cl_system_uuid=>create_uuid_x16_static( ).
+      " Step 4: Set action result ($self = Service instances). This ensures that the values are shown on the UI
+      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY Service
+          ALL FIELDS WITH CORRESPONDING #( keys )
+        RESULT DATA(lt_service_result).
 
-        MODIFY ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
-          ENTITY Tour
-            EXECUTE createTourWithTemplate
-            FROM VALUE #(
-              ( %cid                 = lv_cid
-                %param-without_draft = 'X'
-                %param-tour_template = <group>-template
-                %param-start_date    = lv_current_date ) )
-          MAPPED   DATA(mapped_tour)
-          FAILED   DATA(failed_tour)
-          REPORTED DATA(reported_tour).
-
-        " If inner action failed for this day, you could:
-        " - collect messages
-        " - optionally set failed-createtour for the outer action
-        IF failed_tour IS INITIAL.
-
-          " Read created tour(s) to build result & message
-          READ ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
-            ENTITY Tour
-              ALL FIELDS
-              WITH CORRESPONDING #( mapped_tour-tour )
-            RESULT DATA(tours).
-
-          IF lines( tours ) > 0.
-            " Success message per created tour (optional)
-            INSERT NEW /plce/cx_pd_exception(
-                     textid   = /plce/cx_pd_exception=>tour_confirmed
-                     severity = if_abap_behv_message=>severity-success
-                     tour     = tours[ 1 ]-TourId )
-              INTO TABLE reported-%other.
-
-            " Static action result: append all created tours
-            result = VALUE #( BASE result
-                              FOR tour IN tours
-                              ( %param = tour ) ).
-          ENDIF.
-
-        ENDIF.
-
-        " next day
-        lv_current_date = lv_current_date + 1.
-
-      ENDWHILE.
+      result = VALUE #( FOR ls_service IN lt_service_result ( %tky   = ls_service-%tky
+                                                             %param  = ls_service ) ).
+      CLEAR:   lt_ext_create,  lt_reported_update,  lt_failed_update,  lreported, lfailed, lmapped.
     ENDLOOP.
-
-     " results
-    read entities of /PLCE/R_PDTour in local mode
-      entity Tour
-      all fields with corresponding #( keys )
-      result data(tour_result).
-
-    result = value #( for tour  in tour_result ( %cid = lv_cid %param = tour ) ).
-
-
   ENDMETHOD.
 
-  METHOD precheck_createtour.
+  METHOD precheck_assignworkarea.
 
-    " Today (system date)
-    DATA(lv_today) = cl_abap_context_info=>get_system_date( ).
-
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(<key>).
-
-      DATA lv_failed TYPE abap_bool VALUE abap_false.
-      DATA lv_start  TYPE /plce/date.
-      DATA lv_end    TYPE /plce/date.
-      DATA lv_template TYPE /plce/pdtour_template.
-
-      lv_start = <key>-%param-start_date.
-      lv_end   = <key>-%param-end_date.
-      lv_template = <key>-%param-tour_template.
-
-      " unique CID for this inner action call
-      DATA(lv_cid) = cl_system_uuid=>create_uuid_x16_static( ).
-
-      " 1) Start date must not be empty
-      IF lv_start IS INITIAL.
-        APPEND VALUE #(
-            %cid = <key>-%cid
-            %msg = new_message(
-                     id       = 'Z_MSG_CL_SERVICE_EXT'
-                     number   = '003'
-                     severity = if_abap_behv_message=>severity-error
-                     v1       = |{ lv_start DATE = USER }|
-                   )
-          )
-     TO reported-tour.
-        lv_failed = abap_true.
-      ENDIF.
-
-      " 2) Start date must be <= end date (if end date is given)
-      IF lv_end IS NOT INITIAL AND lv_end < lv_start.
-
-
-        APPEND VALUE #(
-      %cid = <key>-%cid
-      %msg = new_message(
-               id       = 'Z_MSG_CL_SERVICE_EXT'
-               number   = '002'
-               severity = if_abap_behv_message=>severity-error
-               v1       = |{ lv_start DATE = USER }|
-               v2       = |{ lv_end DATE = USER }|
-             )
-    )
-TO reported-tour.
-
-        lv_failed = abap_true.
-      ENDIF.
-
-      " 3) Tour template must not be empty
-
-      IF lv_template IS INITIAL..
-
-        APPEND VALUE #(
-             %cid = <key>-%cid
-             %msg = new_message(
-                      id       = 'Z_MSG_CL_SERVICE_EXT'
-                      number   = '001'
-                      severity = if_abap_behv_message=>severity-error
-                    )
-            )
-            TO reported-tour.
-                    lv_failed = abap_true.
-                  ENDIF.
-
-      " If any check failed, block this action call
-      IF lv_failed = abap_true.
-        APPEND VALUE #( %cid = <key>-%cid ) TO failed-tour.
-      ENDIF.
+    LOOP AT keys INTO DATA(ls_service).
+*      " Check if WorkArea is valid (query value help entity if needed).
+*      IF ls_service-%param-WorkArea IS INITIAL.
+*        APPEND VALUE #( %key = ls_service-%key
+*                        %msg = new_message( id = 'Z_MSG_CLASS' number = '000' severity = if_abap_behv_message=>severity-error ) )
+*               TO reported-Service.
+*      ENDIF.
 
     ENDLOOP.
-
-    extension implementation in class zbp_e_bp_r_pdtour unique;
-
-extend behavior for Tour
-{
-
-static action  ( precheck )  createtour parameter ZAE_D_TOURTOURTEMPLATE_AB result [0..*] $self;
-
-}
-
-extend behavior for ExtCustom
-{
-}
-
   ENDMETHOD.
 ENDCLASS.
