@@ -109,3 +109,82 @@ CLASS lhc_Tour IMPLEMENTATION.
 
 
   ENDMETHOD.
+
+  METHOD precheck_createtour.
+
+    " Today (system date)
+    DATA(lv_today) = cl_abap_context_info=>get_system_date( ).
+
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<key>).
+
+      DATA lv_failed TYPE abap_bool VALUE abap_false.
+      DATA lv_start  TYPE /plce/date.
+      DATA lv_end    TYPE /plce/date.
+      DATA lv_template TYPE /plce/pdtour_template.
+
+      lv_start = <key>-%param-start_date.
+      lv_end   = <key>-%param-end_date.
+      lv_template = <key>-%param-tour_template.
+
+      " unique CID for this inner action call
+      DATA(lv_cid) = cl_system_uuid=>create_uuid_x16_static( ).
+
+      " 1) Start date must not be empty
+      IF lv_start IS INITIAL.
+        APPEND VALUE #(
+            %cid = <key>-%cid
+            %msg = new_message(
+                     id       = 'Z_MSG_CL_SERVICE_EXT'
+                     number   = '003'
+                     severity = if_abap_behv_message=>severity-error
+                     v1       = |{ lv_start DATE = USER }|
+                   )
+          )
+     TO reported-tour.
+        lv_failed = abap_true.
+      ENDIF.
+
+      " 2) Start date must be <= end date (if end date is given)
+      IF lv_end IS NOT INITIAL AND lv_end < lv_start.
+
+
+        APPEND VALUE #(
+      %cid = <key>-%cid
+      %msg = new_message(
+               id       = 'Z_MSG_CL_SERVICE_EXT'
+               number   = '002'
+               severity = if_abap_behv_message=>severity-error
+               v1       = |{ lv_start DATE = USER }|
+               v2       = |{ lv_end DATE = USER }|
+             )
+    )
+TO reported-tour.
+
+        lv_failed = abap_true.
+      ENDIF.
+
+      " 3) Tour template must not be empty
+
+      IF lv_template IS INITIAL..
+
+        APPEND VALUE #(
+             %cid = <key>-%cid
+             %msg = new_message(
+                      id       = 'Z_MSG_CL_SERVICE_EXT'
+                      number   = '001'
+                      severity = if_abap_behv_message=>severity-error
+                    )
+            )
+            TO reported-tour.
+                    lv_failed = abap_true.
+                  ENDIF.
+
+      " If any check failed, block this action call
+      IF lv_failed = abap_true.
+        APPEND VALUE #( %cid = <key>-%cid ) TO failed-tour.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+ENDCLASS.
