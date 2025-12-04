@@ -1,161 +1,95 @@
-CLASS lhc_service DEFINITION INHERITING FROM cl_abap_behavior_handler.
+METHOD createtour.
 
-  PRIVATE SECTION.
+  DATA lv_first_date   TYPE /plce/date.
+  DATA lv_last_date    TYPE /plce/date.
+  DATA lv_current_date TYPE /plce/date.
 
-    METHODS get_global_features FOR GLOBAL FEATURES
-      IMPORTING REQUEST requested_features FOR Service RESULT result.
+  " One call of the static action can contain multiple parameter rows (invocationGrouping = #CHANGE_SET)
+  LOOP AT keys ASSIGNING FIELD-SYMBOL(<key>).
 
-    METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
-      IMPORTING REQUEST requested_authorizations FOR Service RESULT result.
+    " --- 1) Determine date range from parameter ------------------------
+    lv_first_date = <key>-%param-start_date.
 
-    METHODS assignworkarea FOR MODIFY
-      IMPORTING keys FOR ACTION Service~assignworkarea RESULT result.
+    " If no end date was entered, use start date (create just one tour)
+    lv_last_date  = COND /plce/date(
+                       WHEN <key>-%param-end_date IS INITIAL
+                       THEN lv_first_date
+                       ELSE <key>-%param-end_date ).
 
-    METHODS precheck_assignworkarea FOR PRECHECK
-      IMPORTING keys FOR ACTION Service~assignworkarea.
+    " Safety: if user swapped dates, flip them
+    IF lv_last_date < lv_first_date.
+      DATA(lv_tmp) = lv_first_date.
+      lv_first_date = lv_last_date.
+      lv_last_date  = lv_tmp.
+    ENDIF.
 
-     methods Setfachbereich for determine on modify
-      importing KEYS for Service~Setfachbereich.
+    lv_current_date = lv_first_date.
 
-ENDCLASS.
+    " --- 2) Create one tour per day in the range ----------------------
+    WHILE lv_current_date <= lv_last_date.
 
-CLASS lhc_service IMPLEMENTATION.
+      " Inner action: create tour from template
+      MODIFY ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
+        ENTITY Tour
+          EXECUTE createTourWithTemplate
+          FROM VALUE #(
+            ( %cid                 = <key>-%cid        " reuse outer CID!
+              %param-without_draft = 'X'
+              %param-tour_template = <key>-%param-tour_template
+              %param-start_date    = lv_current_date ) )
+        MAPPED   DATA(mapped_tour)
+        FAILED   DATA(failed_tour)
+        REPORTED DATA(reported_tour_inner).
 
-METHOD Setfachbereich.
+      IF failed_tour IS INITIAL.
 
- READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-      ENTITY Service
-      FIELDS ( ReferenceId ServiceUUID ) " // Use CDS casing; add ServiceUUID for key
-      WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_services)
-      FAILED DATA(lt_failed).
+        " Read created tour(s) to build result & messages
+        READ ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
+          ENTITY Tour
+            ALL FIELDS
+            WITH CORRESPONDING #( mapped_tour-tour )
+          RESULT DATA(lt_tours).
 
-    LOOP AT lt_services ASSIGNING FIELD-SYMBOL(<ls_service>).
-      DATA lv_zz_tech_fachbe TYPE ewa_order_object .
-      SELECT SINGLE zz_tech_fachbe
-        FROM ewa_order_object
-        WHERE POBJNR = @<ls_service>-ReferenceId
-        INTO @lv_zz_tech_fachbe.
+        IF lt_tours IS NOT INITIAL.
 
-      IF sy-subrc = 0 AND lv_zz_tech_fachbe IS NOT INITIAL.
-*     " // Check if ExtCustom exists; read it first
-        READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-          ENTITY ExtCustom
-          FIELDS ( ServiceUUID )  "// Minimal to check existence
-          WITH VALUE #( ( ServiceUUID = <ls_service>-ServiceUUID ) )
-          RESULT DATA(lt_extcustom).
+          " Example success message (keep your existing exception if you like)
+          INSERT NEW /plce/cx_pd_exception(
+                     textid   = /plce/cx_pd_exception=>tour_confirmed
+                     severity = if_abap_behv_message=>severity-success
+                     tour     = lt_tours[ 1 ]-TourId )
+            INTO TABLE reported-%other.
 
-        IF lt_extcustom IS INITIAL.
-*        // Create if missing
-          DATA: lv_cid        TYPE string VALUE '$abap_cid1_',
-                lt_ext_create TYPE TABLE FOR CREATE /PLCE/R_PDService\_ExtCustom.
-          APPEND INITIAL LINE TO lt_ext_create ASSIGNING FIELD-SYMBOL(<ls_ext_create>).
-          <ls_ext_create>-ServiceUUID = <ls_service>-ServiceUUID. " // %tky or key
-          <ls_ext_create>-%target = VALUE #( ( %cid = lv_cid ) ).
-
-          MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-            ENTITY Service
-            CREATE BY \_ExtCustom
-            AUTO FILL CID SET FIELDS WITH lt_ext_create
-            MAPPED DATA(lmapped)
-            FAILED DATA(lfailed)
-            REPORTED DATA(lreported).
-*        // Handle errors if needed
+          " --- 3) Fill static action RESULT --------------------------
+          " VERY IMPORTANT for static actions:
+          " - %cid MUST be copied from the request (<key>-%cid)
+          " - %param contains the actual Tour data returned to the UI
+          " - %tky is nice for internal consistency, but not strictly required
+          result = VALUE #( BASE result
+                            FOR ls_tour IN lt_tours
+                            ( %cid   = <key>-%cid
+                              %tky   = ls_tour-%tky
+                              %param = ls_tour ) ).
         ENDIF.
 
-*      // Now update the field
-        MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-          ENTITY ExtCustom
-          UPDATE FIELDS ( zz_tech_fachbe )
-          WITH VALUE #( ( %key-ServiceUUID = <ls_service>-ServiceUUID
-                          zz_tech_fachbe = lv_zz_tech_fachbe ) )
-          FAILED DATA(lt_failed_update)
-          REPORTED DATA(lt_reported_update).
-
-          " Step 4: Set action result ($self = Service instances). This ensures that the values are shown on the UI
-      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-        ENTITY Service
-          ALL FIELDS WITH CORRESPONDING #( keys )
-        RESULT DATA(lt_service_result).
-
-      CLEAR: lt_ext_create,  lt_reported_update,  lt_failed_update,  lreported, lfailed, lmapped.
-      ENDIF.
-     ENDLOOP.
- ENDMETHOD.
-
-  METHOD get_global_features.
-  ENDMETHOD.
-
-  METHOD get_global_authorizations.
-  ENDMETHOD.
-
-  METHOD assignworkarea.
-
-    READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-    ENTITY Service
-    FIELDS ( ReferenceId ServiceUUID ) " // Use CDS casing; add ServiceUUID for key
-    WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_services)
-    FAILED DATA(lt_failed).
-
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_service>).
-*     " // Check if ExtCustom exists; read it first
-      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-        ENTITY ExtCustom
-        FIELDS ( ServiceUUID )  "// Minimal to check existence
-        WITH VALUE #( ( ServiceUUID = <ls_service>-ServiceUUID ) )
-        RESULT DATA(lt_extcustom).
-
-      IF lt_extcustom IS INITIAL.
-*        // Create if missing
-        DATA: lv_cid        TYPE string VALUE '$abap_cid1_',
-              lt_ext_create TYPE TABLE FOR CREATE /PLCE/R_PDService\_ExtCustom.
-        APPEND INITIAL LINE TO lt_ext_create ASSIGNING FIELD-SYMBOL(<ls_ext_create>).
-        <ls_ext_create>-ServiceUUID = <ls_service>-ServiceUUID. " // %tky or key
-        <ls_ext_create>-%target = VALUE #( ( %cid = lv_cid ) ).
-
-        MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-          ENTITY Service
-          CREATE BY \_ExtCustom
-          AUTO FILL CID SET FIELDS WITH lt_ext_create
-          MAPPED DATA(lmapped)
-          FAILED DATA(lfailed)
-          REPORTED DATA(lreported).
-*        // Handle errors if needed
+      ELSE.
+        " Optional: bubble up inner reported/failed to outer action tables
+        " APPEND LINES OF failed_tour-tour   TO failed-tour.
+        " APPEND LINES OF reported_tour_inner-tour TO reported-tour.
       ENDIF.
 
-*      // Now update the field
-      MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-        ENTITY ExtCustom
-        UPDATE FIELDS ( zz_tech_fachbe )
-        WITH VALUE #( ( %key-ServiceUUID = <ls_service>-ServiceUUID
-                        zz_tech_fachbe = <ls_service>-%param-WorkArea ) )
-        FAILED DATA(lt_failed_update)
-        REPORTED DATA(lt_reported_update).
+      " next day
+      lv_current_date = lv_current_date + 1.
 
+    ENDWHILE.
 
-      " Step 4: Set action result ($self = Service instances). This ensures that the values are shown on the UI
-      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-        ENTITY Service
-          ALL FIELDS WITH CORRESPONDING #( keys )
-        RESULT DATA(lt_service_result).
+  ENDLOOP.
 
-      result = VALUE #( FOR ls_service IN lt_service_result ( %tky   = ls_service-%tky
-                                                             %param  = ls_service ) ).
-      CLEAR:   lt_ext_create,  lt_reported_update,  lt_failed_update,  lreported, lfailed, lmapped.
-    ENDLOOP.
-  ENDMETHOD.
+  " *** IMPORTANT ***
+  " Remove the old final READ / result assignment:
+  "   READ ENTITIES ... WITH CORRESPONDING #( keys ) ...
+  "   result = VALUE #( ... )
+  "
+  " For a static action, 'keys' does NOT contain Tour keys,
+  " and that code overwrote the correctly built 'result'.
 
-  METHOD precheck_assignworkarea.
-
-    LOOP AT keys INTO DATA(ls_service).
-*      " Check if WorkArea is valid (query value help entity if needed).
-*      IF ls_service-%param-WorkArea IS INITIAL.
-*        APPEND VALUE #( %key = ls_service-%key
-*                        %msg = new_message( id = 'Z_MSG_CLASS' number = '000' severity = if_abap_behv_message=>severity-error ) )
-*               TO reported-Service.
-*      ENDIF.
-
-    ENDLOOP.
-  ENDMETHOD.
-ENDCLASS.
+ENDMETHOD.
