@@ -1,40 +1,25 @@
-manualattachments: function (oContext, aSelectedContexts) {
-    oExtAPI = this; // ExtensionAPI
+function applyFiltersAndSearch(sTourId) {
+    var oServiceFB = resolveFilterBar("ServiceWRFilterBar");
+    var oAttachFB  = resolveFilterBar("AttachmentFilterBar");
 
-    const oTourCtx = aSelectedContexts && aSelectedContexts[0];
-    if (!oTourCtx) {
-        MessageToast.show("Please select a tour first.");
-        return;
+    // Attachments: if it should also depend on TourId, set it here too
+    if (oAttachFB && oAttachFB.getFilterConditions && oAttachFB.setFilterConditions && oAttachFB.search) {
+        var mA = oAttachFB.getFilterConditions() || {};
+        // only if Attachment entity really has TourId as a filter field
+        // mA.TourId = [{ operator: "EQ", values: [sTourId] }];
+        oAttachFB.setFilterConditions(mA);
+        oAttachFB.search();
     }
 
-    const sTourId = oTourCtx.getProperty("TourId");
-
-    const openWithTour = () => {
-        oDialog._currentTourId = sTourId;   // <- store current selection
-        oDialog.open();                    // <- afterOpen will read _currentTourId
-    };
-
-    // Re-use existing dialog
-    if (oDialog) {
-        openWithTour();
-        return;
+    // Service WR: TourId = selected Tour and trigger search
+    if (oServiceFB && oServiceFB.getFilterConditions && oServiceFB.setFilterConditions && oServiceFB.search) {
+        var mCond = oServiceFB.getFilterConditions() || {};
+        mCond.TourId = [{
+            operator: "EQ",
+            values: [sTourId],
+            isEmpty: false
+        }];
+        oServiceFB.setFilterConditions(mCond);
+        oServiceFB.search();
     }
-
-    // First-time load
-    oExtAPI.loadFragment({
-        name: "zpdattachment.ext.fragments.GenerateDocDialog",
-        controller: oActionHandlers
-    }).then(function (oLoadedDialog) {
-
-        oDialog = oLoadedDialog;
-        oExtAPI.addDependent(oDialog);
-
-        // Attach ONCE. Important: read oDialog._currentTourId at runtime (no stale closure)
-        oDialog.attachAfterOpen(function () {
-            // give it a bit more time than 20x50ms if your system is slow
-            waitAndApplyFilters(oDialog._currentTourId, 80, 100);
-        });
-
-        openWithTour();
-    });
-},
+}
