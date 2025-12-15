@@ -8,38 +8,38 @@
 define view entity ZI_WR_SALESITEM_CONTRACTVH
   with parameters P_SalesOrder : vbeln_va
   as select from I_SalesDocumentItem as salesitem
-    inner join I_MaterialText       as _text
+
+    /* get material text; if this might be missing in some languages, switch to LEFT OUTER JOIN */
+    inner join I_MaterialText as _text
       on  salesitem.Material = _text.Material
       and _text.Language     = $session.system_language
-    left outer join /watp/tavvmara  as v
-      on  v.matnr = _text.Material
 
-  /* keep the many-side for drill-down (separate alias than the join) */
-  association to /watp/tavvmara      as _tavvmara
+    /* aggregate AVV once per MATNR inside a derived table, then join it */
+    left outer join (
+      select from /watp/tavvmara as t
+      {
+        t.matnr                        as Material,
+        max( t.avvcode )               as Avvcode   // or min(...) per your rule
+      }
+      group by t.matnr
+    ) as v
+      on v.Material = _text.Material
+
+    /* keep many-side association only for drilldown */
+    association to /watp/tavvmara      as _tavvmara
       on _tavvmara.matnr = _text.Material
-  association to ZI_WR_R_WEIGHBRIDGE as WEIGHBRIDGEDOC
+    association to ZI_WR_R_WEIGHBRIDGE as WEIGHBRIDGEDOC
       on WEIGHBRIDGEDOC.SalesDocument = salesitem.SalesDocument
+
 {
   key salesitem.SalesDocument        as SalesOrder,
   key salesitem.SalesDocumentItem    as SalesOrderitem,
       _text.Material                 as Material,
       _text.MaterialName             as MaterialText,
-
-      /* pick exactly one AVV per MATNR */
-      max( v.avvcode )               as Avvcode,     // or min(v.avvcode)
-
+      v.Avvcode                      as Avvcode,          // single value per MATNR
       _text.Language                 as Language,
       WEIGHBRIDGEDOC.Korselsnr       as Korselsnr,
       WEIGHBRIDGEDOC.Korselsnrindicator as Korselsnrindicator,
-
-      _tavvmara                                      // still navigable (many)
+      _tavvmara                                         // still navigable (many)
 }
 where salesitem.SalesDocument = $parameters.P_SalesOrder
-group by
-  salesitem.SalesDocument,
-  salesitem.SalesDocumentItem,
-  _text.Material,
-  _text.MaterialName,
-  _text.Language,
-  WEIGHBRIDGEDOC.Korselsnr,
-  WEIGHBRIDGEDOC.Korselsnrindicator;
