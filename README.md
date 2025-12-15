@@ -1,104 +1,254 @@
-sap.ui.define([
-  "sap/ui/core/mvc/ControllerExtension",
-  "sap/ui/model/Filter", "sap/ui/model/FilterOperator"
-], function (ControllerExtension, Filter, FilterOperator) {
-  "use strict";
-
-  return ControllerExtension.extend("spl.sietssplaudittrail2.ext.controller.ObjectPageExt", {
-    onAfterBinding: function () {
-      const oView = this.base.getView();
-      const oOP   = oView.byId("objectPage");
-      const sGuid = oView.getBindingContext()?.getProperty("GUID_SPLAT");
-      if (!sGuid) { return; }
-
-      const aFilters = [ new Filter("GUID_SPLAT", FilterOperator.EQ, sGuid) ];
-
-      const prep = (subsecId, tableId) => {
-        const oTbl = oView.byId(tableId) || oView.byId(tableId + "::Table");
-
-        // Step 1: wait until FE created the row binding, then SUSPEND it immediately
-        const suspendOnce = () => {
-          const oRB = oTbl?.getRowBinding?.();
-          if (oRB) {
-            if (!oRB.isSuspended?.()) { oRB.suspend(); }
-            // IMPORTANT: drop $count requests
-            oRB.changeParameters({ $$noCount: true });
-          } else {
-            oTbl.attachEventOnce("modelContextChange", suspendOnce);
-          }
-        };
-        suspendOnce();
-
-        // Step 2: load lazily when the subsection is first entered
-        let done = false;
-        oOP.attachEvent("subSectionEntered", (e) => {
-          if (done) { return; }
-          const oSub = e.getParameter("subSection");
-          if (oSub && oSub.getId().endsWith(subsecId)) {
-            const oRB = oTbl?.getRowBinding?.();
-            if (oRB) {
-              // apply final filter (GUID) and resume -> single filtered request, no $count
-              oRB.filter(aFilters);
-              oRB.resume();
-            }
-            done = true;
-          }
-        });
-      };
-
-      prep("SplEntriesSubSection",   "SplEntriesTable");
-      prep("MatchedTermsSubSection", "MatchedTermsTable");
-    }
-  });
-});
-
 <core:FragmentDefinition
+    xmlns="sap.m"
     xmlns:core="sap.ui.core"
-    xmlns="sap.uxap"
     xmlns:macros="sap.fe.macros">
 
-    <ObjectPageSection
-        id="SplEntriesSection"
-        title="Matched Sanctioned Party List Entries">
+    <Dialog
+        id="TwoSmartTablesDialog"
+        title="Choose Items"
+        stretch="true"
+        contentWidth="1200px"
+        contentHeight="600px"
+        class="sapUiResponsivePadding">
 
-        <subSections>
-            <ObjectPageSubSection id="SplEntriesSubSection">
-                <blocks>
+        <content>
+            <VBox id="vbMain" width="100%" height="100%" renderType="Div">
+
+                <!-- ========= ATTACHMENT “LIST REPORT” ========= -->
+                <macros:FilterBar
+                    id="AttachmentFilterBar"
+                    contextPath="/PrintConfiguration"
+                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
+
                     <macros:Table
-                        id="SplEntriesTable"
-                        contextPath="/xSIETSxI_SPL_AuditTrail"
-                        metaPath="_SplEntries/@com.sap.vocabularies.UI.v1.LineItem"
-                        enableFullScreen="true"/>
-                </blocks>
-            </ObjectPageSubSection>
-        </subSections>
-    </ObjectPageSection>
+                        id="AttachmentTable"
+                        contextPath="/PrintConfiguration"
+                        metaPath="@com.sap.vocabularies.UI.v1.LineItem"
+                        filterBar="AttachmentFilterBar"            
+                        selectionMode="ForceMulti"    
+                        header="Attachments" />
 
+
+
+                <Toolbar id="tbSpacer1" design="Transparent">
+                    <ToolbarSpacer id="tb1" />
+                </Toolbar>
+
+                <!-- ========= SERVICE WR (USE CHILD NAVIGATION) ========= -->
+<!-- SERVICE WR – absolute but filtered by selected TourId -->
+                <macros:FilterBar
+                    id="ServiceWRFilterBar"
+                   contextPath="/ServiceAssignment"
+                    metaPath="@com.sap.vocabularies.UI.v1.SelectionFields" />
+
+                <macros:Table
+                    id="ServiceWRTable"
+                    contextPath="/ServiceAssignment"
+                    metaPath="@com.sap.vocabularies.UI.v1.LineItem"
+                    filterBar="ServiceWRFilterBar"
+                    selectionMode="ForceMulti"
+                    header="Service WR"
+                    
+                     />
+
+            </VBox>
+        </content>
+
+        <beginButton>
+            <Button
+                id="btnChoose"
+                text="Choose"
+                type="Emphasized"
+                press=".onDialogChoose" />
+        </beginButton>
+
+        <endButton>
+            <Button
+                id="btnCancel"
+                text="Cancel"
+                press=".onDialogCancel" />
+        </endButton>
+
+    </Dialog>
 </core:FragmentDefinition>
 
-<core:FragmentDefinition     xmlns:core="sap.ui.core"
-    xmlns="sap.uxap"
-    xmlns:macros="sap.fe.macros">
 
-
-   <ObjectPageSection
-        id="MatchedTermsSection"
-        title="Matched Terms">
-
-        <subSections>
-            <ObjectPageSubSection id="MatchedTermsSubSection">
-                <blocks>
-                    <macros:Table
-                        id="MatchedTermsTable"
-                         contextPath="/xSIETSxI_SPL_AuditTrail"
-                        metaPath="_MatchedTerms/@com.sap.vocabularies.UI.v1.LineItem"/>
-                        <!-- if you used a qualifier: metaPath="@com.sap.vocabularies.UI.v1.LineItem#MatchTerms" -->
-                </blocks>
-            </ObjectPageSubSection>
-        </subSections>
-    </ObjectPageSection>
-
-</core:FragmentDefinition>
-
-
+sap.ui.define([
+    "sap/m/MessageToast",
+    "sap/m/MessageBox"
+], function (MessageToast, MessageBox) {
+    "use strict";
+    var oExtAPI; // sap.fe.templates.ListReport.ExtensionAPI
+    var oDialog; // Dialog instance
+    // ------------------------------------------------------------------------
+    // Helper: find the inner sap.ui.mdc.FilterBar by a fragment alias
+    // ------------------------------------------------------------------------
+    function resolveFilterBar(sAlias) {
+        var oFB = null;
+        // 1) Try via ExtensionAPI.byId (if available)
+        if (oExtAPI && oExtAPI.byId) {
+            // sometimes the alias is on the macro wrapper, sometimes on the inner FB
+            oFB = oExtAPI.byId(sAlias) || oExtAPI.byId(sAlias + "::FilterBar");
+        }
+        // If this is the macro wrapper, try to get inner mdc FilterBar
+        if (oFB && oFB.getInnerFilterBar && !oFB.isA("sap.ui.mdc.FilterBar")) {
+            oFB = oFB.getInnerFilterBar();
+        }
+        if (oFB && oFB.isA && oFB.isA("sap.ui.mdc.FilterBar")) {
+            return oFB;
+        }
+        // 2) Fallback: scan all elements in Core and look for sap.ui.mdc.FilterBar
+        var mElements = sap.ui.getCore().mElements || {};
+        Object.keys(mElements).some(function (sId) {
+            var oElement = mElements[sId];
+            if (
+                sId.indexOf(sAlias) !== -1 &&
+                oElement &&
+                oElement.isA &&
+                oElement.isA("sap.ui.mdc.FilterBar")
+            ) {
+                oFB = oElement;
+                return true; // break
+            }
+            return false;
+        });
+        return oFB;
+    }
+    // ------------------------------------------------------------------------
+    // Apply filters & trigger search on both tables
+    // ------------------------------------------------------------------------
+    function applyFiltersAndSearch(sTourId) {
+        // Try to resolve the FilterBars *after* they exist in the dialog
+        var oServiceFB = resolveFilterBar("ServiceWRFilterBar");
+        var oAttachFB = resolveFilterBar("AttachmentFilterBar");
+        // Attachments: just trigger search (no additional filters)
+        if (oAttachFB && oAttachFB.search) {
+            oAttachFB.search();
+        }
+        // Service WR: set TourId = selected Tour and trigger search
+        if (oServiceFB &&
+            oServiceFB.getFilterConditions &&
+            oServiceFB.setFilterConditions &&
+            oServiceFB.search) {
+            var mCond = oServiceFB.getFilterConditions() || {};
+            mCond.TourId = [{
+                operator: "EQ",
+                values: [sTourId],
+                isEmpty: false
+            }];
+            oServiceFB.setFilterConditions(mCond);
+            oServiceFB.search();
+        } else {
+            // debug helper: you’ll see this if we still don’t find the FilterBar
+            jQuery.sap.log.warning(
+                "ServiceWR FilterBar not found or no MDC API",
+                "",
+                "zpdattachment.ext.controller.ListReportExt"
+            );
+        }
+    }
+    // ------------------------------------------------------------------------
+    // Poll until FilterBars are ready, then apply filters
+    // ------------------------------------------------------------------------
+    function waitAndApplyFilters(sTourId, iMaxRetries = 20, iDelay = 50) {
+        let iRetries = 0;
+        const poll = () => {
+            const oServiceFB = resolveFilterBar("ServiceWRFilterBar");
+            const oAttachFB = resolveFilterBar("AttachmentFilterBar");
+            if (oServiceFB && oAttachFB) {
+                applyFiltersAndSearch(sTourId);
+                return;
+            }
+            if (iRetries >= iMaxRetries) {
+                jQuery.sap.log.error(
+                    "FilterBars not found after max retries",
+                    "",
+                    "zpdattachment.ext.controller.ListReportExt"
+                );
+                return;
+            }
+            iRetries++;
+            setTimeout(poll, iDelay);
+        };
+        poll();
+    }
+    var oActionHandlers = {
+        // --------------------------------------------------------------------
+        // Action: open dialog + prefilter tables by selected Tour
+        // --------------------------------------------------------------------
+        manualattachments: function (oContext, aSelectedContexts) {
+            oExtAPI = this; // in FE V4 action handler, `this` is ExtensionAPI
+            var oTourCtx = aSelectedContexts && aSelectedContexts[0];
+            if (!oTourCtx) {
+                MessageToast.show("Please select a tour first.");
+                return;
+            }
+            var sTourId = oTourCtx.getProperty("TourId");
+            // Re-use existing dialog
+            if (oDialog) {
+                oDialog._currentTourId = sTourId;
+                oDialog.open();
+                // No need for extra setTimeout here; attachAfterOpen will handle it
+                return;
+            }
+            // First-time load
+            oExtAPI.loadFragment({
+                name: "zpdattachment.ext.fragments.GenerateDocDialog",
+                controller: oActionHandlers // for .onDialogChoose / .onDialogCancel
+            }).then(function (oLoadedDialog) {
+                oDialog = oLoadedDialog;
+                oExtAPI.addDependent(oDialog);
+                oDialog._currentTourId = sTourId;
+                oDialog.attachAfterOpen(function () {
+                    // Poll until macros are ready
+                    waitAndApplyFilters(sTourId);
+                });
+                oDialog.open();
+            });
+        },
+        // --------------------------------------------------------------------
+        // Choose button: collect selected rows from both tables & call RAP action
+        // --------------------------------------------------------------------
+        onDialogChoose: function () {
+            var oTopTable = oExtAPI.byId && oExtAPI.byId("AttachmentTable");
+            var oBottomTable = oExtAPI.byId && oExtAPI.byId("ServiceWRTable");
+            function getSelectedObjects(oTable) {
+                if (!oTable || !oTable.getSelectedContexts) {
+                    return [];
+                }
+                var aCtx = oTable.getSelectedContexts() || [];
+                return aCtx.map(function (oCtx) {
+                    return oCtx.getObject();
+                });
+            }
+            var aAttachmentItems = getSelectedObjects(oTopTable);
+            var aServiceWRItems = getSelectedObjects(oBottomTable);
+            if (!aAttachmentItems.length && !aServiceWRItems.length) {
+                MessageToast.show("Please select at least one row in one of the tables.");
+                return;
+            }
+            var oModel = oExtAPI.getModel();
+            var oActionBinding = oModel.bindContext(
+                "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
+            );
+            oActionBinding.setParameter("AttachmentItemsjson", JSON.stringify(aAttachmentItems));
+            oActionBinding.setParameter("ServiceWRItemsjson", JSON.stringify(aServiceWRItems));
+            oActionBinding.execute("$auto").then(function () {
+                MessageToast.show("Documents were generated successfully.");
+                oModel.refresh();
+            }).catch(function (oError) {
+                MessageBox.error(oError.message || "Error while generating documents.");
+            });
+            if (oDialog) {
+                oDialog.close();
+            }
+        },
+        onDialogCancel: function () {
+            if (oDialog) {
+                oDialog.close();
+            }
+        }
+    };
+    return oActionHandlers;
+});
 
