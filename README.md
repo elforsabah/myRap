@@ -148,3 +148,17 @@ sap.ui.define([
 
     return oActionHandlers;
 });
+
+
+
+ListReportExt-dbg.js:114 Uncaught ReferenceError: _getSelectedObjectsFromDialogMacroTable is not defined
+    at Object.onDialogChoose (ListReportExt-dbg.js:114:36)
+    at c.fireEvent (EventProvider-dbg.js:241:38)
+    at c.fireEvent (Element-dbg.js:683:44)
+    at c.firePress (ManagedObjectMetadata-dbg.js:826:49)
+    at sap.ui.predefine.S.ontap (Button-dbg.js:599:9)
+    at c._handleEvent (Element-dbg.js:352:10)
+    at sap.ui.predefine.N._handleEvent (UIArea-dbg.js:1054:15)
+    at HTMLDivElement.dispatch (jquery-dbg.js:5430:27)
+    at c (jquery-mobile-custom-dbg.js:1907:20)
+    at HTMLDivElement.d (jquery-mobile-custom-dbg.js:2030:6)
