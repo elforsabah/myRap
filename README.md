@@ -23,3 +23,34 @@ function _getSelectedObjectsFromDialogMacroTable(sMacroLocalId) {
 
     return aCtx.map(function (oCtx) { return oCtx.getObject(); });
 }
+
+
+onDialogChoose: function () {
+    // Read selected rows from the *inner* MDC tables created by the macros
+    var aAttachmentItems = _getSelectedObjectsFromDialogMacroTable("AttachmentTable");
+    var aServiceWRItems  = _getSelectedObjectsFromDialogMacroTable("ServiceWRTable");
+
+    if (!aAttachmentItems.length && !aServiceWRItems.length) {
+        MessageToast.show("Please select at least one row in one of the tables.");
+        return;
+    }
+
+    var oModel = oExtAPI.getModel();
+
+    var oActionBinding = oModel.bindContext(
+        "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
+    );
+
+    oActionBinding.setParameter("AttachmentItemsjson", JSON.stringify(aAttachmentItems));
+    oActionBinding.setParameter("ServiceWRItemsjson", JSON.stringify(aServiceWRItems));
+
+    oActionBinding.execute("$auto").then(function () {
+        MessageToast.show("Documents were generated successfully.");
+        oModel.refresh();
+        if (oDialog) { oDialog.close(); }
+    }).catch(function (oError) {
+        MessageBox.error(
+            (oError && (oError.message || oError.toString())) || "Error while generating documents."
+        );
+    });
+},
