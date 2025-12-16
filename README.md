@@ -1,56 +1,128 @@
-<core:FragmentDefinition
-    xmlns="sap.m"
-    xmlns:core="sap.ui.core"
-    xmlns:macros="sap.fe.macros">
+sap.ui.define([
+    "sap/m/MessageToast",
+    "sap/m/MessageBox"
+], function (MessageToast, MessageBox) {
+    "use strict";
 
-    <Dialog
-        id="TwoSmartTablesDialog"
-        title="Choose Items"
-        stretch="true"
-        contentWidth="1200px"
-        contentHeight="600px"
-        class="sapUiResponsivePadding">
+    var oExtAPI;    // ExtensionAPI
+    var oDialog;    // Dialog instance
 
-        <content>
-            <VBox id="vbMain" width="100%" height="100%" renderType="Div">
+    function _refreshMacroTable(sId) {
+        if (!oExtAPI || !oExtAPI.byId) { return; }
 
-                <!-- ========= ATTACHMENTS (child composition of selected Tour) ========= -->
-                <macros:Table
-                    id="AttachmentTable"
-                    contextPath="/Tour"
-                    metaPath="_Attachments/@com.sap.vocabularies.UI.v1.LineItem"
-                    selectionMode="ForceMulti"
-                    header="Attachments / Documents" />
+        var oMacro = oExtAPI.byId(sId) || oExtAPI.byId(sId + "::Table");
+        if (!oMacro) { return; }
 
-                <Toolbar design="Transparent">
-                    <ToolbarSpacer/>
-                </Toolbar>
+        // Best case: Macro Table API
+        if (typeof oMacro.rebindTable === "function") {
+            oMacro.rebindTable();
+            return;
+        }
 
-                <!-- ========= SERVICES (child composition of selected Tour) ========= -->
-                <macros:Table
-                    id="ServiceWRTable"
-                    contextPath="/Tour"
-                    metaPath="_ServiceAssignments/@com.sap.vocabularies.UI.v1.LineItem"
-                    selectionMode="ForceMulti"
-                    header="Service WR" />
+        // Fallbacks: inner table / row binding
+        var oInner = (typeof oMacro.getTable === "function") ? oMacro.getTable() : oMacro;
+        var oRB = oInner && typeof oInner.getRowBinding === "function" ? oInner.getRowBinding() : null;
+        if (oRB && typeof oRB.refresh === "function") {
+            oRB.refresh();
+        }
+    }
 
-            </VBox>
-        </content>
+    function _getSelectedObjects(oTable) {
+        if (!oTable || typeof oTable.getSelectedContexts !== "function") {
+            return [];
+        }
+        return (oTable.getSelectedContexts() || []).map(function (oCtx) {
+            return oCtx.getObject();
+        });
+    }
 
-        <beginButton>
-            <Button
-                id="btnChoose"
-                text="Choose"
-                type="Emphasized"
-                press=".onDialogChoose" />
-        </beginButton>
+    var oActionHandlers = {
 
-        <endButton>
-            <Button
-                id="btnCancel"
-                text="Cancel"
-                press=".onDialogCancel" />
-        </endButton>
+        // --------------------------------------------------------------------
+        // Open dialog and bind it to the selected Tour
+        // --------------------------------------------------------------------
+        manualattachments: function (oContext, aSelectedContexts) {
+            oExtAPI = this;
 
-    </Dialog>
-</core:FragmentDefinition>
+            var oTourCtx = aSelectedContexts && aSelectedContexts[0];
+            if (!oTourCtx) {
+                MessageToast.show("Please select a Tour first.");
+                return;
+            }
+
+            var openDialogForTour = function () {
+                // Bind dialog to selected Tour -> child tables (_Attachments/_ServiceAssignments) auto resolve
+                oDialog.setModel(oTourCtx.getModel());
+                oDialog.setBindingContext(oTourCtx);
+
+                // Ensure tables refresh each time the dialog opens
+                if (!oDialog._afterOpenAttached) {
+                    oDialog._afterOpenAttached = true;
+                    oDialog.attachAfterOpen(function () {
+                        _refreshMacroTable("AttachmentTable");
+                        _refreshMacroTable("ServiceWRTable");
+                    });
+                }
+
+                oDialog.open();
+            };
+
+            if (oDialog) {
+                openDialogForTour();
+                return;
+            }
+
+            // First time: load fragment
+            oExtAPI.loadFragment({
+                name: "zpdattachment.ext.fragments.GenerateDocDialog",
+                controller: oActionHandlers
+            }).then(function (oLoadedDialog) {
+                oDialog = oLoadedDialog;
+                oExtAPI.addDependent(oDialog);
+                openDialogForTour();
+            });
+        },
+
+        // --------------------------------------------------------------------
+        // Choose -> collect selected rows and call RAP action
+        // --------------------------------------------------------------------
+        onDialogChoose: function () {
+            var oTopTable = oExtAPI.byId && oExtAPI.byId("AttachmentTable");
+            var oBottomTable = oExtAPI.byId && oExtAPI.byId("ServiceWRTable");
+
+            var aAttachmentItems = _getSelectedObjects(oTopTable);
+            var aServiceWRItems  = _getSelectedObjects(oBottomTable);
+
+            if (!aAttachmentItems.length && !aServiceWRItems.length) {
+                MessageToast.show("Please select at least one row in one of the tables.");
+                return;
+            }
+
+            var oModel = oExtAPI.getModel();
+
+            // Keep your existing action call style (your metadata shows it's bound to the Tour collection)
+            var oActionBinding = oModel.bindContext(
+                "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
+            );
+
+            oActionBinding.setParameter("AttachmentItemsjson", JSON.stringify(aAttachmentItems));
+            oActionBinding.setParameter("ServiceWRItemsjson", JSON.stringify(aServiceWRItems));
+
+            oActionBinding.execute("$auto").then(function () {
+                MessageToast.show("Documents were generated successfully.");
+                oModel.refresh();
+                if (oDialog) { oDialog.close(); }
+            }).catch(function (oError) {
+                MessageBox.error(oError && (oError.message || oError.toString()) || "Error while generating documents.");
+            });
+        },
+
+        onDialogCancel: function () {
+            if (oDialog) {
+                oDialog.close();
+            }
+        }
+    };
+
+    return oActionHandlers;
+});
