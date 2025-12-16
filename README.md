@@ -1,164 +1,71 @@
-sap.ui.define([
-    "sap/m/MessageToast",
-    "sap/m/MessageBox"
-], function (MessageToast, MessageBox) {
-    "use strict";
+_findInnerMdcTableInDialog: function (sMacroLocalId) {
+    if (!oDialog) { return null; }
 
-    var oExtAPI;    // ExtensionAPI
-    var oDialog;    // Dialog instance
+    var aMdcTables = oDialog.findAggregatedObjects(true, function (o) {
+        return o && o.isA && o.isA("sap.ui.mdc.Table");
+    }) || [];
 
-    function _refreshMacroTable(sId) {
-        if (!oExtAPI || !oExtAPI.byId) { return; }
-
-        var oMacro = oExtAPI.byId(sId) || oExtAPI.byId(sId + "::Table");
-        if (!oMacro) { return; }
-
-        // Best case: Macro Table API
-        if (typeof oMacro.rebindTable === "function") {
-            oMacro.rebindTable();
-            return;
-        }
-
-        // Fallbacks: inner table / row binding
-        var oInner = (typeof oMacro.getTable === "function") ? oMacro.getTable() : oMacro;
-        var oRB = oInner && typeof oInner.getRowBinding === "function" ? oInner.getRowBinding() : null;
-        if (oRB && typeof oRB.refresh === "function") {
-            oRB.refresh();
+    for (var i = 0; i < aMdcTables.length; i++) {
+        var sId = aMdcTables[i].getId();
+        if (sId && sId.indexOf(sMacroLocalId + "::Table") !== -1) {
+            return aMdcTables[i];
         }
     }
+    return null;
+},
 
-    function _getSelectedObjects(oTable) {
-        if (!oTable || typeof oTable.getSelectedContexts !== "function") {
-            return [];
-        }
-        return (oTable.getSelectedContexts() || []).map(function (oCtx) {
+_getSelectedObjectsFromDialogMacroTable: function (sMacroLocalId) {
+    var oMdcTable = this._findInnerMdcTableInDialog(sMacroLocalId);
+    if (!oMdcTable) { return []; }
+
+    // Preferred (MDC Table)
+    if (typeof oMdcTable.getSelectedContexts === "function") {
+        return (oMdcTable.getSelectedContexts() || []).map(function (oCtx) {
             return oCtx.getObject();
         });
     }
 
-    var oActionHandlers = {
+    // Fallback (if selection API differs)
+    if (typeof oMdcTable.getSelectedIndices === "function" && typeof oMdcTable.getRowBinding === "function") {
+        var aIdx = oMdcTable.getSelectedIndices() || [];
+        var oRB = oMdcTable.getRowBinding();
+        if (!oRB) { return []; }
 
-        // --------------------------------------------------------------------
-        // Open dialog and bind it to the selected Tour
-        // --------------------------------------------------------------------
-        manualattachments: function (oContext, aSelectedContexts) {
-            oExtAPI = this;
+        return aIdx.map(function (iIndex) {
+            var oCtx = oRB.getContextByIndex(iIndex);
+            return oCtx ? oCtx.getObject() : null;
+        }).filter(Boolean);
+    }
 
-            var oTourCtx = aSelectedContexts && aSelectedContexts[0];
-            if (!oTourCtx) {
-                MessageToast.show("Please select a Tour first.");
-                return;
-            }
+    return [];
+},
 
-            var openDialogForTour = function () {
-                // Bind dialog to selected Tour -> child tables (_Attachments/_ServiceAssignments) auto resolve
-                oDialog.setModel(oTourCtx.getModel());
-                oDialog.setBindingContext(oTourCtx);
+onDialogChoose: function () {
+    // IMPORTANT: use this.<method>
+    var aAttachmentItems = this._getSelectedObjectsFromDialogMacroTable("AttachmentTable");
+    var aServiceWRItems  = this._getSelectedObjectsFromDialogMacroTable("ServiceWRTable");
 
-                // Ensure tables refresh each time the dialog opens
-                if (!oDialog._afterOpenAttached) {
-                    oDialog._afterOpenAttached = true;
-                    oDialog.attachAfterOpen(function () {
-                        _refreshMacroTable("AttachmentTable");
-                        _refreshMacroTable("ServiceWRTable");
-                    });
-                }
+    if (!aAttachmentItems.length && !aServiceWRItems.length) {
+        MessageToast.show("Please select at least one row in one of the tables.");
+        return;
+    }
 
-                oDialog.open();
-            };
+    var oModel = oExtAPI.getModel();
 
-            if (oDialog) {
-                openDialogForTour();
-                return;
-            }
+    var oActionBinding = oModel.bindContext(
+        "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
+    );
 
-            // First time: load fragment
-            oExtAPI.loadFragment({
-                name: "zpdattachment.ext.fragments.GenerateDocDialog",
-                controller: oActionHandlers
-            }).then(function (oLoadedDialog) {
-                oDialog = oLoadedDialog;
-                oExtAPI.addDependent(oDialog);
-                openDialogForTour();
-            });
-        },
+    oActionBinding.setParameter("AttachmentItemsjson", JSON.stringify(aAttachmentItems));
+    oActionBinding.setParameter("ServiceWRItemsjson", JSON.stringify(aServiceWRItems));
 
-        _findInnerMdcTableInDialog: function(sMacroLocalId) {
-            if (!oDialog) { return null; }
-
-            // Find ALL sap.ui.mdc.Table controls inside the dialog
-            var aMdcTables = oDialog.findAggregatedObjects(true, function (o) {
-                return o && o.isA && o.isA("sap.ui.mdc.Table");
-            }) || [];
-
-            // Prefer the table generated by the macro: "...AttachmentTable::Table" / "...ServiceWRTable::Table"
-            return aMdcTables.find(function (t) {
-                var sId = t.getId();
-                return sId && sId.indexOf(sMacroLocalId + "::Table") !== -1;
-            }) || null;
-        },
-
-        _getSelectedObjectsFromDialogMacroTable: function(sMacroLocalId) {
-            var oMdcTable = _findInnerMdcTableInDialog(sMacroLocalId);
-            if (!oMdcTable) { return []; }
-
-            var aCtx = (typeof oMdcTable.getSelectedContexts === "function")
-                ? (oMdcTable.getSelectedContexts() || [])
-                : [];
-
-            return aCtx.map(function (oCtx) { return oCtx.getObject(); });
-        },
-
-        onDialogChoose: function () {
-            // Read selected rows from the *inner* MDC tables created by the macros
-            var aAttachmentItems = _getSelectedObjectsFromDialogMacroTable("AttachmentTable");
-            var aServiceWRItems = _getSelectedObjectsFromDialogMacroTable("ServiceWRTable");
-
-            if (!aAttachmentItems.length && !aServiceWRItems.length) {
-                MessageToast.show("Please select at least one row in one of the tables.");
-                return;
-            }
-
-            var oModel = oExtAPI.getModel();
-
-            var oActionBinding = oModel.bindContext(
-                "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)"
-            );
-
-            oActionBinding.setParameter("AttachmentItemsjson", JSON.stringify(aAttachmentItems));
-            oActionBinding.setParameter("ServiceWRItemsjson", JSON.stringify(aServiceWRItems));
-
-            oActionBinding.execute("$auto").then(function () {
-                MessageToast.show("Documents were generated successfully.");
-                oModel.refresh();
-                if (oDialog) { oDialog.close(); }
-            }).catch(function (oError) {
-                MessageBox.error(
-                    (oError && (oError.message || oError.toString())) || "Error while generating documents."
-                );
-            });
-        },
-
-        onDialogCancel: function () {
-            if (oDialog) {
-                oDialog.close();
-            }
-        }
-    };
-
-    return oActionHandlers;
-});
-
-
-
-ListReportExt-dbg.js:114 Uncaught ReferenceError: _getSelectedObjectsFromDialogMacroTable is not defined
-    at Object.onDialogChoose (ListReportExt-dbg.js:114:36)
-    at c.fireEvent (EventProvider-dbg.js:241:38)
-    at c.fireEvent (Element-dbg.js:683:44)
-    at c.firePress (ManagedObjectMetadata-dbg.js:826:49)
-    at sap.ui.predefine.S.ontap (Button-dbg.js:599:9)
-    at c._handleEvent (Element-dbg.js:352:10)
-    at sap.ui.predefine.N._handleEvent (UIArea-dbg.js:1054:15)
-    at HTMLDivElement.dispatch (jquery-dbg.js:5430:27)
-    at c (jquery-mobile-custom-dbg.js:1907:20)
-    at HTMLDivElement.d (jquery-mobile-custom-dbg.js:2030:6)
+    oActionBinding.execute("$auto").then(function () {
+        MessageToast.show("Documents were generated successfully.");
+        oModel.refresh();
+        if (oDialog) { oDialog.close(); }
+    }).catch(function (oError) {
+        MessageBox.error(
+            (oError && (oError.message || oError.toString())) || "Error while generating documents."
+        );
+    });
+},
