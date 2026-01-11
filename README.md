@@ -1,3 +1,11 @@
+METHODS assign_start_to_end_date FOR DETERMINE ON MODIFY
+  IMPORTING keys FOR Tour~assign_start_to_end_date
+  CHANGING
+    reported TYPE RESPONSE FOR REPORTED Tour
+    failed   TYPE RESPONSE FOR FAILED   Tour.
+
+
+
 METHOD assign_start_to_end_date.
 
   READ ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
@@ -18,9 +26,9 @@ METHOD assign_start_to_end_date.
     FAILED   DATA(lt_fai)
     REPORTED DATA(lt_rep).
 
-  "Forward framework messages/results back to caller (keep existing too)
-  failed   = CORRESPONDING #( DEEP VALUE #( BASE failed   lt_fai ) ).
-  reported = CORRESPONDING #( DEEP VALUE #( BASE reported lt_rep ) ).
+  "Forward framework responses
+  APPEND LINES OF lt_fai-tour    TO failed-tour.
+  APPEND LINES OF lt_rep-tour    TO reported-tour.
+  APPEND LINES OF lt_rep-%other  TO reported-%other.
 
 ENDMETHOD.
-
