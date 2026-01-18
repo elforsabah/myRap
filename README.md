@@ -1,18 +1,11 @@
-@EndUserText.label: 'LANF DocLink (Interface)'
-define view entity Z_I_LanfDocLink
-  as select from zlanf_doclink
+@EndUserText.label: 'LANF Message (Interface)'
+define view entity Z_I_LanfMsg
+  as select from zlanf_msg
 {
-  key doclink_uuid,
+  key msg_uuid,
       request_uuid,
-      sd_vbeln,
-      title,
-      url,
-      status,
-      message,
-      created_at,
-      changed_at,
-      attached_at,
-
-      _Parent : association to parent Z_I_LanfReq
-                on $projection.request_uuid = _Parent.request_uuid
+      msg_ts,
+      msg_type,
+      msg_text,
+      msg_context
 }
