@@ -1,24 +1,16 @@
-@EndUserText.label: 'LANF Inbound Request - Header'
+@EndUserText.label: 'LANF Inbound Request - Items'
 @AbapCatalog.tableCategory: #TRANSPARENT
 @AbapCatalog.deliveryClass: #A
 @AbapCatalog.dataMaintenance: #ALLOWED
-define table zlanf_req_h {
+define table zlanf_req_i {
 
-  key mandt               : abap.clnt not null;
-  key request_uuid        : sysuuid_x16 not null;   // GUID (RAW16)
+  key mandt            : abap.clnt not null;
+  key request_uuid     : sysuuid_x16 not null;
+  key item_no          : abap.numc(6) not null;     // 000010, 000020, ...
 
-  external_request_id     : abap.char(70) not null; // idempotency key (must be UNIQUE via index)
+  matnr                : abap.char(18);
+  kwmeng               : abap.dec(15,3);            // quantity
+  vrkme                : abap.char(3);              // unit
 
-  contract_vbeln          : abap.char(10);
-  service_date            : abap.dats;
-  bstkd                   : abap.char(35);
-  ktext                   : abap.char(40);
-
-  status                  : abap.char(12);          // NEW/PROCESSING/DONE/ERROR
-  created_sd_vbeln        : abap.char(10);          // sales order number (when created)
-
-  created_at              : timestampl;
-  created_by              : syuname;
-  changed_at              : timestampl;
-  changed_by              : syuname;
+  contract_posnr       : abap.numc(6);              // derived from contract
 }
