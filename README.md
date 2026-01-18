@@ -1,35 +1,24 @@
-METHODS assign_start_to_end_date FOR DETERMINE ON MODIFY
-  IMPORTING keys FOR Tour~assign_start_to_end_date
-  CHANGING
-    reported TYPE RESPONSE FOR REPORTED Tour
-    failed   TYPE RESPONSE FOR FAILED   Tour.
+@EndUserText.label: 'LANF Inbound Request - Header'
+@AbapCatalog.tableCategory: #TRANSPARENT
+@AbapCatalog.deliveryClass: #A
+@AbapCatalog.dataMaintenance: #ALLOWED
+define table zlanf_req_h {
 
+  key mandt               : abap.clnt not null;
+  key request_uuid        : sysuuid_x16 not null;   // GUID (RAW16)
 
+  external_request_id     : abap.char(70) not null; // idempotency key (must be UNIQUE via index)
 
-METHOD assign_start_to_end_date.
+  contract_vbeln          : abap.char(10);
+  service_date            : abap.dats;
+  bstkd                   : abap.char(35);
+  ktext                   : abap.char(40);
 
-  READ ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
-    ENTITY Tour
-      FIELDS ( StartDate EndDate )
-      WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_tour).
+  status                  : abap.char(12);          // NEW/PROCESSING/DONE/ERROR
+  created_sd_vbeln        : abap.char(10);          // sales order number (when created)
 
-  MODIFY ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
-    ENTITY Tour
-      UPDATE FIELDS ( EndDate )
-      WITH VALUE #(
-        FOR ls IN lt_tour
-        WHERE ( ls-StartDate IS NOT INITIAL AND ls-EndDate IS INITIAL )
-        ( %tky    = ls-%tky
-          EndDate = ls-StartDate )
-      )
-    FAILED   DATA(lt_fai)
-    REPORTED DATA(lt_rep).
-
-  "Forward framework responses
-  APPEND LINES OF lt_fai-tour    TO failed-tour.
-  APPEND LINES OF lt_rep-tour    TO reported-tour.
-  APPEND LINES OF lt_rep-%other  TO reported-%other.
-
-ENDMETHOD.
-<img width="1817" height="642" alt="image" src="https://github.com/user-attachments/assets/c2bebe61-2cdb-4a50-bb57-ffafd034ff58" />
+  created_at              : timestampl;
+  created_by              : syuname;
+  changed_at              : timestampl;
+  changed_by              : syuname;
+}
