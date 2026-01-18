@@ -32,3 +32,4 @@ METHOD assign_start_to_end_date.
   APPEND LINES OF lt_rep-%other  TO reported-%other.
 
 ENDMETHOD.
+<img width="1817" height="642" alt="image" src="https://github.com/user-attachments/assets/c2bebe61-2cdb-4a50-bb57-ffafd034ff58" />
