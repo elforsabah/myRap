@@ -1,16 +1,22 @@
-@EndUserText.label: 'LANF Inbound Request - Items'
+@EndUserText.label: 'LANF Inbound Request - Document Links'
 @AbapCatalog.tableCategory: #TRANSPARENT
 @AbapCatalog.deliveryClass: #A
 @AbapCatalog.dataMaintenance: #ALLOWED
-define table zlanf_req_i {
+define table zlanf_doclink {
 
   key mandt            : abap.clnt not null;
-  key request_uuid     : sysuuid_x16 not null;
-  key item_no          : abap.numc(6) not null;     // 000010, 000020, ...
+  key doclink_uuid     : sysuuid_x16 not null;
 
-  matnr                : abap.char(18);
-  kwmeng               : abap.dec(15,3);            // quantity
-  vrkme                : abap.char(3);              // unit
+  request_uuid         : sysuuid_x16 not null;
+  sd_vbeln             : abap.char(10);             // filled after SD created
 
-  contract_posnr       : abap.numc(6);              // derived from contract
+  title                : abap.char(120);
+  url                  : abap.char(255);
+
+  status               : abap.char(12);             // NEW/ATTACHED/ERROR
+  message              : abap.char(255);
+
+  created_at           : timestampl;
+  changed_at           : timestampl;
+  attached_at          : timestampl;
 }
