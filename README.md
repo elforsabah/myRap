@@ -1,22 +1,16 @@
-@EndUserText.label: 'LANF Inbound Request - Document Links'
+@EndUserText.label: 'LANF Inbound Request - Messages'
 @AbapCatalog.tableCategory: #TRANSPARENT
 @AbapCatalog.deliveryClass: #A
 @AbapCatalog.dataMaintenance: #ALLOWED
-define table zlanf_doclink {
+define table zlanf_msg {
 
   key mandt            : abap.clnt not null;
-  key doclink_uuid     : sysuuid_x16 not null;
+  key msg_uuid         : sysuuid_x16 not null;
 
   request_uuid         : sysuuid_x16 not null;
-  sd_vbeln             : abap.char(10);             // filled after SD created
+  msg_ts               : timestampl not null;
 
-  title                : abap.char(120);
-  url                  : abap.char(255);
-
-  status               : abap.char(12);             // NEW/ATTACHED/ERROR
-  message              : abap.char(255);
-
-  created_at           : timestampl;
-  changed_at           : timestampl;
-  attached_at          : timestampl;
+  msg_type             : abap.char(1);              // S/W/E
+  msg_text             : abap.char(255);
+  msg_context          : abap.char(60);             // field/action/technical
 }
