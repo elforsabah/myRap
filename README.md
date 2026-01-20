@@ -1,5 +1,9 @@
-@Semantics.quantity.unitOfMeasure: 'RequestedQuantityUnit'
-  RequestedQuantity           : abap.quan(13,3);
+@EndUserText.label: 'Action Result'
+define abstract entity Z_A_SO_ACTION_RESULT
+{
+  key ExternalRequestId : abap.char(40);
 
-  @Semantics.unitOfMeasure: true
-  RequestedQuantityUnit       : abap.unit(3);
+  SalesOrder            : vbeln_va;
+  MsgType               : abap.char(1);     // S/W/E
+  MsgText               : abap.char(255);
+}
