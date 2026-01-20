@@ -1,1 +1,5 @@
-Z_A_SO_CREATE_REF_ITEM-REQUESTEDQUANTITY Referenzinformationen fehlen oder falscher Datentyp, siehe Langtext
+@Semantics.quantity.unitOfMeasure: 'RequestedQuantityUnit'
+  RequestedQuantity           : abap.quan(13,3);
+
+  @Semantics.unitOfMeasure: true
+  RequestedQuantityUnit       : abap.unit(3);
