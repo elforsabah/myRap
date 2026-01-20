@@ -1,16 +1,12 @@
-@EndUserText.label: 'createAndProcess Payload - Header'
-define root abstract entity Z_A_SO_CREATE_REF
+@EndUserText.label: 'createAndProcess Payload - Item'
+define abstract entity Z_A_SO_CREATE_REF_ITEM
 {
-  key ExternalRequestId     : abap.char(40);   // idempotency key from BMS (your choice)
+  key ExternalRequestId       : abap.char(40);  "parent key included
+  key SalesOrderItem          : abap.numc(6);
 
-  SalesOrderType            : auart;           // like PDF: SalesOrderType :contentReference[oaicite:4]{index=4}
-  ReferenceSDDocument       : vbeln_va;        // like PDF: ReferenceSDDocument :contentReference[oaicite:5]{index=5}
+  ReferenceSDDocument         : vbeln_va;
+  ReferenceSDDocumentItem     : posnr_va;
 
-  PurchaseOrderByCustomer   : bstkd;           // optional (PDF uses it in examples) :contentReference[oaicite:6]{index=6}
-  ServiceDate               : dats;            // your service date
-
-  PdfTitle                  : abap.char(80);   // optional
-  PdfUrl                    : abap.char(255);  // optional
-
-  composition [0..*] of Z_A_SO_CREATE_REF_ITEM as to_Item;
+  RequestedQuantity           : kwmeng;
+  RequestedQuantityUnit       : vrkme;
 }
