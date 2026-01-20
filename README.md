@@ -1,11 +1,3 @@
-@EndUserText.label: 'LANF Message (Interface)'
-define view entity Z_I_LanfMsg
-  as select from zlanf_msg
-{
-  key msg_uuid,
-      request_uuid,
-      msg_ts,
-      msg_type,
-      msg_text,
-      msg_context
-}
+https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/19d48293097f4a2589433856b034dfa5/bbf112bb3fbf4785bf8dc9e9bf7b55ff.html?locale=en-US
+
+https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/19d48293097f4a2589433856b034dfa5/03373661272d43b0b43538f171ae6aba.html?locale=en-US
