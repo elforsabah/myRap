@@ -66,3 +66,7 @@ define root abstract entity ZI_LANF_ABSTRACT_ROOT {
 Menge             : dzmeng;       // Quantity (ZMENG, assuming decimal quantity type)
 @Semantics.unitOfMeasure: true
 Meins             : meins;        // Unit of measure (ZIEME)
+
+
+<img width="831" height="802" alt="image" src="https://github.com/user-attachments/assets/4f4929ff-2cd7-4c06-a336-f86afac53273" />
+
