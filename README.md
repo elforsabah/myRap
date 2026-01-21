@@ -62,5 +62,7 @@ define root abstract entity ZI_LANF_ABSTRACT_ROOT {
   key TechKey : abap.char(1);
 }
 
-
-ZI_LANF_POSITION_INPUT-MENGE Referenzinformationen fehlen oder falscher Datentyp, siehe Langtext
+@Semantics.quantity.unitOfMeasure: 'Meins'
+Menge             : dzmeng;       // Quantity (ZMENG, assuming decimal quantity type)
+@Semantics.unitOfMeasure: true
+Meins             : meins;        // Unit of measure (ZIEME)
