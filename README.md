@@ -182,3 +182,125 @@ METHOD createlanf.
   ).
 
 ENDMETHOD.
+
+
+METHOD attachdocument.
+
+  DATA:
+    lt_return_attach TYPE bapiret2_tab,
+    lv_vbeln         TYPE vbeln_va,
+    lv_vbtyp         TYPE vbak-vbtyp,
+    lv_busobj        TYPE nast-objtype,
+    ls_input         TYPE zi_attach_input.
+
+  READ TABLE keys INTO DATA(ls_key) INDEX 1.
+  ls_input = CORRESPONDING #( ls_key-%param ).
+
+  lv_vbeln = |{ ls_input-vbeln ALPHA = IN }|.
+
+  "Determine correct business object for this SD document (BUS2032 / BUS2096 / ...)
+  SELECT SINGLE vbtyp FROM vbak INTO @lv_vbtyp WHERE vbeln = @lv_vbeln.
+  IF sy-subrc = 0 AND lv_vbtyp IS NOT INITIAL.
+    CALL FUNCTION 'SD_OBJECT_TYPE_DETERMINE'
+      EXPORTING
+        i_document_type   = lv_vbtyp
+      IMPORTING
+        e_business_object = lv_busobj.
+  ENDIF.
+  IF lv_busobj IS INITIAL.
+    lv_busobj = 'BUS2032'.
+  ENDIF.
+
+  "Create URL attachment (GOS) + link it to the business object
+  CALL FUNCTION 'BDS_BUSINESSDOCUMENT_CRE_O_URL'
+    EXPORTING
+      classname  = lv_busobj
+      classtype  = 'BO'
+      object_key = lv_vbeln
+      url        = ls_input-url
+      mimetype   = 'application/pdf'
+    TABLES
+      return     = lt_return_attach.
+
+  IF line_exists( lt_return_attach[ type = 'E' ] ) OR line_exists( lt_return_attach[ type = 'A' ] ) OR line_exists( lt_return_attach[ type = 'X' ] ).
+    LOOP AT lt_return_attach ASSIGNING FIELD-SYMBOL(<ret>) WHERE type CA 'EAX'.
+      APPEND VALUE #(
+        %msg = new_message(
+          id       = <ret>-id
+          number   = <ret>-number
+          v1       = <ret>-message_v1
+          v2       = <ret>-message_v2
+          v3       = <ret>-message_v3
+          v4       = <ret>-message_v4
+          severity = if_abap_behv_message=>severity-error )
+      ) TO reported-lanfroot.
+    ENDLOOP.
+    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
+  ELSE.
+    COMMIT WORK AND WAIT.
+  ENDIF.
+
+  "Return VBELN + messages
+  result = VALUE #(
+    (
+      %param = VALUE #(
+        techkey   = 'X'
+        vbeln     = lv_vbeln
+        _messages = VALUE #(
+          FOR r IN lt_return_attach (
+            techkey = 'X'
+            msgid   = r-id
+            msgno   = r-number
+            msgty   = r-type
+            msgv1   = r-message_v1
+            msgv2   = r-message_v2
+            msgv3   = r-message_v3
+            msgv4   = r-message_v4
+          )
+        )
+      )
+    )
+  ).
+
+ENDMETHOD.
+
+
+METHOD map_positions_to_contract.
+
+  DATA(lv_contract) = |{ iv_contract_vbeln ALPHA = IN }|.
+
+  SELECT posnr, matnr
+    FROM vbap
+    WHERE vbeln = @lv_contract
+    INTO TABLE @DATA(lt_contract_pos).
+
+  LOOP AT it_positions ASSIGNING FIELD-SYMBOL(<pos>) WHERE menge > 0.
+
+    READ TABLE lt_contract_pos ASSIGNING FIELD-SYMBOL(<contr_pos>)
+      WITH KEY matnr = <pos>-matnr.
+
+    IF sy-subrc = 0.
+
+      APPEND VALUE bapisditm(
+        itm_number = <contr_pos>-posnr
+        material   = <pos>-matnr
+        target_qty = <pos>-menge
+        target_qu  = <pos>-meins
+        ref_doc    = lv_contract
+        ref_doc_it = <contr_pos>-posnr
+        ref_doc_ca = 'G'
+      ) TO ct_order_items.
+
+    ELSE.
+      APPEND VALUE bapiret2(
+        type       = 'E'
+        id         = '00'
+        number     = '001'
+        message_v1 = |No position for MATNR { <pos>-matnr }|
+        message_v2 = |in contract { lv_contract }|
+      ) TO ct_return.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDMETHOD.
