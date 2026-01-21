@@ -1,1 +1,19 @@
-Das Schlüsselfeld "TECHKEY" sollte als "readonly" oder "readonly:update" gekennzeichnet sein.
+result = VALUE #(
+  (
+    %param = VALUE #(
+      techkey   = 'X'
+      vbeln     = ls_input-vbeln
+      _messages = VALUE #(
+        FOR r IN lt_return_attach
+        ( TechKey = 'X'
+          Msgid   = r-id
+          Msgno   = r-number
+          Msgty   = r-type
+          Msgv1   = r-message_v1
+          Msgv2   = r-message_v2
+          Msgv3   = r-message_v3
+          Msgv4   = r-message_v4 )
+      )
+    )
+  )
+).
