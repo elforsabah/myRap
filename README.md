@@ -21,3 +21,4 @@ authorization master ( instance )
 
 
 Der "result"-Typ von "ATTACHDOCUMENT" ist nicht als "deep" deklariert. Daher wird "ZI_LANF_RESPONSE" als flacher Typ verwendet und die BDEF-Definition ("with hierarchy") wird nicht verwendet.
+Der "result"-Typ von "CREATELANF" ist nicht als "deep" deklariert. Daher wird "ZI_LANF_RESPONSE" als flacher Typ verwendet und die BDEF-Definition ("with hierarchy") wird nicht verwendet.
