@@ -14,3 +14,4 @@ define behavior for ZI_LANF_ABSTRACT_ROOT // Dummy root abstract entity (define 
   // Second endpoint: Attach PDF/Document Link
   static function AttachDocument deep parameter ZI_ATTACH_INPUT result [1] ZI_LANF_RESPONSE;
 }
+<img width="1623" height="754" alt="image" src="https://github.com/user-attachments/assets/382dbe5f-6004-4fa5-9eaf-754a9c029e09" />
