@@ -177,3 +177,27 @@ CLASS zcl_lanf_behavior IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
+
+
+" Set result (VBELN + messages)
+result = VALUE #(
+  (
+    %param = VALUE #(
+      techkey    = 'X'
+      vbeln      = ls_input-vbeln
+      _messages  = CORRESPONDING #(
+                     lt_return_attach
+                     MAPPING techkey    = 'X'
+                             msgid      = id
+                             msgno      = number
+                             msgty      = type
+                             msgv1      = message_v1
+                             msgv2      = message_v2
+                             msgv3      = message_v3
+                             msgv4      = message_v4
+                   )
+    )
+  )
+).
+ENDMETHOD.
