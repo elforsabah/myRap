@@ -177,7 +177,3 @@ CLASS zcl_lanf_behavior IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
-
-
-<img width="866" height="626" alt="image" src="https://github.com/user-attachments/assets/65d9cab4-ba70-425e-a76d-aa5736e647b6" />
-
