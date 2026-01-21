@@ -61,3 +61,6 @@ define behavior for ZI_LANF_ABSTRACT_ROOT // Dummy root abstract entity (define 
 define root abstract entity ZI_LANF_ABSTRACT_ROOT {
   key TechKey : abap.char(1);
 }
+
+
+ZI_LANF_POSITION_INPUT-MENGE Referenzinformationen fehlen oder falscher Datentyp, siehe Langtext
