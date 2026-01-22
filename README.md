@@ -1,1 +1,1 @@
-<img width="638" height="731" alt="image" src="https://github.com/user-attachments/assets/e17c432c-131a-4a96-96c7-61f132e33865" />
+https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/f61823c79938427ab5dc1ca9f7e99677/2066ce53118d4308e10000000a174cb4.html?locale=en-US
