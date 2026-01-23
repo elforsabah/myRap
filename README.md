@@ -1,2 +1,1 @@
-<img width="624" height="660" alt="image" src="https://github.com/user-attachments/assets/b8b275f8-8b3f-4e6d-8e96-1dd293fca010" />
-
+„Ich vermute, dass die Bestätigung mit einer Follow-Logik (Default = X) läuft. Dadurch wird nicht das aktuell geladene Item bestätigt, sondern die erste/folgende Position. Wenn wir bei BOOK_CONFIRM_POS/BOOK_REVIEW PAR_FOLLOW = space setzen, wird genau die gewünschte Position bestätigt.“
