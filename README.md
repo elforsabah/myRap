@@ -1,2 +1,27 @@
-<img width="895" height="839" alt="image" src="https://github.com/user-attachments/assets/9fec1bb3-d5be-4db6-abcd-fd0a3a075184" />
-<img width="882" height="629" alt="image" src="https://github.com/user-attachments/assets/624c7d86-709c-4338-9ec9-789c3d49b2a8" />
+  METHOD prepare_result_data_head.
+    par_headref->order_date = par_dataref->tourdate.
+    data:
+      LDATE type EORDER_DATE,
+      LTIME type TIMS.
+
+    insert initial line into table ORDERRESULTS reference into PAR_HEADREF.
+    PAR_HEADREF->/PLCP/PD_TOUR_ID = PAR_DATAREF->TOURID.
+*    LORDERRESULTREF->ROUTE = PAR_DATAREF->TOURTEMPLATE.
+    PAR_HEADREF->ROUTE = PAR_DATAREF->EXTERNALTOURTEMPLATEID.
+    PAR_HEADREF->ORDERTXT = PAR_DATAREF->ADDITIONALTEXT.
+
+    convert time stamp PAR_DATAREF->TOURDATE time zone SY-ZONLO
+        into date LDATE time LTIME.
+
+    PAR_HEADREF->ORDER_DATE = LDATE.
+
+
+  ENDMETHOD.
+
+
+    METHOD prepare_result_data_head.
+    par_headref->order_date = par_dataref->tourdate.
+
+
+
+  ENDMETHOD.
