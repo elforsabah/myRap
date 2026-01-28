@@ -1,2 +1,20 @@
-Description	Resource	Path	Location	Type
-Der Typ "REF TO IF_ABAP_BEHV_MESSAGE" ist keine Struktur.	ZBP_E_BP_R_PDTOUR (Local Types)	/R14_440_hwsb10035_de/.adt/classlib/classes/zbp_e_bp_r_pdtour	line 201	ABAP Syntax Check Problem
+APPEND new_message(
+         id       = 'Z_MSG_CL_SERVICE_EXT'
+         number   = '004'
+         v1       = <group>-template
+         v2       = |{ lv_current_date DATE = USER }|
+         severity = if_abap_behv_message=>severity-warning
+       )
+  TO reported-%other.
+
+
+APPEND VALUE #(
+  %cid = <kmsg>-%cid
+  %msg = new_message(
+           id       = 'Z_MSG_CL_SERVICE_EXT'
+           number   = '004'
+           v1       = <group>-template
+           v2       = |{ lv_current_date DATE = USER }|
+           severity = if_abap_behv_message=>severity-warning
+         )
+) TO reported-tour.
