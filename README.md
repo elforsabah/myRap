@@ -1,8 +1,16 @@
+      IF sy-subrc = 0.
 
-  "Tour for (date + template) already exists -> inform user and skip this day
-  APPEND VALUE #(
-    %msg = new_message_with_text(
-             severity = if_abap_behv_message=>severity-warning
-             text     = |Skipped: Tour already exists for template { <group>-template } on { lv_current_date DATE = USER }.|
-           )
-  ) TO reported-%other.
+        APPEND VALUE #(
+             %cid = <key>-%cid
+             %msg = new_message(
+                      id       = 'Z_MSG_CL_SERVICE_EXT'
+                      number   = '004'
+*                      v1 =  <group>-template
+*                      v2 =  |{ lv_current_date DATE = USER }|
+                      severity = if_abap_behv_message=>severity-warning
+                    )
+            )
+            TO reported-tour.
+        lv_current_date = lv_current_date + 1.
+        CONTINUE. "already exists -> skip
+      ENDIF.
