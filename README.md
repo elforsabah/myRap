@@ -1,17 +1,2 @@
-IF sy-subrc = 0.
-
-  "Transient warning (does not block/keep the action dialog)
-  APPEND VALUE #(
-    %msg = new_message(
-             id       = 'Z_MSG_CL_SERVICE_EXT'
-             number   = '004'
-             v1       = <group>-template
-             v2       = |{ lv_current_date DATE = USER }|
-             severity = if_abap_behv_message=>severity-warning
-           )
-  ) TO reported-%other.
-
-  lv_current_date = lv_current_date + 1.
-  CONTINUE.
-
-ENDIF.
+Description	Resource	Path	Location	Type
+Der Typ "REF TO IF_ABAP_BEHV_MESSAGE" ist keine Struktur.	ZBP_E_BP_R_PDTOUR (Local Types)	/R14_440_hwsb10035_de/.adt/classlib/classes/zbp_e_bp_r_pdtour	line 201	ABAP Syntax Check Problem
