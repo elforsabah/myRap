@@ -1,10 +1,24 @@
-APPEND VALUE #(
-  %cid = <kmsg>-%cid
-  %msg = new_message(
-           id       = 'Z_MSG_CL_SERVICE_EXT'
-           number   = '004'
-           v1       = <group>-template
-           v2       = |{ lv_current_date DATE = USER }|
-           severity = if_abap_behv_message=>severity-warning
-         )
-) TO reported-tour.
+@Metadata.layer: #PARTNER
+
+annotate entity /PLCE/C_PDMNLTourWR
+    with 
+{
+    @UI.lineItem: [{ position: 1 },
+                 { hidden: true },
+                 { type:#FOR_ACTION, dataAction:'GenerateGeoRoute', label:'Calculate Track', invocationGrouping: #CHANGE_SET, position: 40  },
+                 { type:#FOR_ACTION, dataAction:'releaseTour', label:'Tour Freigeben', invocationGrouping: #CHANGE_SET, position: 30  },
+                 { type:#FOR_ACTION, dataAction:'recallTour', label:'Tour zurück rufen', invocationGrouping: #CHANGE_SET, position: 25 },
+                 { type:#FOR_ACTION, dataAction:'createtour', label:'Tour anlegen', invocationGrouping: #CHANGE_SET, position: 10 },
+                 { type:#FOR_ACTION, dataAction:'deleteTour', label:'Tour Löschen', invocationGrouping: #CHANGE_SET, position: 20 },
+                 { type:#FOR_ACTION, dataAction:'SequenceAutomated', label: 'Tour automatisch ordnen', position: 50 },
+                 { type:#FOR_ACTION, dataAction:'TransferSequence', label:'Servicereihfolge übertragen', invocationGrouping: #CHANGE_SET, position: 70 },
+                 { type:#FOR_ACTION, dataAction:'GenerateGeoRoute', label:'Calculate Track', invocationGrouping: #CHANGE_SET, qualifier: 'DefaultMap' }
+                 
+                 
+               ]                             
+//   
+   @UI.hidden: true
+    TourUUID; 
+    
+    
+}
