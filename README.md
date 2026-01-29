@@ -1,139 +1,19 @@
-METHOD createlanf.
+<img width="1139" height="725" alt="image" src="https://github.com/user-attachments/assets/6a1d2fdc-6cf8-43ce-aab7-3bac5b6d8199" />
+<img width="787" height="707" alt="image" src="https://github.com/user-attachments/assets/b07a066d-12d8-4d25-8b73-ec8f2b7640c8" />
+<img width="706" height="691" alt="image" src="https://github.com/user-attachments/assets/f41edce3-3eaf-46e0-887a-c34b6751872f" />
+<img width="765" height="898" alt="image" src="https://github.com/user-attachments/assets/e967d952-9519-46b3-a657-73de0b3c64a7" />
+<img width="727" height="897" alt="image" src="https://github.com/user-attachments/assets/5146d517-f145-4c6d-b40e-f0604556af30" />
+<img width="643" height="872" alt="image" src="https://github.com/user-attachments/assets/ac17200a-ea8a-4780-bbb6-d884ccec7113" />
+<img width="652" height="861" alt="image" src="https://github.com/user-attachments/assets/39ee7461-51b0-404b-b725-841e9578ebbd" />
+<img width="653" height="926" alt="image" src="https://github.com/user-attachments/assets/9d9417eb-a303-4bce-a829-9bea7cc4554d" />
+<img width="515" height="774" alt="image" src="https://github.com/user-attachments/assets/8c11026c-b1d2-470f-8fd3-fa88cb52bb4b" />
+<img width="542" height="745" alt="image" src="https://github.com/user-attachments/assets/32d0e586-28a2-405e-8111-2af8ea8a5604" />
+<img width="628" height="737" alt="image" src="https://github.com/user-attachments/assets/2a5f58db-0bdb-4548-af21-51074c67659f" />
+<img width="614" height="656" alt="image" src="https://github.com/user-attachments/assets/0c5ff20f-a3c7-4c6e-9057-53b03ddc61d2" />
+<img width="576" height="721" alt="image" src="https://github.com/user-attachments/assets/c0549bd0-ea4e-4ac5-916a-fa1bd38d17f6" />
+<img width="522" height="688" alt="image" src="https://github.com/user-attachments/assets/21ee3f66-ba84-4da1-87cb-15decfccb359" />
+<img width="605" height="658" alt="image" src="https://github.com/user-attachments/assets/09412c8a-8ab8-4b3d-859c-7844107e3d80" />
+<img width="496" height="701" alt="image" src="https://github.com/user-attachments/assets/4f113664-5988-4c90-a7bb-03a6320a7c66" />
 
-    DATA:
-      ls_header_in    TYPE bapisdhd1,
-      ls_header_inx   TYPE bapisdhd1x,
-      lt_items_in     TYPE bapisditm_tt,
-      lt_items_inx    TYPE bapisditmx_tt,
-      lt_partners     TYPE STANDARD TABLE OF bapiparnr WITH DEFAULT KEY,
-      lt_return       TYPE bapiret2_tab,
-      lv_vbeln        TYPE vbeln_va,
-      ls_contract_hdr TYPE vbak,
-      ls_item_in      TYPE bapisditm,
-      ls_item_inx     TYPE bapisditmx.
 
-    " 1. Get Input Key
-    READ TABLE keys INTO DATA(ls_key) INDEX 1.
-    DATA(ls_input) = ls_key-%param.
 
-    " 2. Validate Contract
-    DATA(lv_contract) = |{ ls_input-contractvbeln ALPHA = IN }|.
-
-    SELECT SINGLE * FROM vbak INTO @ls_contract_hdr WHERE vbeln = @lv_contract.
-    IF sy-subrc <> 0.
-      APPEND VALUE #( %msg = new_message( id = '00' number = '001' v1 = |Contract { lv_contract } not found| severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-      failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-      RETURN.
-    ENDIF.
-
-    " 3. Header Mapping (BAPISDHD1)
-    ls_header_in-doc_type   = 'ZLRA'.
-    ls_header_in-sales_org  = ls_contract_hdr-vkorg.
-    ls_header_in-distr_chan = ls_contract_hdr-vtweg.
-    ls_header_in-division   = ls_contract_hdr-spart.
-    ls_header_in-ref_doc    = lv_contract.
-    ls_header_in-ref_doc_ca = 'G'. 
-    ls_header_in-req_date_h = ls_input-deliverydate.
-    ls_header_in-purch_no_c = ls_input-customerref.
-
-    ls_header_inx-doc_type   = 'X'.
-    ls_header_inx-sales_org  = 'X'.
-    ls_header_inx-distr_chan = 'X'.
-    ls_header_inx-division   = 'X'.
-    ls_header_inx-ref_doc    = 'X'.
-    ls_header_inx-ref_doc_ca = 'X'.
-    ls_header_inx-req_date_h = 'X'.
-    ls_header_inx-purch_no_c = 'X'.
-    ls_header_inx-updateflag = 'I'. 
-
-    " 4. Partners
-    SELECT * FROM vbpa WHERE vbeln = @lv_contract INTO TABLE @DATA(lt_contract_partners).
-    lt_partners = CORRESPONDING #( lt_contract_partners MAPPING partn_role = parvw partn_numb = kunnr ).
-
-    " 5. Item Mapping 
-    SELECT posnr, matnr FROM vbap WHERE vbeln = @lv_contract INTO TABLE @DATA(lt_contract_pos).
-
-    LOOP AT ls_input-_positions INTO DATA(ls_pos_input).
-        DATA(lv_matnr_long) = |{ ls_pos_input-matnr ALPHA = IN }|.
-        
-        READ TABLE lt_contract_pos INTO DATA(ls_contr_item) WITH KEY matnr = lv_matnr_long.
-        IF sy-subrc <> 0.
-           READ TABLE lt_contract_pos INTO ls_contr_item WITH KEY matnr = ls_pos_input-matnr.
-        ENDIF.
-
-        IF ls_contr_item-posnr IS INITIAL.
-             APPEND VALUE #( %msg = new_message( id = '00' number = '001' v1 = |Material { ls_pos_input-matnr } not found| severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-             CONTINUE.
-        ENDIF.
-
-        CLEAR: ls_item_in, ls_item_inx.
-
-        ls_item_in-itm_number    = ls_contr_item-posnr.
-        
-        " MANDATORY FOR S/4HANA: Only fill MATERIAL_LONG
-        ls_item_in-material_long = lv_matnr_long.
-        " Ensure short material is completely empty
-        CLEAR ls_item_in-material. 
-
-        ls_item_in-target_qty    = ls_pos_input-menge.
-        ls_item_in-target_qu     = ls_pos_input-meins.
-        ls_item_in-ref_doc       = lv_contract.
-        ls_item_in-ref_doc_it    = ls_contr_item-posnr.
-        ls_item_in-ref_doc_ca    = 'G'.
-
-        ls_item_inx-itm_number    = ls_contr_item-posnr.
-        ls_item_inx-updateflag    = 'I'. 
-        
-        " FLAG MAPPING: Only set the flag for the long field
-        ls_item_inx-material_long = 'X'.
-        CLEAR ls_item_inx-material.
-
-        ls_item_inx-target_qty    = 'X'.
-        ls_item_inx-target_qu     = 'X'.
-        ls_item_inx-ref_doc       = 'X'.
-        ls_item_inx-ref_doc_it    = 'X'.
-        ls_item_inx-ref_doc_ca    = 'X'.
-
-        APPEND ls_item_in TO lt_items_in.
-        APPEND ls_item_inx TO lt_items_inx.
-    ENDLOOP.
-
-    IF reported-lanfroot IS NOT INITIAL.
-        failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-        RETURN.
-    ENDIF.
-
-    " 6. Call BAPI
-    CALL FUNCTION 'BAPI_SALESORDER_CREATEFROMDAT2'
-      EXPORTING
-        order_header_in      = ls_header_in
-        order_header_inx     = ls_header_inx
-      IMPORTING
-        salesdocument        = lv_vbeln
-      TABLES
-        return               = lt_return
-        order_items_in       = lt_items_in
-        order_items_inx      = lt_items_inx
-        order_partners       = lt_partners.
-
-    " 7. Handle Return (RAP Framework manages Transaction)
-    IF line_exists( lt_return[ type = 'E' ] ) OR line_exists( lt_return[ type = 'A' ] ).
-      LOOP AT lt_return INTO DATA(ls_err) WHERE type CA 'EA'.
-        APPEND VALUE #(
-          %msg = new_message(
-            id = ls_err-id number = ls_err-number
-            v1 = ls_err-message_v1 v2 = ls_err-message_v2 
-            v3 = ls_err-message_v3 v4 = ls_err-message_v4
-            severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-      ENDLOOP.
-      failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-    ELSE.
-      result = VALUE #(
-        ( %param = VALUE #(
-            techkey   = 'X'
-            vbeln     = lv_vbeln
-            _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Success' ) )
-          ) ) ).
-    ENDIF.
-
-  ENDMETHOD.
