@@ -1,1 +1,23 @@
-   APPEND VALUE #( %msg = new_message( id = '00' number = '001' v1 = |Contract { lv_contract } not found| severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.<img width="634" height="48" alt="image" src="https://github.com/user-attachments/assets/a7324317-d56b-405b-bacc-aa119ae94cf4" />
+{
+  "error" : {
+    "code" : "SABP_BEHV/100",
+    "message" : "Document is incomplete",
+    "@SAP__common.ExceptionCategory" : "Provider_Application_Error",
+    "innererror" : {
+      "ErrorDetails" : {
+        "@SAP__common.Application" : {
+          "ComponentId" : "BC-ESI-ESF-GW",
+          "ServiceRepository" : "SRVD_A2X",
+          "ServiceId" : "ZSB_LANF_BMS_INTERFACE_V4",
+          "ServiceVersion" : "0001"
+        },
+        "@SAP__common.TransactionId" : "F14022DB810C0020E00693874FEAEE73",
+        "@SAP__common.Timestamp" : "20260129035502.184166",
+        "@SAP__common.ErrorResolution" : {
+          "Analysis" : "Use ADT feed reader \"SAP Gateway Error Log\" or run transaction /IWFND/ERROR_LOG on SAP Gateway hub system and search for entries with the timestamp above for more details",
+          "Note" : "See SAP Note 1797736 for error analysis (https://service.sap.com/sap/support/notes/1797736)"
+        }
+      }
+    }
+  }
+}
