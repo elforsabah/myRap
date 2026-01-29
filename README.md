@@ -292,4 +292,102 @@ METHOD createlanf.
   ENDIF.
 
   "============================================================
-  " BRANCH B: VBTYP <> 'C' (e.g. 'L') => Generic Sales Doc BA
+  " BRANCH B: VBTYP <> 'C' (e.g. 'L') => Generic Sales Doc BAPI
+  "============================================================
+  DATA lv_busobj TYPE swo_objtyp.
+  CLEAR lv_busobj.
+
+  CALL FUNCTION 'SD_OBJECT_TYPE_DETERMINE'
+    EXPORTING
+      i_document_type   = lv_vbtyp
+    IMPORTING
+      e_business_object = lv_busobj.
+
+  IF lv_busobj IS INITIAL.
+    APPEND VALUE #( %msg = new_message(
+      id       = '00'
+      number   = '001'
+      v1       = |Cannot determine BOR object for doc category { lv_vbtyp }|
+      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
+    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
+    RETURN.
+  ENDIF.
+
+  DATA: ls_head_gen TYPE bapisdhead,
+        lt_item_gen TYPE STANDARD TABLE OF bapiitemin WITH DEFAULT KEY,
+        lt_ret2     TYPE bapiret2_tab,
+        ls_ret1     TYPE bapireturn1,
+        lv_new_doc  TYPE vbeln_va.
+
+  CLEAR: ls_head_gen, lt_item_gen, lt_ret2, ls_ret1, lv_new_doc.
+
+  ls_head_gen-doc_type   = gc_auart.
+  ls_head_gen-sales_org  = ls_ref_hdr-vkorg.
+  ls_head_gen-distr_chan = ls_ref_hdr-vtweg.
+  ls_head_gen-division   = ls_ref_hdr-spart.
+
+  ls_head_gen-ref_doc    = lv_refdoc.
+  ls_head_gen-ref_doc_ca = 'G'.  "your reference is contract; adjust if not a contract
+  ls_head_gen-req_date_h = ls_input-deliverydate.
+  ls_head_gen-purch_no_c = ls_input-customerref.
+
+  LOOP AT lt_agg INTO DATA(ls_agg2).
+    APPEND VALUE bapiitemin(
+      itm_number = ls_agg2-posnr
+      material   = ls_agg2-matnr
+      target_qty = ls_agg2-qty
+      target_qu  = ls_agg2-meins
+      ref_doc    = lv_refdoc
+      ref_doc_it = ls_agg2-posnr
+      ref_doc_ca = 'G'
+      plant      = ls_agg2-werks ) TO lt_item_gen.
+  ENDLOOP.
+
+  TRY.
+      CALL FUNCTION 'BAPI_SALESDOCU_CREATEFROMDATA'
+        EXPORTING
+          order_header_in = ls_head_gen
+          business_object = lv_busobj
+          without_commit  = abap_true
+        IMPORTING
+          salesdocument   = lv_new_doc
+          return          = ls_ret1
+        TABLES
+          order_items_in  = lt_item_gen
+          order_partners  = lt_partners_gen.
+    CATCH cx_sy_message.
+      APPEND VALUE #( %msg = new_message(
+        id       = sy-msgid
+        number   = sy-msgno
+        v1       = sy-msgv1
+        v2       = sy-msgv2
+        v3       = sy-msgv3
+        v4       = sy-msgv4
+        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
+      failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
+      RETURN.
+  ENDTRY.
+
+  "Convert RETURN1 to RAP message
+  IF ls_ret1-type CA 'EAX' OR lv_new_doc IS INITIAL.
+    APPEND VALUE #( %msg = new_message(
+      id       = ls_ret1-id
+      number   = ls_ret1-number
+      v1       = ls_ret1-message_v1
+      v2       = ls_ret1-message_v2
+      v3       = ls_ret1-message_v3
+      v4       = ls_ret1-message_v4
+      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
+    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
+    RETURN.
+  ENDIF.
+
+  result = VALUE #(
+    ( %param = VALUE #(
+        techkey   = 'X'
+        vbeln     = lv_new_doc
+        _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Success (GENERIC)' ) )
+    ) )
+  ).
+
+ENDMETHOD.
