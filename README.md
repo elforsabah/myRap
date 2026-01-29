@@ -1,142 +1,117 @@
-unmanaged implementation in class zbp_i_lanf_root unique;
+METHOD createlanf.
 
-define behavior for ZI_LANF_ROOT alias lanfroot
-//persistent table ddddlsrc
-lock master
-authorization master ( instance )
-//etag master <field_name>
-{
+  "Incoming call line (static action => usually exactly one)
+  READ TABLE keys INTO DATA(ls_key) INDEX 1.
+  DATA(ls_input) = ls_key-%param.
 
- // First endpoint: Create LANF
-  static action CreateLanf deep parameter ZI_LANF_CREATE_INPUT deep result [1] ZI_LANF_RESPONSE;
+  "Use incoming TechKey for response key (important!)
+  DATA(lv_tk) TYPE abap_char1.
+  lv_tk = ls_input-techkey.
+  IF lv_tk IS INITIAL.
+    lv_tk = '1'.
+  ENDIF.
 
-  // Second endpoint: Attach PDF/Document Link
-  static action AttachDocument  parameter ZI_ATTACH_INPUT deep result [1] ZI_LANF_RESPONSE;
+  DATA(lv_contract) TYPE vbeln_va.
+  lv_contract = |{ ls_input-contractvbeln ALPHA = IN }|.
 
+  "Map deep positions (CDS) -> DDIC table type used by RFC FM
+  DATA(lt_pos_rfc) TYPE zlanf_pos_in_tt.
+  lt_pos_rfc = VALUE #(
+    FOR p IN ls_input-_positions
+    WHERE ( menge > 0 )
+    ( techkey = lv_tk
+      matnr   = p-matnr
+      menge   = p-menge
+      meins   = p-meins )
+  ).
 
-//  create;
-//  update;
-//  delete;
-}
+  IF lt_pos_rfc IS INITIAL.
+    APPEND VALUE #( %msg = new_message(
+      id       = '00'
+      number   = '001'
+      v1       = |No positions with Menge > 0|
+      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
+    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
+    RETURN.
+  ENDIF.
 
-abstract;
-with hierarchy;
+  DATA(lt_return) TYPE bapiret2_tab.
+  DATA(lv_new_so) TYPE vbeln_va.
+  DATA(lv_sysmsg)  TYPE char60.
+  DATA(lv_commmsg) TYPE char60.
 
-define behavior for ZI_LANF_RESPONSE alias response
-{
- association _Messages;
- field( readonly ) TechKey;
-}
+  "Loopback RFC => separate LUW => avoids RAP update-task dump
+  CALL FUNCTION 'Z_LANF_CREATE_DMREQ_RFC'
+    DESTINATION 'NONE'
+    EXPORTING
+      iv_contract     = lv_contract
+      iv_deliverydat  = ls_input-deliverydate     "<<< match your FM name (IV_DELIVERYDAT)
+      iv_customerref  = ls_input-customerref
+      iv_auart        = 'ZLRA'
+    IMPORTING
+      ev_vbeln        = lv_new_so
+    TABLES
+      it_positions    = lt_pos_rfc                "<<< IMPORTANT: mapped DDIC table
+      et_return       = lt_return
+    EXCEPTIONS
+      system_failure        = 1 MESSAGE lv_sysmsg
+      communication_failure = 2 MESSAGE lv_commmsg
+      OTHERS                = 3.
 
-define behavior for ZI_MESSAGE alias Msg
-{
-field( readonly ) TechKey;
-association _Parent;
-}
+  IF sy-subrc <> 0.
+    APPEND VALUE #( %msg = new_message(
+      id       = '00'
+      number   = '001'
+      v1       = |RFC call failed: { COND string(
+                   WHEN sy-subrc = 1 THEN lv_sysmsg
+                   WHEN sy-subrc = 2 THEN lv_commmsg
+                   ELSE |SUBRC { sy-subrc }| ) }|
+      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
+    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
+    RETURN.
+  ENDIF.
 
-abstract;
-//strict ( 2 );
+  "BAPI errors?
+  IF lv_new_so IS INITIAL
+     OR line_exists( lt_return[ type = 'E' ] )
+     OR line_exists( lt_return[ type = 'A' ] ).
 
-with hierarchy;
+    LOOP AT lt_return INTO DATA(ls_r) WHERE type CA 'EA'.
+      APPEND VALUE #( %msg = new_message(
+        id       = ls_r-id
+        number   = ls_r-number
+        v1       = ls_r-message_v1
+        v2       = ls_r-message_v2
+        v3       = ls_r-message_v3
+        v4       = ls_r-message_v4
+        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
+    ENDLOOP.
 
-define behavior for ZI_LANF_CREATE_INPUT alias createin
-{
- association _Positions;
- field( readonly ) TechKey;
-}
+    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
+    RETURN.
+  ENDIF.
 
-define behavior for ZI_LANF_POSITION_INPUT alias posIn
-{
+  "Return value in response (THIS is what fixes value:[])
+  CLEAR result.
 
-association _Parent;
-field( readonly ) TechKey;
-}
+  APPEND VALUE #(
+    %cid   = ls_key-%cid
+    %param = VALUE #(
+      techkey = lv_tk
+      vbeln   = |{ lv_new_so ALPHA = OUT }|
+      _messages = VALUE #(
+        "Return BAPI messages (optional)
+        FOR r IN lt_return
+        ( techkey = lv_tk
+          msgid   = r-id
+          msgno   = r-number
+          msgty   = r-type
+          msgv1   = r-message_v1
+          msgv2   = r-message_v2
+          msgv3   = r-message_v3
+          msgv4   = r-message_v4 )
+      )
+    )
+  ) TO result.
 
-abstract;
-strict ( 2 );
-
-define behavior for ZI_ATTACH_INPUT //alias <alias_name>
-{
-
-}
-
-@EndUserText.label: 'Message Structure'
-define abstract entity ZI_MESSAGE
-  
-{
-   key TechKey       : abap.char(1);
-  Msgid             : msgid;
-  Msgno             : msgnr;
-  Msgty             : msgty;
-  Msgv1             : symsgv;
-  Msgv2             : symsgv;
-  Msgv3             : symsgv;
-  Msgv4             : symsgv;
-  
-  _Parent           : association to parent ZI_LANF_RESPONSE on $projection.TechKey = _Parent.TechKey;
-}
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Root for LANF'
-@Metadata.ignorePropagatedAnnotations: true
-define root view entity ZI_LANF_ROOT as select from ddddlsrc
-{
-    
-    key cast('' as abap.char(30)) as Techkey
-} where 1 = 2 // Ensures no data is returned
-
-
-
-
-@EndUserText.label: 'Response Structure'
-define root abstract entity ZI_LANF_RESPONSE
-{
-     key TechKey       : abap.char(1);
-  Vbeln             : vbeln_va;     // Created LANF number
-  _Messages         : composition [0..*] of ZI_MESSAGE ;
-    
-}
-
-
-
-@EndUserText.label: 'Position Input for LANF'
-define abstract entity ZI_LANF_POSITION_INPUT
- 
-{
-  key TechKey       : abap.char(1);
-  Matnr             : matnr;        // Material number
-@Semantics.quantity.unitOfMeasure: 'Meins'
-Menge             : dzmeng;       // Quantity (ZMENG, assuming decimal quantity type)
-@Semantics.unitOfMeasure: true
-Meins             : meins;        // Unit of measure (ZIEME)
-
-_Parent           : association to parent ZI_LANF_CREATE_INPUT  on $projection.TechKey = _Parent.TechKey;
-
-}
-
-
-@EndUserText.label: 'Input for LANF Creation'
-define root abstract entity ZI_LANF_CREATE_INPUT
-  
-{
-  key TechKey     : abap.char(1); // Required for root abstract entity
-  ContractVbeln     : vbeln_va;     // Contract number (VBELN)
-  DeliveryDate      : kbdat;        // Delivery/Service date (FBUDA/KETDAT)
-  CustomerRef       : bstkd;        // Customer reference (BSTKD)
-  Description       : abap.char(225);      // Description (VBAK-TEXT)
-  _Positions        : composition [0..*] of ZI_LANF_POSITION_INPUT;
-    
-}
-
-@EndUserText.label: 'Input for Document Attachment'
-define root abstract entity ZI_ATTACH_INPUT
-
-{
-  key TechKey       : abap.char(1);
-  Vbeln             : vbeln_va;     // LANF number
-  Title             : text100;      // Title/Description
-  Url               : url;          // Document URL (for archive link)
-    
-}
-
-
-
+ENDMETHOD.
