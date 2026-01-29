@@ -1,21 +1,23 @@
 {
-  "TechKey": "1",
-  "ContractVbeln": "4000012345",
-  "DeliveryDate": "2024-05-20",
-  "CustomerRef": "PO-TEST-1001",
-  "Description": "Call-off via OData",
-  "_Positions": [
-    {
-      "TechKey": "1",
-      "Matnr": "MATERIAL-A",
-      "Menge": 10.5,
-      "Meins": "PC"
-    },
-    {
-      "TechKey": "2",
-      "Matnr": "MATERIAL-B",
-      "Menge": 5,
-      "Meins": "PC"
+  "error" : {
+    "code" : "M_/011",
+    "message" : "Change indicators could not be uniquely determined in material mapping",
+    "@SAP__common.ExceptionCategory" : "Provider_Application_Error",
+    "innererror" : {
+      "ErrorDetails" : {
+        "@SAP__common.Application" : {
+          "ComponentId" : "BC-ESI-ESF-GW",
+          "ServiceRepository" : "SRVD_A2X",
+          "ServiceId" : "ZSB_LANF_BMS_INTERFACE_V4",
+          "ServiceVersion" : "0001"
+        },
+        "@SAP__common.TransactionId" : "F14022DB810C0020E00693874FEAEE73",
+        "@SAP__common.Timestamp" : "20260129031017.745665",
+        "@SAP__common.ErrorResolution" : {
+          "Analysis" : "Use ADT feed reader \"SAP Gateway Error Log\" or run transaction /IWFND/ERROR_LOG on SAP Gateway hub system and search for entries with the timestamp above for more details",
+          "Note" : "See SAP Note 1797736 for error analysis (https://service.sap.com/sap/support/notes/1797736)"
+        }
+      }
     }
-  ]
+  }
 }
