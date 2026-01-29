@@ -1,211 +1,149 @@
 METHOD createlanf.
 
-  "------------------------------------------------------------
-  " Copy approach: BAPI_SALESDOCUMENT_COPY + BAPI_SALESORDER_CHANGE
-  "------------------------------------------------------------
+    DATA:
+      ls_header_in    TYPE bapisdhd1,
+      ls_header_inx   TYPE bapisdhd1x,
+      lt_items_in     TYPE bapisditm_tt,
+      lt_items_inx    TYPE bapisditmx_tt,
+      lt_partners     TYPE STANDARD TABLE OF bapiparnr WITH DEFAULT KEY,
+      lt_return       TYPE bapiret2_tab,
+      lv_vbeln        TYPE vbeln_va,
+      ls_contract_hdr TYPE vbak,
+      ls_item_in      TYPE bapisditm,
+      ls_item_inx     TYPE bapisditmx.
 
-  DATA: lt_return TYPE bapiret2_tab,
-        lv_new_so TYPE vbeln_va.
+    " 1. Get Input
+    READ TABLE keys INTO DATA(ls_key) INDEX 1.
+    DATA(ls_input) = ls_key-%param.
+    DATA(lv_contract) = |{ ls_input-contractvbeln ALPHA = IN }|.
 
-  READ TABLE keys INTO DATA(ls_key) INDEX 1.
-  DATA(ls_input) = ls_key-%param.
-  DATA(lv_contract) = |{ ls_input-contractvbeln ALPHA = IN }|.
-
-  "1) Validate contract exists
-  SELECT SINGLE vbeln FROM vbak WHERE vbeln = @lv_contract INTO @DATA(lv_dummy).
-  IF sy-subrc <> 0.
-    APPEND VALUE #( %msg = new_message(
-      id='00' number='001'
-      v1 = |Contract { lv_contract } not found|
-      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-    RETURN.
-  ENDIF.
-
-  "2) Copy contract -> new sales order
-  CALL FUNCTION 'BAPI_SALESDOCUMENT_COPY'
-    EXPORTING
-      salesdocument    = lv_contract
-      documenttype     = 'ZLRA'     "target order type
-      testrun          = space
-    IMPORTING
-      salesdocument_ex = lv_new_so
-    TABLES
-      return           = lt_return.
-
-  IF line_exists( lt_return[ type = 'E' ] ) OR line_exists( lt_return[ type = 'A' ] ).
-    LOOP AT lt_return INTO DATA(ls_r) WHERE type CA 'EA'.
-      APPEND VALUE #( %msg = new_message(
-        id = ls_r-id number = ls_r-number
-        v1 = ls_r-message_v1 v2 = ls_r-message_v2 v3 = ls_r-message_v3 v4 = ls_r-message_v4
-        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-    ENDLOOP.
-    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-    RETURN.
-  ENDIF.
-
-  IF lv_new_so IS INITIAL.
-    APPEND VALUE #( %msg = new_message(
-      id='00' number='001'
-      v1 = |Copy did not return new sales order number|
-      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-    RETURN.
-  ENDIF.
-
-  "3) Build mapping: contract item -> desired qty
-  TYPES: BEGIN OF ty_want,
-           vgpos TYPE vbap-vgpos,
-           qty   TYPE kwmeng,
-           unit  TYPE vrkme,
-         END OF ty_want.
-  DATA lt_want TYPE HASHED TABLE OF ty_want WITH UNIQUE KEY vgpos.
-
-  "Contract positions by material (so we can find contract item number)
-  SELECT posnr, matnr
-    FROM vbap
-    WHERE vbeln = @lv_contract
-    INTO TABLE @DATA(lt_ctr_pos).
-
-  LOOP AT ls_input-_positions INTO DATA(ls_pos) WHERE menge > 0.
-
-    DATA(lv_matnr) TYPE matnr.
-    lv_matnr = ls_pos-matnr.
-    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
-      EXPORTING input  = lv_matnr
-      IMPORTING output = lv_matnr.
-
-    READ TABLE lt_ctr_pos INTO DATA(ls_ctr_pos) WITH KEY matnr = lv_matnr.
+    " 2. Validate Contract
+    SELECT SINGLE * FROM vbak INTO @ls_contract_hdr WHERE vbeln = @lv_contract.
     IF sy-subrc <> 0.
-      APPEND VALUE #( %msg = new_message(
-        id='00' number='001'
-        v1 = |Material { ls_pos-matnr } not in contract { lv_contract }|
-        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-      CONTINUE.
+      APPEND VALUE #( %msg = new_message( id = '00' number = '001' v1 = |Contract { lv_contract } not found| severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
+      failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
+      RETURN.
     ENDIF.
 
-    INSERT VALUE ty_want(
-      vgpos = ls_ctr_pos-posnr
-      qty   = ls_pos-menge
-      unit  = ls_pos-meins
-    ) INTO TABLE lt_want.
+    " 3. Header Mapping
+    " Note: We do NOT set REF_DOC at header level. We set it at Item level.
+    " This prevents SAP from copying 'all' items, allowing us to pick only what we want.
+    ls_header_in-doc_type   = 'ZLRA'.
+    ls_header_in-sales_org  = ls_contract_hdr-vkorg.
+    ls_header_in-distr_chan = ls_contract_hdr-vtweg.
+    ls_header_in-division   = ls_contract_hdr-spart.
+    ls_header_in-req_date_h = ls_input-deliverydate.
+    ls_header_in-purch_no_c = ls_input-customerref.
 
-  ENDLOOP.
+    ls_header_inx-doc_type   = 'X'.
+    ls_header_inx-sales_org  = 'X'.
+    ls_header_inx-distr_chan = 'X'.
+    ls_header_inx-division   = 'X'.
+    ls_header_inx-req_date_h = 'X'.
+    ls_header_inx-purch_no_c = 'X'.
+    ls_header_inx-updateflag = 'I'.
 
-  IF reported-lanfroot IS NOT INITIAL.
-    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-    RETURN.
-  ENDIF.
+    " 4. Partners (Copy from Contract)
+    SELECT * FROM vbpa WHERE vbeln = @lv_contract INTO TABLE @DATA(lt_contract_partners).
+    lt_partners = CORRESPONDING #( lt_contract_partners MAPPING partn_role = parvw partn_numb = kunnr ).
 
-  "4) Read copied order items and update qty / reject others
-  SELECT posnr, vgpos
-    FROM vbap
-    WHERE vbeln = @lv_new_so
-    INTO TABLE @DATA(lt_new_items).
+    " 5. Item Mapping (Logic: Filter Contract Items based on Input)
+    SELECT posnr, matnr 
+      FROM vbap 
+      WHERE vbeln = @lv_contract 
+      INTO TABLE @DATA(lt_contract_pos).
 
-  DATA: ls_head_in  TYPE bapisdhd1,
-        ls_head_inx TYPE bapisdhd1x.
+    LOOP AT ls_input-_positions INTO DATA(ls_pos_input) WHERE menge > 0.
+        
+        DATA(lv_matnr_long) = |{ ls_pos_input-matnr ALPHA = IN }|.
+        
+        " Find the matching Contract Item
+        READ TABLE lt_contract_pos INTO DATA(ls_contr_item) WITH KEY matnr = lv_matnr_long.
+        IF sy-subrc <> 0.
+           READ TABLE lt_contract_pos INTO ls_contr_item WITH KEY matnr = ls_pos_input-matnr.
+        ENDIF.
 
-  DATA: lt_item_in   TYPE bapisditm_tt,
-        lt_item_inx  TYPE bapisditmx_tt,
-        lt_sch_in    TYPE STANDARD TABLE OF bapischdl WITH DEFAULT KEY,
-        lt_sch_inx   TYPE STANDARD TABLE OF bapischdlx WITH DEFAULT KEY.
+        IF ls_contr_item-posnr IS INITIAL.
+             APPEND VALUE #( %msg = new_message( id = '00' number = '001' v1 = |Material { ls_pos_input-matnr } not found in Contract| severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
+             CONTINUE.
+        ENDIF.
 
-  CLEAR lt_return.
+        CLEAR: ls_item_in, ls_item_inx.
 
-  "Header changes
-  ls_head_in-req_date_h  = ls_input-deliverydate.
-  ls_head_in-purch_no_c  = ls_input-customerref.
+        " --- FILL ITEM DATA ---
+        " Note: We use the Contract Item Number as the new Item Number to keep them aligned
+        ls_item_in-itm_number    = ls_contr_item-posnr.
+        
+        " Material: Only fill LONG field to avoid S/4HANA M_/011 error
+        ls_item_in-material_long = lv_matnr_long.
+        CLEAR ls_item_in-material. 
 
-  ls_head_inx-req_date_h = 'X'.
-  ls_head_inx-purch_no_c = 'X'.
-  ls_head_inx-updateflag = 'U'.
+        ls_item_in-target_qty    = ls_pos_input-menge.
+        ls_item_in-target_qu     = ls_pos_input-meins.
+        
+        " >>> THE COPY LOGIC IS HERE <<<
+        " We reference the contract at the ITEM level.
+        " This updates the Document Flow and links the items correctly.
+        ls_item_in-ref_doc       = lv_contract.
+        ls_item_in-ref_doc_it    = ls_contr_item-posnr.
+        ls_item_in-ref_doc_ca    = 'G'.
 
-  "Rejection reason for not requested items (adjust to your customizing!)
-  DATA(lv_rej) TYPE abgru VALUE 'Z0'.
+        " --- FILL ITEM FLAGS ---
+        ls_item_inx-itm_number    = ls_contr_item-posnr.
+        ls_item_inx-updateflag    = 'I'. 
+        
+        ls_item_inx-material_long = 'X'.
+        CLEAR ls_item_inx-material. " Ensure Short Flag is OFF
 
-  LOOP AT lt_new_items INTO DATA(ls_new).
+        ls_item_inx-target_qty    = 'X'.
+        ls_item_inx-target_qu     = 'X'.
+        
+        " Mark Reference Fields as Active
+        ls_item_inx-ref_doc       = 'X'.
+        ls_item_inx-ref_doc_it    = 'X'.
+        ls_item_inx-ref_doc_ca    = 'X'.
 
-    READ TABLE lt_want INTO DATA(ls_want) WITH KEY vgpos = ls_new-vgpos.
-
-    IF sy-subrc = 0.
-      "Wanted: set qty (and schedule line 0001)
-      APPEND VALUE bapisditm(
-        itm_number = ls_new-posnr
-        target_qty = ls_want-qty
-        target_qu  = ls_want-unit
-      ) TO lt_item_in.
-
-      APPEND VALUE bapisditmx(
-        itm_number = ls_new-posnr
-        updateflag = 'U'
-        target_qty = 'X'
-        target_qu  = 'X'
-      ) TO lt_item_inx.
-
-      APPEND VALUE bapischdl(
-        itm_number = ls_new-posnr
-        sched_line = '0001'
-        req_qty    = ls_want-qty
-        req_date   = ls_input-deliverydate
-      ) TO lt_sch_in.
-
-      APPEND VALUE bapischdlx(
-        itm_number = ls_new-posnr
-        sched_line = '0001'
-        updateflag = 'U'
-        req_qty    = 'X'
-        req_date   = 'X'
-      ) TO lt_sch_inx.
-
-    ELSE.
-      "Not wanted: reject item (safer than delete)
-      APPEND VALUE bapisditm(
-        itm_number = ls_new-posnr
-        reason_rej = lv_rej
-      ) TO lt_item_in.
-
-      APPEND VALUE bapisditmx(
-        itm_number = ls_new-posnr
-        updateflag = 'U'
-        reason_rej = 'X'
-      ) TO lt_item_inx.
-    ENDIF.
-
-  ENDLOOP.
-
-  "5) Change the copied order
-  CALL FUNCTION 'BAPI_SALESORDER_CHANGE'
-    EXPORTING
-      salesdocument    = lv_new_so
-      order_header_in  = ls_head_in
-      order_header_inx = ls_head_inx
-    TABLES
-      return           = lt_return
-      order_item_in    = lt_item_in
-      order_item_inx   = lt_item_inx
-      schedule_lines   = lt_sch_in
-      schedule_linesx  = lt_sch_inx.
-
-  IF line_exists( lt_return[ type = 'E' ] ) OR line_exists( lt_return[ type = 'A' ] ).
-    LOOP AT lt_return INTO DATA(ls_e) WHERE type CA 'EA'.
-      APPEND VALUE #( %msg = new_message(
-        id = ls_e-id number = ls_e-number
-        v1 = ls_e-message_v1 v2 = ls_e-message_v2 v3 = ls_e-message_v3 v4 = ls_e-message_v4
-        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
+        APPEND ls_item_in TO lt_items_in.
+        APPEND ls_item_inx TO lt_items_inx.
     ENDLOOP.
-    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-    RETURN.
-  ENDIF.
 
-  "RAP will COMMIT after action finishes (don’t call BAPI_TRANSACTION_COMMIT here)
+    IF reported-lanfroot IS NOT INITIAL.
+        failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
+        RETURN.
+    ENDIF.
 
-  result = VALUE #(
-    ( %param = VALUE #(
-        techkey = 'X'
-        vbeln   = lv_new_so
-        _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Success (COPY)' ) )
-    ) )
-  ).
+    " 6. Call BAPI (One Step Creation)
+    CALL FUNCTION 'BAPI_SALESORDER_CREATEFROMDAT2'
+      EXPORTING
+        order_header_in      = ls_header_in
+        order_header_inx     = ls_header_inx
+      IMPORTING
+        salesdocument        = lv_vbeln
+      TABLES
+        return               = lt_return
+        order_items_in       = lt_items_in
+        order_items_inx      = lt_items_inx
+        order_partners       = lt_partners.
 
-ENDMETHOD.
+    " 7. Handle Return
+    IF line_exists( lt_return[ type = 'E' ] ) OR line_exists( lt_return[ type = 'A' ] ).
+      LOOP AT lt_return INTO DATA(ls_err) WHERE type CA 'EA'.
+        APPEND VALUE #(
+          %msg = new_message(
+            id = ls_err-id number = ls_err-number
+            v1 = ls_err-message_v1 v2 = ls_err-message_v2 
+            v3 = ls_err-message_v3 v4 = ls_err-message_v4
+            severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
+      ENDLOOP.
+      failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
+    ELSE.
+      " Success
+      result = VALUE #(
+        ( %param = VALUE #(
+            techkey   = 'X'
+            vbeln     = lv_vbeln
+            _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Success' ) )
+          ) ) ).
+    ENDIF.
+
+  ENDMETHOD.
