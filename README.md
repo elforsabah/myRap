@@ -1,152 +1,291 @@
-Inhalte
-Kopfinformationen
-Was ist passiert?
-Fehleranalyse
-Informationen zur Abbruchstelle
-Quelltextauszug
-Aktive Aufrufe/Ereignisse
-Kopfinformationen
-Kurztext 	Anweisung "CALL FUNCTION IN UPDATE TASK" im aktuellen Zustand unzulässig
-Laufzeitfehler 	BEHAVIOR_ILLEGAL_STATEMENT
-Programm 	SAPMV45A
-Anwendungskomponente 	SD-SLS
-Datum/Uhrzeit 	29.01.2026 07:33:01 (System)
-Benutzer 	HWSB10035 (Elvis Mbah Forsab)
-Mandant 	442
-Host 	evhsap-srv08_RI4_01
-Was ist passiert?
-Fehler im ABAP-Anwendungsprogramm.
-Das laufende ABAP-Programm "SAPMV45A" mußte abgebrochen werden, da es auf
-eine Anweisung gestoßen ist, die leider nicht ausgeführt werden kann.
-Fehleranalyse
-Die Ausführung befindet sich in einem transaktionalen Kontext:
-Eine BO-Implementierung für "ZI_LANF_ROOT" ist aktiv.
-Daher ist die Anweisung "CALL FUNCTION IN UPDATE TASK" verboten.
-Im Fall der Anweisung MESSAGE lautet der Nachrichtentext:
-"???"
-Der eigentliche Fehler liegt möglicherweise nicht in dem Programm, in
-dem der Abbruch erfolgt, sondern in einer höheren Aufrufebene, von der
-es in einer unzulässigen BEHAVIOR-Phase aufgerufen wird.
-Der Grund für den Laufzeitfehler (siehe folgende Liste) ist: (0)
-Gründe für Laufzeitfehler durch Kontraktverletzungen sind:
-(0) Diese Kontraktverletzung führt immer zum Fehler.
-(1) Die "strict"-Spezifikation im laufenden BO fordert es.
-(2) Die "strict"-Spezifikation des aufgerufenen BOs fordert es.
-(3) Die Kontraktverletzung erfolgt in Restricted ABAP.
-(4) Die entsprechende Checkpoint-Gruppe ist auf "Fehler" gestellt.
-(5) Die Verletzung erfolgt in einer BO-Erweiterung in Restricted ABAP.
-Die folgenden ABAP-Anweisungen sind im transaktionalen Kontext
-grundsätzlich verboten:
-- COMMIT, ROLLBACK
-- SUBMIT, CALL TRANSACTION, LEAVE
-- alle DYNPRO-bezogenen, wie MESSAGE, CALL DIALOG, CALL SCREEN
-- RAISE EXCEPTION, sofern es die BEHAVIOR-Implementierung verlassen
-würde.
-Die Anweisungen
-- CALL FUNCTION IN UPDATE TASK
-- CALL FUNCTION IN BACKGROUND TASK/UNIT
-- PERFORM ON COMMIT/ROLLBACK
-sind außerhalb der "Save"-Methode unzulässig.
-Datenbank-Befehle INSERT/DELETE/UPDATE/MODIFY und andere Formen des
-ändernden DB-Zugriffs (z.B. EXEC SQL, AMDP, EXPORT TO DATABASE) auf der
-primären DB-Verbindung sind außerhalb der "Save"-Methode unzulässig.
-(Änderungen auf einer sekundären DB-Verbindung sind jederzeit zulässig.)
-Operationen, die zum Commit der primären DB-Verbindung führen (z.B. RFC,
-HTTP, WAIT, Commit über EXEC SQL), sind in der "Late Save"-Phase
-(Methoden "Adjust_Numbers" und "Save") unzulässig.
-???APDOCU ABENDB_COMMIT
-Die Anweisung AUTHORITY-CHECK oder die Verwendung einer DCL durch ein
-SELECT ohne "Privileged Mode" ist während der Save-Sequenz nicht
-zulässig (Prüfungen sollten in der Interaktionsphase stattfinden).
-GET PERMISSIONS ist in der "Save"-Methode nicht zulässig (Prüfungen
-sollten in der Interaktionsphase stattfinden).
-SET LOCKS ist nur zulässig in MODIFY, LOCK und FINALIZE.
-MODIFY ENTITIES ist unzulässig in BO-Implementierungen außer "Modify",
-in klassifizierten Methoden mit einem anderen Kontrakt als "Modify" oder
-"Surface", sowie in der "Update Task"-Verarbeitung.
-Actions, die in der Definition als "save" gekennzeichnet sind, dürfen
-nur in der entsprechenden Save-Methode aufgerufen werden.
-RAISE EVENT ist nur zulässig in der "Late Save"-Phase.
-???APDOCU ABAPRAP_LUW
-Für (BAdI-)Methoden und Funktionen mit transaktionaler Klassifikation
-gelten folgende Einschränkungen:
-Der Aufruf einer als "Save" transaktional klassifizierten Methode ist
-unzulässig aus der Interaktionsphase heraus, sowie aus einer Methode mit
-einem anderen Kontrakt als "Save" oder "Surface".
-Der Aufruf einer als "Modify" transaktional klassifizierten Methode ist
-nur dann zulässig, wenn auch "MODIFY ENTITIES" erlaubt ist.
-Der Aufruf einer als "Read" klassifizierten Methode ist nur dann
-zulässig, wenn auch "READ ENTITIES" erlaubt ist.
-Der Aufruf einer als "Surface" transaktional klassifizierten Methode ist
-unzulässig aus einer BO-Implementierung heraus, sowie aus einer Methode
-mit einem anderen Kontrakt als "Surface".
-Informationen zur Abbruchstelle
-Der Abbruch trat im ABAP-Programm bzw. Include "SAPMV45A"
-auf, und zwar in "BELEG_SICHERN". Das Hauptprogramm war "SAPMHTTP".
-Im Quelltext befindet sich die Abbruchstelle in Zeile 156
-des Includes "MV45AF0R_RV_OBJECT_CNT".
-Quelltextauszug
-146
-147
-148
-149
-150
-151
-152
-153
-154
-155
->>>
-157
-158
-159
-160
-    f1 = 'CL_LORD'.
-    f2 = 'GV_SCENARIO_ID'.
-    field-symbols: <lfs_scenario_id> type char30.
-    assign (f1)=>(f2) to <lfs_scenario_id>.
-    if sy-subrc = 0.
-      ls_salesdoc_cnt-others = <lfs_scenario_id>.
-    endif.
-  endif.
-*----------------------------------------------------------------------*
- 
-  call function 'SALESDOC_CNT_ADD' in update task
-    exporting
-      is_salesdoc_cnt = ls_salesdoc_cnt.
- 
-endif.
-Aktive Aufrufe/Ereignisse
-Nr.	Ereignis	Programm	Include	Zeile
-32	BELEG_SICHERN	SAPMV45A	MV45AF0R_RV_OBJECT_CNT	156
-31	SD_SALES_DOCUMENT_SAVE_INT	SAPLV45A	LV45AU75	14
-30	SD_SALES_DOCUMENT_SAVE	SAPLV45A	LV45AU03	119
-29	SD_SALES_DOCU_MAINTAIN	SAPLV45A	LV45AU43	2047
-28	BAPI_SALESDOCU_CREATEFROMDATA1	SAPLVBAK	LVBAKU02	150
-27	CREATELANF	ZBP_I_LANF_ROOT===============CP	ZBP_I_LANF_ROOT===============CCIMP	1406
-26	INVOKE	CL_ABAP_BEHAVIOR_HANDLER======CP	CL_ABAP_BEHAVIOR_HANDLER======CM002	4
-25	CALL_HANDLER	CL_ABAP_BEHV_CTRL=============CP	CL_ABAP_BEHV_CTRL=============CM001	219
-24	CALL_HANDLERS_MODIFY	CL_RAP_BHV_PROCESSOR==========CP	CL_RAP_BHV_PROCESSOR==========CM00L	18
-23	IF_RAP_TRANSACTION_PROCESSOR~MODIFY	CL_RAP_BHV_PROCESSOR==========CP	CL_RAP_BHV_PROCESSOR==========CM00B	77
-22	IF_SADL_CHANGESET~MODIFY	CL_RAP_TRANSACTION_MANAGER====CP	CL_RAP_TRANSACTION_MANAGER====CM00E	71
-21	_MODIFY	CL_SADL_TRANSACTION_MANAGER===CP	CL_SADL_TRANSACTION_MANAGER===CM00O	19
-20	IF_SADL_CHANGESET~MODIFY	CL_SADL_TRANSACTION_MANAGER===CP	CL_SADL_TRANSACTION_MANAGER===CM00L	13
-19	IF_SADL_CHANGESET~MODIFY	CL_SADL_CHANGESET=============CP	CL_SADL_CHANGESET=============CM006	23
-18	IF_SADL_GW_V4_GENERIC_DPC~PROCESS_CHANGE_SET	CL_SADL_GW_V4_GENERIC_DPC=====CP	CL_SADL_GW_V4_GENERIC_DPC=====CM010	54
-17	/IWBEP/IF_V4_DP_ADVANCED~EXECUTE_ACTION	CL_SADL_GW_V4_DPC_ADAPTER=====CP	CL_SADL_GW_V4_DPC_ADAPTER=====CM00I	49
-16	/IWBEP/IF_V4_DATA_PROVIDER_FW~EXECUTE_ACTION	/IWBEP/CL_V4_DP_PROXY=========CP	/IWBEP/CL_V4_DP_PROXY=========CM003	36
-15	/IWBEP/IF_V4_DATA_PROVIDER_FW~EXECUTE_ACTION	/IWBEP/CL_V4_LOCAL_DP_PROXY===CP	/IWBEP/CL_V4_LOCAL_DP_PROXY===CM007	5
-14	EXECUTE_ACTION	/IWBEP/CL_OD_PROCESSOR========CP	/IWBEP/CL_OD_PROCESSOR========CM002	137
-13	/IWCOR/IF_OD_PROC_COMPLEX_COLL~EXECUTE_BOUND_ACTION	/IWBEP/CL_OD_PROCESSOR========CP	/IWBEP/CL_OD_PROCESSOR========CM01H	4
-12	PROCESS_COMPLEX_COLL	/IWCOR/CL_OD_PROC_DISPATCHER==CP	/IWCOR/CL_OD_PROC_DISPATCHER==CM00O	69
-11	/IWCOR/IF_OD_PROCESSOR~PROCESS	/IWCOR/CL_OD_PROC_DISPATCHER==CP	/IWCOR/CL_OD_PROC_DISPATCHER==CM005	425
-10	DISPATCH	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM004	255
-9	DISPATCH	/IWBEP/CL_OD_ROOT_HANDLER=====CP	/IWBEP/CL_OD_ROOT_HANDLER=====CM003	124
-8	HANDLE_WITH_MODE	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM00L	209
-7	/IWCOR/IF_REST_HANDLER~HANDLE	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM00F	3
-6	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWCOR/CL_REST_HTTP_HANDLER===CP	/IWCOR/CL_REST_HTTP_HANDLER===CM001	121
-5	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWBEP/CL_OD_HTTP_REQ_HANDLER=CP	/IWBEP/CL_OD_HTTP_REQ_HANDLER=CM007	70
-4	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWBEP/CL_OD_ICF_HANDLER======CP	/IWBEP/CL_OD_ICF_HANDLER======CM001	39
-3	EXECUTE_REQUEST	CL_HTTP_SERVER================CP	CL_HTTP_SERVER================CM00D	814
-2	HTTP_DISPATCH_REQUEST	SAPLHTTP_RUNTIME	LHTTP_RUNTIMEU02	1655
-1	%_HTTP_START	SAPMHTTP	SAPMHTTP	12
+FUNCTION z_lanf_create_dmreq_rfc.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     VALUE(IV_CONTRACT)     TYPE  VBELN_VA
+*"     VALUE(IV_DELIVERYDATE) TYPE  DATS
+*"     VALUE(IV_CUSTOMERREF)  TYPE  BSTKD
+*"     VALUE(IV_AUART)        TYPE  AUART DEFAULT 'ZLRA'
+*"  EXPORTING
+*"     VALUE(EV_VBELN)        TYPE  VBELN_VA
+*"  TABLES
+*"     IT_POSITIONS           TYPE  ZI_LANF_POSITION_INPUT
+*"     ET_RETURN              TYPE  BAPIRET2_TAB
+*"----------------------------------------------------------------------
+
+  CLEAR: ev_vbeln, et_return[].
+
+  "Run SD in German (your system has TSPAT only DE)
+  DATA(lv_old_langu) = sy-langu.
+  SET LOCALE LANGUAGE 'D'.
+
+  "1) Contract header
+  SELECT SINGLE * FROM vbak
+    WHERE vbeln = @iv_contract
+    INTO @DATA(ls_vbak).
+
+  IF sy-subrc <> 0.
+    APPEND VALUE bapiret2( type = 'E' id = '00' number = '001'
+      message = |Contract { iv_contract } not found| ) TO et_return.
+    SET LOCALE LANGUAGE lv_old_langu.
+    RETURN.
+  ENDIF.
+
+  "2) Contract items for mapping (POSNR/MATNR/UoM)
+  TYPES: BEGIN OF ty_ctr,
+           posnr TYPE posnr_va,
+           matnr TYPE matnr,
+           vrkme TYPE vrkme,
+         END OF ty_ctr.
+  DATA lt_ctr TYPE STANDARD TABLE OF ty_ctr WITH EMPTY KEY.
+
+  SELECT posnr, matnr, vrkme
+    FROM vbap
+    WHERE vbeln = @iv_contract
+    INTO TABLE @lt_ctr.
+
+  IF lt_ctr IS INITIAL.
+    APPEND VALUE bapiret2( type = 'E' id = '00' number = '001'
+      message = |No items in contract { iv_contract }| ) TO et_return.
+    SET LOCALE LANGUAGE lv_old_langu.
+    RETURN.
+  ENDIF.
+
+  "3) Aggregate positions by contract POSNR (prevents duplicates / M_/011)
+  TYPES: BEGIN OF ty_agg,
+           posnr TYPE posnr_va,
+           qty   TYPE kwmeng,
+           meins TYPE meins,
+           matnr TYPE matnr,
+         END OF ty_agg.
+  DATA lt_agg TYPE HASHED TABLE OF ty_agg WITH UNIQUE KEY posnr.
+  FIELD-SYMBOLS <agg> TYPE ty_agg.
+
+  LOOP AT it_positions ASSIGNING FIELD-SYMBOL(<p>) WHERE menge > 0.
+
+    DATA(lv_matnr) TYPE matnr.
+    lv_matnr = <p>-matnr.
+    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+      EXPORTING input  = lv_matnr
+      IMPORTING output = lv_matnr.
+
+    "Detect ambiguity: same material multiple times in contract
+    DATA(lv_hits) TYPE i VALUE 0.
+    DATA(ls_ctr) TYPE ty_ctr.
+    LOOP AT lt_ctr INTO ls_ctr WHERE matnr = lv_matnr.
+      lv_hits += 1.
+      IF lv_hits = 1.
+        "keep first hit in ls_ctr
+      ENDIF.
+    ENDLOOP.
+
+    IF lv_hits = 0.
+      APPEND VALUE bapiret2( type = 'E' id = '00' number = '001'
+        message = |Material { <p>-matnr } not found in contract { iv_contract }| ) TO et_return.
+      CONTINUE.
+    ELSEIF lv_hits > 1.
+      APPEND VALUE bapiret2( type = 'E' id = '00' number = '001'
+        message = |Material { <p>-matnr } occurs multiple times in contract { iv_contract } -> ambiguous| ) TO et_return.
+      CONTINUE.
+    ENDIF.
+
+    "UoM check
+    IF <p>-meins IS NOT INITIAL AND ls_ctr-vrkme IS NOT INITIAL AND <p>-meins <> ls_ctr-vrkme.
+      APPEND VALUE bapiret2( type = 'E' id = '00' number = '001'
+        message = |UoM mismatch for { <p>-matnr }: { <p>-meins } <> contract { ls_ctr-vrkme }| ) TO et_return.
+      CONTINUE.
+    ENDIF.
+
+    ASSIGN lt_agg[ posnr = ls_ctr-posnr ] TO <agg>.
+    IF sy-subrc = 0.
+      <agg>-qty = <agg>-qty + <p>-menge.
+    ELSE.
+      INSERT VALUE ty_agg(
+        posnr = ls_ctr-posnr
+        qty   = <p>-menge
+        meins = ls_ctr-vrkme
+        matnr = lv_matnr ) INTO TABLE lt_agg.
+    ENDIF.
+
+  ENDLOOP.
+
+  IF line_exists( et_return[ type = 'E' ] ) OR lt_agg IS INITIAL.
+    SET LOCALE LANGUAGE lv_old_langu.
+    RETURN.
+  ENDIF.
+
+  "4) Build BAPI (CREATEFROMDATA1) structures
+  DATA ls_head   TYPE bapisdhead1.
+  DATA ls_headx  TYPE bapisdhead1x.
+  DATA lt_items  TYPE STANDARD TABLE OF bapisditem WITH DEFAULT KEY.
+  DATA lt_itemsx TYPE STANDARD TABLE OF bapisditemx WITH DEFAULT KEY.
+  DATA lt_sched  TYPE STANDARD TABLE OF bapischedule WITH DEFAULT KEY.
+  DATA lt_schedx TYPE STANDARD TABLE OF bapischedulx WITH DEFAULT KEY.
+  DATA lt_part   TYPE STANDARD TABLE OF bapipartnr WITH DEFAULT KEY.
+  DATA lt_cond   TYPE STANDARD TABLE OF bapicondition WITH DEFAULT KEY.
+
+  CLEAR: ls_head, ls_headx.
+
+  ls_head-doc_type   = iv_auart.
+  ls_head-sales_org  = ls_vbak-vkorg.
+  ls_head-distr_chan = ls_vbak-vtweg.
+  ls_head-division   = ls_vbak-spart.
+  ls_head-req_date_h = iv_deliverydate.
+  ls_head-purch_no_c = iv_customerref.
+  ls_head-ref_doc    = iv_contract.
+  ls_head-ref_doc_ca = 'G'.
+
+  ls_headx-updateflag = 'I'.
+  ls_headx-doc_type   = 'X'.
+  ls_headx-sales_org  = 'X'.
+  ls_headx-distr_chan = 'X'.
+  ls_headx-division   = 'X'.
+  ls_headx-req_date_h = 'X'.
+  ls_headx-purch_no_c = 'X'.
+  ls_headx-ref_doc    = 'X'.
+  ls_headx-ref_doc_ca = 'X'.
+
+  "Partners from contract
+  SELECT parvw, kunnr
+    FROM vbpa
+    WHERE vbeln = @iv_contract AND kunnr <> ''
+    INTO TABLE @DATA(lt_vbpa).
+
+  lt_part = VALUE #( FOR p IN lt_vbpa ( partn_role = p-parvw partn_numb = p-kunnr ) ).
+  IF NOT line_exists( lt_part[ partn_role = 'AG' ] ) AND ls_vbak-kunnr IS NOT INITIAL.
+    APPEND VALUE bapipartnr( partn_role = 'AG' partn_numb = ls_vbak-kunnr ) TO lt_part.
+  ENDIF.
+
+  "Conditions: pick PR00 from contract pricing if possible; else fallback to VBAP-NETPR
+  DATA lv_knumv TYPE knumv.
+  lv_knumv = ls_vbak-knumv.
+
+  LOOP AT lt_agg INTO DATA(ls_agg).
+
+    APPEND VALUE bapisditem(
+      itm_number = ls_agg-posnr
+      material   = ls_agg-matnr
+      target_qty = ls_agg-qty
+      target_qu  = ls_agg-meins
+      ref_doc    = iv_contract
+      ref_doc_it = ls_agg-posnr
+      ref_doc_ca = 'G'
+    ) TO lt_items.
+
+    APPEND VALUE bapisditemx(
+      itm_number = ls_agg-posnr
+      updateflag = 'I'
+      material   = 'X'
+      target_qty = 'X'
+      target_qu  = 'X'
+      ref_doc    = 'X'
+      ref_doc_it = 'X'
+      ref_doc_ca = 'X'
+    ) TO lt_itemsx.
+
+    APPEND VALUE bapischedule(
+      itm_number = ls_agg-posnr
+      sched_line = '0001'
+      req_qty    = ls_agg-qty
+      req_date   = iv_deliverydate
+    ) TO lt_sched.
+
+    APPEND VALUE bapischedulx(
+      itm_number = ls_agg-posnr
+      sched_line = '0001'
+      updateflag = 'I'
+      req_qty    = 'X'
+      req_date   = 'X'
+    ) TO lt_schedx.
+
+    "Try get PR00 (or first active price condition) from PRCD_ELEMENTS
+    DATA: lv_kschl TYPE kschl VALUE 'PR00',
+          lv_kbetr TYPE kbetr_kond,
+          lv_waers TYPE waers,
+          lv_kpein TYPE kpein,
+          lv_kmein TYPE kmein.
+
+    CLEAR: lv_kbetr, lv_waers, lv_kpein, lv_kmein.
+
+    IF lv_knumv IS NOT INITIAL.
+      SELECT SINGLE kschl, kbetr, waers, kpein, kmein
+        FROM prcd_elements
+        WHERE knumv = @lv_knumv
+          AND kposn = @ls_agg-posnr
+          AND kinak = ''
+          AND kstat = ''
+          AND kschl = 'PR00'
+        INTO @DATA(ls_pr00).
+
+      IF sy-subrc = 0.
+        lv_kschl = ls_pr00-kschl.
+        lv_kbetr = ls_pr00-kbetr.
+        lv_waers = ls_pr00-waers.
+        lv_kpein = ls_pr00-kpein.
+        lv_kmein = ls_pr00-kmein.
+      ENDIF.
+    ENDIF.
+
+    "Fallback: VBAP-NETPR if PRCD_ELEMENTS not found
+    IF lv_kbetr IS INITIAL.
+      SELECT SINGLE netpr, kpein, kmein
+        FROM vbap
+        WHERE vbeln = @iv_contract AND posnr = @ls_agg-posnr
+        INTO @DATA(ls_vbap_price).
+      lv_kbetr = ls_vbap_price-netpr.
+      lv_kpein = COND #( WHEN ls_vbap_price-kpein IS INITIAL THEN 1 ELSE ls_vbap_price-kpein ).
+      lv_kmein = COND #( WHEN ls_vbap_price-kmein IS INITIAL THEN ls_agg-meins ELSE ls_vbap_price-kmein ).
+      lv_waers = ls_vbak-waerk.
+    ENDIF.
+
+    IF lv_kbetr IS INITIAL.
+      APPEND VALUE bapiret2( type = 'E' id = '00' number = '001'
+        message = |No price found for item { ls_agg-posnr } in contract -> cannot satisfy Nettopreis/Nettowert| ) TO et_return.
+      CONTINUE.
+    ENDIF.
+
+    APPEND VALUE bapicondition(
+      itm_number = ls_agg-posnr
+      cond_st_no = '010'
+      cond_count = '01'
+      cond_type  = lv_kschl
+      cond_value = lv_kbetr
+      currency   = lv_waers
+      cond_p_unt = COND #( WHEN lv_kpein IS INITIAL THEN 1 ELSE lv_kpein )
+      cond_unit  = COND #( WHEN lv_kmein IS INITIAL THEN ls_agg-meins ELSE lv_kmein )
+    ) TO lt_cond.
+
+  ENDLOOP.
+
+  IF line_exists( et_return[ type = 'E' ] ).
+    SET LOCALE LANGUAGE lv_old_langu.
+    RETURN.
+  ENDIF.
+
+  "5) Call BAPI in this RFC session (allowed to use update-task)
+  CALL FUNCTION 'BAPI_SALESDOCU_CREATEFROMDATA1'
+    EXPORTING
+      sales_header_in   = ls_head
+      sales_header_inx  = ls_headx
+      int_number_assignment = space
+    IMPORTING
+      salesdocument_ex  = ev_vbeln
+    TABLES
+      return              = et_return
+      sales_items_in      = lt_items
+      sales_items_inx     = lt_itemsx
+      sales_partners      = lt_part
+      sales_schedules_in  = lt_sched
+      sales_schedules_inx = lt_schedx
+      sales_conditions_in = lt_cond.
+
+  IF ev_vbeln IS INITIAL OR line_exists( et_return[ type = 'E' ] ) OR line_exists( et_return[ type = 'A' ] ).
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING wait = abap_true.
+  ENDIF.
+
+  SET LOCALE LANGUAGE lv_old_langu.
+
+ENDFUNCTION.
