@@ -1,1881 +1,250 @@
-CLASS lhc_lanfroot DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-    TYPES tt_lanf_position_input TYPE STANDARD TABLE OF zi_lanf_position_input WITH DEFAULT KEY.
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR lanfroot RESULT result.
-
-    METHODS read FOR READ
-      IMPORTING keys FOR READ lanfroot RESULT result.
-
-    METHODS lock FOR LOCK
-      IMPORTING keys FOR LOCK lanfroot.
-
-    METHODS attachdocument FOR MODIFY
-      IMPORTING keys FOR ACTION  lanfroot~attachdocument RESULT result.
-
-    METHODS createlanf FOR MODIFY
-      IMPORTING keys FOR ACTION lanfroot~createlanf RESULT result.
-
-    METHODS map_positions_to_contract
-      IMPORTING iv_contract_vbeln TYPE vbeln_va
-                it_positions      TYPE tt_lanf_position_input
-      CHANGING  ct_order_items    TYPE  bapisditm_tt
-                ct_order_itemsx   TYPE  bapisditmx_tt
-                ct_return         TYPE bapiret2_tab.
-
-
-ENDCLASS.
-
-CLASS lhc_lanfroot IMPLEMENTATION.
-
-  METHOD get_instance_authorizations.
-  ENDMETHOD.
-
-  METHOD read.
-  ENDMETHOD.
-
-  METHOD lock.
-  ENDMETHOD.
-
-
-*METHOD createlanf.
-*
-*  "=============================================================
-*  " CREATEFROMDAT2 approach (recommended)
-*  " Fixes M_/011 by aggregating input positions so each
-*  " contract item (POSNR) appears only once in BAPI tables.
-*  "=============================================================
-*
-*  CONSTANTS gc_auart TYPE auart VALUE 'ZLRA'.  "Target sales order type
-*
-*  "-----------------------------
-*  " Input
-*  "-----------------------------
-*  DATA ls_key LIKE LINE OF keys.
-*  READ TABLE keys INTO ls_key INDEX 1.
-*  DATA(ls_input) = ls_key-%param.
-*
-*  DATA lv_contract TYPE vbeln_va.
-*  lv_contract = |{ ls_input-contractvbeln ALPHA = IN }|.
-*
-*  "-----------------------------
-*  " Validate contract + get org data
-*  "-----------------------------
-*  DATA ls_contract_hdr TYPE vbak.
-*  SELECT SINGLE *
-*    FROM vbak
-*    WHERE vbeln = @lv_contract
-*    INTO @ls_contract_hdr.
-*
-*  IF sy-subrc <> 0.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |Contract { lv_contract } not found|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "-----------------------------
-*  " Read contract items (for mapping MATNR -> POSNR and plant)
-*  "-----------------------------
-*  TYPES: BEGIN OF ty_ctr_item,
-*           posnr TYPE posnr_va,
-*           matnr TYPE matnr,
-*           werks TYPE werks_d,
-*         END OF ty_ctr_item.
-*
-*  DATA lt_ctr_items TYPE STANDARD TABLE OF ty_ctr_item WITH EMPTY KEY.
-*
-*  SELECT posnr, matnr, werks
-*    FROM vbap
-*    WHERE vbeln = @lv_contract
-*    INTO TABLE @lt_ctr_items.
-*
-*  IF lt_ctr_items IS INITIAL.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |No items found in contract { lv_contract }|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "-----------------------------
-*  " Aggregate input positions by contract POSNR (fix M_/011)
-*  "-----------------------------
-*  TYPES: BEGIN OF ty_agg,
-*           posnr TYPE posnr_va,   "contract item posnr
-*           matnr TYPE matnr,      "normalized matnr
-*           werks TYPE werks_d,
-*           meins TYPE vrkme,
-*           qty   TYPE kwmeng,
-*         END OF ty_agg.
-*
-*  DATA lt_agg TYPE HASHED TABLE OF ty_agg WITH UNIQUE KEY posnr.
-*  FIELD-SYMBOLS <agg> TYPE ty_agg.
-*
-*  DATA lv_matnr TYPE matnr.
-*
-*  LOOP AT ls_input-_positions INTO DATA(ls_pos) WHERE menge > 0.
-*
-*    lv_matnr = ls_pos-matnr.
-*    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
-*      EXPORTING input  = lv_matnr
-*      IMPORTING output = lv_matnr.
-*
-*    READ TABLE lt_ctr_items INTO DATA(ls_ctr) WITH KEY matnr = lv_matnr.
-*    IF sy-subrc <> 0 OR ls_ctr-posnr IS INITIAL.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = '00'
-*        number   = '001'
-*        v1       = |Material { ls_pos-matnr } not found in contract { lv_contract }|
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*      CONTINUE.
-*    ENDIF.
-*
-*    ASSIGN lt_agg[ posnr = ls_ctr-posnr ] TO <agg>.
-*    IF sy-subrc = 0.
-*      "same contract item appears again -> sum qty (prevents duplicate ITM_NUMBER)
-*      IF <agg>-meins <> ls_pos-meins.
-*        APPEND VALUE #( %msg = new_message(
-*          id       = '00'
-*          number   = '001'
-*          v1       = |Same item { ls_ctr-posnr } has different UoM ({ <agg>-meins } vs { ls_pos-meins })|
-*          severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*        CONTINUE.
-*      ENDIF.
-*      <agg>-qty = <agg>-qty + ls_pos-menge.
-*    ELSE.
-*      INSERT VALUE ty_agg(
-*        posnr = ls_ctr-posnr
-*        matnr = lv_matnr
-*        werks = ls_ctr-werks
-*        meins = ls_pos-meins
-*        qty   = ls_pos-menge ) INTO TABLE lt_agg.
-*    ENDIF.
-*
-*  ENDLOOP.
-*
-*  IF reported-lanfroot IS NOT INITIAL.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  IF lt_agg IS INITIAL.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |No valid items found (all quantities <= 0 or mapping failed)|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "-----------------------------
-*  " Partners from contract
-*  "-----------------------------
-*  DATA lt_partners TYPE STANDARD TABLE OF bapiparnr WITH DEFAULT KEY.
-*
-*  SELECT parvw, kunnr
-*    FROM vbpa
-*    WHERE vbeln = @lv_contract
-*      AND kunnr <> ''
-*      AND parvw IN ('AG','WE','RE','RG','PY')
-*    INTO TABLE @DATA(lt_vbpa).
-*
-*  lt_partners = VALUE #(
-*    FOR p IN lt_vbpa
-*    ( partn_role = p-parvw
-*      partn_numb = p-kunnr ) ).
-*
-*  "-----------------------------
-*  " Header (DAT2)
-*  "-----------------------------
-*  DATA: ls_head_in  TYPE bapisdhd1,
-*        ls_head_inx TYPE bapisdhd1x.
-*
-*  CLEAR: ls_head_in, ls_head_inx.
-*
-*  ls_head_in-doc_type    = gc_auart.
-*  ls_head_in-sales_org   = ls_contract_hdr-vkorg.
-*  ls_head_in-distr_chan  = ls_contract_hdr-vtweg.
-*  ls_head_in-division    = ls_contract_hdr-spart.
-*
-*  "reference to contract
-*  ls_head_in-ref_doc     = lv_contract.
-*  ls_head_in-refdoc_cat  = 'G'.
-*
-*  ls_head_in-req_date_h  = ls_input-deliverydate.
-*  ls_head_in-purch_no_c  = ls_input-customerref.
-*
-*  ls_head_inx-updateflag = 'I'.
-*  ls_head_inx-doc_type   = 'X'.
-*  ls_head_inx-sales_org  = 'X'.
-*  ls_head_inx-distr_chan = 'X'.
-*  ls_head_inx-division   = 'X'.
-*  ls_head_inx-ref_doc    = 'X'.
-*  ls_head_inx-refdoc_cat = 'X'.
-*  ls_head_inx-req_date_h = 'X'.
-*  ls_head_inx-purch_no_c = 'X'.
-*
-*  "-----------------------------
-*  " Items + Schedules (ONE per POSNR)
-*  "-----------------------------
-*  DATA: lt_items_in  TYPE bapisditm_tt,
-*        lt_items_inx TYPE bapisditmx_tt,
-*        lt_sched_in  TYPE STANDARD TABLE OF bapischdl  WITH DEFAULT KEY,
-*        lt_sched_inx TYPE STANDARD TABLE OF bapischdlx WITH DEFAULT KEY.
-*
-*  DATA: ls_item_in  TYPE bapisditm,
-*        ls_item_inx TYPE bapisditmx,
-*        ls_sch_in   TYPE bapischdl,
-*        ls_sch_inx  TYPE bapischdlx.
-*
-*  CLEAR: lt_items_in, lt_items_inx, lt_sched_in, lt_sched_inx.
-*
-*  LOOP AT lt_agg INTO DATA(ls_agg).
-*
-*    CLEAR: ls_item_in, ls_item_inx, ls_sch_in, ls_sch_inx.
-*
-*    "Item
-*    ls_item_in-itm_number = ls_agg-posnr.
-*    ls_item_in-material   = ls_agg-matnr.
-*    ls_item_in-target_qty = ls_agg-qty.
-*    ls_item_in-target_qu  = ls_agg-meins.
-*
-*    ls_item_in-ref_doc    = lv_contract.
-*    ls_item_in-ref_doc_it = ls_agg-posnr.
-*    ls_item_in-ref_doc_ca = 'G'.
-*
-*    IF ls_agg-werks IS NOT INITIAL.
-*      ls_item_in-plant = ls_agg-werks.
-*    ENDIF.
-*
-*    APPEND ls_item_in TO lt_items_in.
-*
-*    "Item X
-*    ls_item_inx-itm_number = ls_agg-posnr.
-*    ls_item_inx-updateflag = 'I'.
-*    ls_item_inx-material   = 'X'.
-*    ls_item_inx-target_qty = 'X'.
-*    ls_item_inx-target_qu  = 'X'.
-*    ls_item_inx-ref_doc    = 'X'.
-*    ls_item_inx-ref_doc_it = 'X'.
-*    ls_item_inx-ref_doc_ca = 'X'.
-*    IF ls_item_in-plant IS NOT INITIAL.
-*      ls_item_inx-plant = 'X'.
-*    ENDIF.
-*
-*    APPEND ls_item_inx TO lt_items_inx.
-*
-*    "Schedule line (helps completeness & consistency)
-*    ls_sch_in-itm_number = ls_agg-posnr.
-*    ls_sch_in-sched_line = '0001'.
-*    ls_sch_in-req_qty    = ls_agg-qty.
-*    ls_sch_in-req_date   = ls_input-deliverydate.
-*    APPEND ls_sch_in TO lt_sched_in.
-*
-*    ls_sch_inx-itm_number = ls_agg-posnr.
-*    ls_sch_inx-sched_line = '0001'.
-*    ls_sch_inx-updateflag = 'I'.
-*    ls_sch_inx-req_qty    = 'X'.
-*    ls_sch_inx-req_date   = 'X'.
-*    APPEND ls_sch_inx TO lt_sched_inx.
-*
-*  ENDLOOP.
-*
-*  "-----------------------------
-*  " Logic switch (pricing/condition handling)
-*  "-----------------------------
-*  DATA ls_logic TYPE bapisdls.
-*  CLEAR ls_logic.
-*  ls_logic-cond_handl = 'X'.
-*
-*  "-----------------------------
-*  " Create
-*  "-----------------------------
-*  DATA lv_new_vbeln TYPE vbeln_va.
-*  CLEAR: lv_new_vbeln.
-*
-*  DATA lt_return TYPE bapiret2_tab.
-*  CLEAR lt_return.
-*
-*  CALL FUNCTION 'BAPI_SALESORDER_CREATEFROMDAT2'
-*    EXPORTING
-*      order_header_in      = ls_head_in
-*      order_header_inx     = ls_head_inx
-*      logic_switch         = ls_logic
-*    IMPORTING
-*      salesdocument        = lv_new_vbeln
-*    TABLES
-*      return               = lt_return
-*      order_items_in       = lt_items_in
-*      order_items_inx      = lt_items_inx
-*      order_schedules_in   = lt_sched_in
-*      order_schedules_inx  = lt_sched_inx
-*      order_partners       = lt_partners.
-*
-*  "-----------------------------
-*  " Handle return
-*  "-----------------------------
-*  IF line_exists( lt_return[ type = 'E' ] ) OR line_exists( lt_return[ type = 'A' ] ).
-*    LOOP AT lt_return INTO DATA(ls_err) WHERE type CA 'EA'.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = ls_err-id
-*        number   = ls_err-number
-*        v1       = ls_err-message_v1
-*        v2       = ls_err-message_v2
-*        v3       = ls_err-message_v3
-*        v4       = ls_err-message_v4
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    ENDLOOP.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  IF lv_new_vbeln IS INITIAL.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |BAPI returned no document number|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "Success
-*  result = VALUE #(
-*    ( %param = VALUE #(
-*        techkey   = 'X'
-*        vbeln     = lv_new_vbeln
-*        _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Success (CREATEFROMDAT2)' ) )
-*    ) )
-*  ).
-*
-*ENDMETHOD.
-
-
-*METHOD createlanf.
-*
-*  CONSTANTS gc_auart TYPE auart VALUE 'ZLRA'.  "your target doc type
-*
-*  "------------------------------------------------------------
-*  " Input
-*  "------------------------------------------------------------
-*  DATA ls_key LIKE LINE OF keys.
-*  READ TABLE keys INTO ls_key INDEX 1.
-*  DATA(ls_input) = ls_key-%param.
-*
-*  DATA lv_refdoc TYPE vbeln_va.
-*  lv_refdoc = |{ ls_input-contractvbeln ALPHA = IN }|.
-*
-*  "------------------------------------------------------------
-*  " Validate reference doc exists + org data
-*  "------------------------------------------------------------
-*  DATA ls_ref_hdr TYPE vbak.
-*  SELECT SINGLE *
-*    FROM vbak
-*    WHERE vbeln = @lv_refdoc
-*    INTO @ls_ref_hdr.
-*
-*  IF sy-subrc <> 0.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |Reference document { lv_refdoc } not found|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "------------------------------------------------------------
-*  " Determine document category (TVAK-VBTYP) for the target AUART
-*  "------------------------------------------------------------
-*  DATA lv_vbtyp TYPE tvak-vbtyp.
-*  SELECT SINGLE vbtyp
-*    FROM tvak
-*    WHERE auart = @gc_auart
-*    INTO @lv_vbtyp.
-*
-*  IF sy-subrc <> 0 OR lv_vbtyp IS INITIAL.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |No TVAK entry / VBTYP found for AUART { gc_auart }|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "------------------------------------------------------------
-*  " Read reference items for MATNR->POSNR mapping + plant
-*  "------------------------------------------------------------
-*  TYPES: BEGIN OF ty_ref_item,
-*           posnr TYPE posnr_va,
-*           matnr TYPE matnr,
-*           werks TYPE werks_d,
-*         END OF ty_ref_item.
-*  DATA lt_ref_items TYPE STANDARD TABLE OF ty_ref_item WITH EMPTY KEY.
-*
-*  SELECT posnr, matnr, werks
-*    FROM vbap
-*    WHERE vbeln = @lv_refdoc
-*    INTO TABLE @lt_ref_items.
-*
-*  "------------------------------------------------------------
-*  " Aggregate positions by reference POSNR (prevents duplicate ITM_NUMBER => M_/011)
-*  "------------------------------------------------------------
-*  TYPES: BEGIN OF ty_agg,
-*           posnr TYPE posnr_va,
-*           matnr TYPE matnr,
-*           werks TYPE werks_d,
-*           meins TYPE vrkme,
-*           qty   TYPE kwmeng,
-*         END OF ty_agg.
-*  DATA lt_agg TYPE HASHED TABLE OF ty_agg WITH UNIQUE KEY posnr.
-*  FIELD-SYMBOLS <agg> TYPE ty_agg.
-*
-*  DATA lv_matnr TYPE matnr.
-*
-*  LOOP AT ls_input-_positions INTO DATA(ls_pos) WHERE menge > 0.
-*
-*    lv_matnr = ls_pos-matnr.
-*    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
-*      EXPORTING input  = lv_matnr
-*      IMPORTING output = lv_matnr.
-*
-*    READ TABLE lt_ref_items INTO DATA(ls_ref_it) WITH KEY matnr = lv_matnr.
-*    IF sy-subrc <> 0 OR ls_ref_it-posnr IS INITIAL.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = '00'
-*        number   = '001'
-*        v1       = |Material { ls_pos-matnr } not found in reference { lv_refdoc }|
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*      CONTINUE.
-*    ENDIF.
-*
-*    ASSIGN lt_agg[ posnr = ls_ref_it-posnr ] TO <agg>.
-*    IF sy-subrc = 0.
-*      IF <agg>-meins <> ls_pos-meins.
-*        APPEND VALUE #( %msg = new_message(
-*          id       = '00'
-*          number   = '001'
-*          v1       = |Same item { ls_ref_it-posnr } has different UoM ({ <agg>-meins } vs { ls_pos-meins })|
-*          severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*        CONTINUE.
-*      ENDIF.
-*      <agg>-qty = <agg>-qty + ls_pos-menge.
-*    ELSE.
-*      INSERT VALUE ty_agg(
-*        posnr = ls_ref_it-posnr
-*        matnr = lv_matnr
-*        werks = ls_ref_it-werks
-*        meins = ls_pos-meins
-*        qty   = ls_pos-menge ) INTO TABLE lt_agg.
-*    ENDIF.
-*
-*  ENDLOOP.
-*
-*  IF reported-lanfroot IS NOT INITIAL OR lt_agg IS INITIAL.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "------------------------------------------------------------
-*  " Partners from reference doc
-*  "------------------------------------------------------------
-*  DATA lt_partners_dat2 TYPE STANDARD TABLE OF bapiparnr WITH DEFAULT KEY.
-*  DATA lt_partners_gen  TYPE STANDARD TABLE OF bapipartnr WITH DEFAULT KEY.
-*
-*  SELECT parvw, kunnr
-*    FROM vbpa
-*    WHERE vbeln = @lv_refdoc
-*      AND kunnr <> ''
-*      AND parvw IN ('AG','WE','RE','RG','PY')
-*    INTO TABLE @DATA(lt_vbpa).
-*
-*  lt_partners_dat2 = VALUE #(
-*    FOR p IN lt_vbpa ( partn_role = p-parvw partn_numb = p-kunnr ) ).
-*
-*  lt_partners_gen = VALUE #(
-*    FOR p IN lt_vbpa ( partn_role = p-parvw partn_numb = p-kunnr ) ).
-*
-*  "============================================================
-*  " BRANCH A: VBTYP = 'C' => Sales Order API (BUS2032)
-*  "============================================================
-*  IF lv_vbtyp = 'C'.
-*
-*    DATA: ls_head_in   TYPE bapisdhd1,
-*          ls_head_inx  TYPE bapisdhd1x,
-*          ls_logic     TYPE bapisdls,
-*          lt_items_in  TYPE bapisditm_tt,
-*          lt_items_inx TYPE bapisditmx_tt,
-*          lt_sch_in    TYPE STANDARD TABLE OF bapischdl  WITH DEFAULT KEY,
-*          lt_sch_inx   TYPE STANDARD TABLE OF bapischdlx WITH DEFAULT KEY,
-*          lt_return    TYPE bapiret2_tab,
-*          lv_new_vbeln TYPE vbeln_va.
-*
-*    CLEAR: ls_head_in, ls_head_inx, ls_logic, lt_items_in, lt_items_inx, lt_sch_in, lt_sch_inx, lt_return, lv_new_vbeln.
-*
-*    ls_head_in-doc_type    = gc_auart.
-*    ls_head_in-sales_org   = ls_ref_hdr-vkorg.
-*    ls_head_in-distr_chan  = ls_ref_hdr-vtweg.
-*    ls_head_in-division    = ls_ref_hdr-spart.
-*    ls_head_in-ref_doc     = lv_refdoc.
-*    ls_head_in-refdoc_cat  = 'G'. "contract reference in your scenario
-*    ls_head_in-req_date_h  = ls_input-deliverydate.
-*    ls_head_in-purch_no_c  = ls_input-customerref.
-*
-*    ls_head_inx-updateflag = 'I'.
-*    ls_head_inx-doc_type   = 'X'.
-*    ls_head_inx-sales_org  = 'X'.
-*    ls_head_inx-distr_chan = 'X'.
-*    ls_head_inx-division   = 'X'.
-*    ls_head_inx-ref_doc    = 'X'.
-*    ls_head_inx-refdoc_cat = 'X'.
-*    ls_head_inx-req_date_h = 'X'.
-*    ls_head_inx-purch_no_c = 'X'.
-*
-*    ls_logic-cond_handl = 'X'.
-*
-*    LOOP AT lt_agg INTO DATA(ls_agg).
-*
-*      DATA: ls_item_in  TYPE bapisditm,
-*            ls_item_inx TYPE bapisditmx,
-*            ls_sch1     TYPE bapischdl,
-*            ls_sch1x    TYPE bapischdlx.
-*
-*      CLEAR: ls_item_in, ls_item_inx, ls_sch1, ls_sch1x.
-*
-*      ls_item_in-itm_number = ls_agg-posnr.
-*      ls_item_in-material   = ls_agg-matnr.
-*      ls_item_in-target_qty = ls_agg-qty.
-*      ls_item_in-target_qu  = ls_agg-meins.
-*      ls_item_in-ref_doc    = lv_refdoc.
-*      ls_item_in-ref_doc_it = ls_agg-posnr.
-*      ls_item_in-ref_doc_ca = 'G'.
-*      IF ls_agg-werks IS NOT INITIAL.
-*        ls_item_in-plant = ls_agg-werks.
-*      ENDIF.
-*      APPEND ls_item_in TO lt_items_in.
-*
-*      ls_item_inx-itm_number = ls_agg-posnr.
-*      ls_item_inx-updateflag = 'I'.
-*      ls_item_inx-material   = 'X'.
-*      ls_item_inx-target_qty = 'X'.
-*      ls_item_inx-target_qu  = 'X'.
-*      ls_item_inx-ref_doc    = 'X'.
-*      ls_item_inx-ref_doc_it = 'X'.
-*      ls_item_inx-ref_doc_ca = 'X'.
-*      IF ls_item_in-plant IS NOT INITIAL.
-*        ls_item_inx-plant = 'X'.
-*      ENDIF.
-*      APPEND ls_item_inx TO lt_items_inx.
-*
-*      ls_sch1-itm_number = ls_agg-posnr.
-*      ls_sch1-sched_line = '0001'.
-*      ls_sch1-req_qty    = ls_agg-qty.
-*      ls_sch1-req_date   = ls_input-deliverydate.
-*      APPEND ls_sch1 TO lt_sch_in.
-*
-*      ls_sch1x-itm_number = ls_agg-posnr.
-*      ls_sch1x-sched_line = '0001'.
-*      ls_sch1x-updateflag = 'I'.
-*      ls_sch1x-req_qty    = 'X'.
-*      ls_sch1x-req_date   = 'X'.
-*      APPEND ls_sch1x TO lt_sch_inx.
-*
-*    ENDLOOP.
-*
-*    TRY.
-*        CALL FUNCTION 'BAPI_SALESORDER_CREATEFROMDAT2'
-*          EXPORTING
-*            order_header_in      = ls_head_in
-*            order_header_inx     = ls_head_inx
-*            logic_switch         = ls_logic
-*          IMPORTING
-*            salesdocument        = lv_new_vbeln
-*          TABLES
-*            return               = lt_return
-*            order_items_in       = lt_items_in
-*            order_items_inx      = lt_items_inx
-*            order_schedules_in   = lt_sch_in
-*            order_schedules_inx  = lt_sch_inx
-*            order_partners       = lt_partners_dat2.
-*      CATCH cx_aab_activation.
-*        APPEND VALUE #( %msg = new_message(
-*          id       = sy-msgid
-*          number   = sy-msgno
-*          v1       = sy-msgv1
-*          v2       = sy-msgv2
-*          v3       = sy-msgv3
-*          v4       = sy-msgv4
-*          severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*        failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*        RETURN.
-*    ENDTRY.
-*
-*    IF line_exists( lt_return[ type = 'E' ] ) OR line_exists( lt_return[ type = 'A' ] ) OR lv_new_vbeln IS INITIAL.
-*      LOOP AT lt_return INTO DATA(ls_e1) WHERE type CA 'EA'.
-*        APPEND VALUE #( %msg = new_message(
-*          id       = ls_e1-id
-*          number   = ls_e1-number
-*          v1       = ls_e1-message_v1
-*          v2       = ls_e1-message_v2
-*          v3       = ls_e1-message_v3
-*          v4       = ls_e1-message_v4
-*          severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*      ENDLOOP.
-*      IF lv_new_vbeln IS INITIAL.
-*        APPEND VALUE #( %msg = new_message(
-*          id       = '00'
-*          number   = '001'
-*          v1       = |No document created|
-*          severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*      ENDIF.
-*      failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*      RETURN.
-*    ENDIF.
-*
-*    result = VALUE #(
-*      ( %param = VALUE #(
-*          techkey   = 'X'
-*          vbeln     = lv_new_vbeln
-*          _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Success (DAT2)' ) )
-*      ) )
-*    ).
-*
-*    RETURN.
-*  ENDIF.
-*
-*  "============================================================
-*  " BRANCH B: VBTYP <> 'C' (e.g. 'L') => Generic Sales Doc BAPI
-*  "============================================================
-*  DATA lv_busobj TYPE swo_objtyp.
-*  CLEAR lv_busobj.
-*
-*  CALL FUNCTION 'SD_OBJECT_TYPE_DETERMINE'
-*    EXPORTING
-*      i_document_type   = lv_vbtyp
-*    IMPORTING
-*      e_business_object = lv_busobj.
-*
-*  IF lv_busobj IS INITIAL.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |Cannot determine BOR object for doc category { lv_vbtyp }|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  DATA: ls_head_gen TYPE bapisdhead,
-*        lt_item_gen TYPE STANDARD TABLE OF bapiitemin WITH DEFAULT KEY,
-*        lt_ret2     TYPE bapiret2_tab,
-*        ls_ret1     TYPE bapireturn1,
-*        lv_new_doc  TYPE vbeln_va.
-*
-*  CLEAR: ls_head_gen, lt_item_gen, lt_ret2, ls_ret1, lv_new_doc.
-*
-*  ls_head_gen-doc_type   = gc_auart.
-*  ls_head_gen-sales_org  = ls_ref_hdr-vkorg.
-*  ls_head_gen-distr_chan = ls_ref_hdr-vtweg.
-*  ls_head_gen-division   = ls_ref_hdr-spart.
-*
-*  ls_head_gen-ref_doc    = lv_refdoc.
-*  ls_head_gen-ref_doc_ca = 'G'.  "your reference is contract; adjust if not a contract
-*  ls_head_gen-req_date_h = ls_input-deliverydate.
-*  ls_head_gen-purch_no_c = ls_input-customerref.
-*
-*  LOOP AT lt_agg INTO DATA(ls_agg2).
-*    APPEND VALUE bapiitemin(
-*      itm_number = ls_agg2-posnr
-*      material   = ls_agg2-matnr
-*      target_qty = ls_agg2-qty
-*      target_qu  = ls_agg2-meins
-*      ref_doc    = lv_refdoc
-*      ref_doc_it = ls_agg2-posnr
-*      ref_doc_ca = 'G'
-*      plant      = ls_agg2-werks ) TO lt_item_gen.
-*  ENDLOOP.
-*
-*  TRY.
-*      CALL FUNCTION 'BAPI_SALESDOCU_CREATEFROMDATA'
-*        EXPORTING
-*          order_header_in = ls_head_gen
-*          business_object = lv_busobj
-*          without_commit  = abap_true
-*        IMPORTING
-*          salesdocument   = lv_new_doc
-*          return          = ls_ret1
-*        TABLES
-*          order_items_in  = lt_item_gen
-*          order_partners  = lt_partners_gen.
-*    CATCH cx_sy_assign_error.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = sy-msgid
-*        number   = sy-msgno
-*        v1       = sy-msgv1
-*        v2       = sy-msgv2
-*        v3       = sy-msgv3
-*        v4       = sy-msgv4
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*      failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*      RETURN.
-*  ENDTRY.
-*
-*  "Convert RETURN1 to RAP message
-*  IF ls_ret1-type CA 'EAX' OR lv_new_doc IS INITIAL.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = ls_ret1-id
-*      number   = ls_ret1-number
-*      v1       = ls_ret1-message_v1
-*      v2       = ls_ret1-message_v2
-*      v3       = ls_ret1-message_v3
-*      v4       = ls_ret1-message_v4
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  result = VALUE #(
-*    ( %param = VALUE #(
-*        techkey   = 'X'
-*        vbeln     = lv_new_doc
-*        _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Success (GENERIC)' ) )
-*    ) )
-*  ).
-*
-*ENDMETHOD.
-
-
-
-*METHOD createlanf.
-*
-*  "=============================================================
-*  " Robust create with reference + aggregation + German language
-*  " - Fixes M_/011 by aggregating positions (no duplicate ITM_NUMBER)
-*  " - Fixes V1/761 by choosing correct BAPI depending on VBTYP
-*  " - Fixes V2/157 (missing division text EN) by forcing language = 'D'
-*  "   during BAPI call (your TSPAT is German-only)
-*  "=============================================================
-*
-*  CONSTANTS gc_auart TYPE auart VALUE 'ZLRA'.  "Target doc type
-*
-*  "-----------------------------
-*  " 1) Input
-*  "-----------------------------
-*  DATA ls_key LIKE LINE OF keys.
-*  READ TABLE keys INTO ls_key INDEX 1.
-*  DATA(ls_input) = ls_key-%param.
-*
-*  DATA lv_refdoc TYPE vbeln_va.
-*  lv_refdoc = |{ ls_input-contractvbeln ALPHA = IN }|.
-*
-*  "-----------------------------
-*  " 2) Validate reference document exists + org data
-*  "-----------------------------
-*  DATA ls_ref_hdr TYPE vbak.
-*  SELECT SINGLE *
-*    FROM vbak
-*    WHERE vbeln = @lv_refdoc
-*    INTO @ls_ref_hdr.
-*
-*  IF sy-subrc <> 0.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |Reference document { lv_refdoc } not found|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "-----------------------------
-*  " 3) Determine sales doc category (VBTYP) for target AUART
-*  "-----------------------------
-*  DATA lv_vbtyp TYPE tvak-vbtyp.
-*  SELECT SINGLE vbtyp
-*    FROM tvak
-*    WHERE auart = @gc_auart
-*    INTO @lv_vbtyp.
-*
-*  IF sy-subrc <> 0 OR lv_vbtyp IS INITIAL.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |No VBTYP found for AUART { gc_auart } (TVAK)|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "-----------------------------
-*  " 4) Read reference items for MATNR->POSNR mapping + plant
-*  "-----------------------------
-*  TYPES: BEGIN OF ty_ref_item,
-*           posnr TYPE posnr_va,
-*           matnr TYPE matnr,
-*           werks TYPE werks_d,
-*         END OF ty_ref_item.
-*  DATA lt_ref_items TYPE STANDARD TABLE OF ty_ref_item WITH EMPTY KEY.
-*
-*  SELECT posnr, matnr, werks
-*    FROM vbap
-*    WHERE vbeln = @lv_refdoc
-*    INTO TABLE @lt_ref_items.
-*
-*  IF lt_ref_items IS INITIAL.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |No items found in reference { lv_refdoc }|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "-----------------------------
-*  " 5) Aggregate input positions by reference POSNR (fix M_/011)
-*  "-----------------------------
-*  TYPES: BEGIN OF ty_agg,
-*           posnr TYPE posnr_va,
-*           matnr TYPE matnr,
-*           werks TYPE werks_d,
-*           meins TYPE vrkme,
-*           qty   TYPE kwmeng,
-*         END OF ty_agg.
-*  DATA lt_agg TYPE HASHED TABLE OF ty_agg WITH UNIQUE KEY posnr.
-*  FIELD-SYMBOLS <agg> TYPE ty_agg.
-*
-*  DATA lv_matnr TYPE matnr.
-*
-*  LOOP AT ls_input-_positions INTO DATA(ls_pos) WHERE menge > 0.
-*
-*    lv_matnr = ls_pos-matnr.
-*    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
-*      EXPORTING input  = lv_matnr
-*      IMPORTING output = lv_matnr.
-*
-*    READ TABLE lt_ref_items INTO DATA(ls_ref_it) WITH KEY matnr = lv_matnr.
-*    IF sy-subrc <> 0 OR ls_ref_it-posnr IS INITIAL.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = '00'
-*        number   = '001'gm
-*        v1       = |Material { ls_pos-matnr } not found in reference { lv_refdoc }|
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*      CONTINUE.
-*    ENDIF.
-*
-*    ASSIGN lt_agg[ posnr = ls_ref_it-posnr ] TO <agg>.
-*    IF sy-subrc = 0.
-*      "same ref item occurs again -> sum qty (prevents duplicate ITM_NUMBER)
-*      IF <agg>-meins <> ls_pos-meins.
-*        APPEND VALUE #( %msg = new_message(
-*          id       = '00'
-*          number   = '001'
-*          v1       = |Same item { ls_ref_it-posnr } has different UoM ({ <agg>-meins } vs { ls_pos-meins })|
-*          severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*        CONTINUE.
-*      ENDIF.
-*      <agg>-qty = <agg>-qty + ls_pos-menge.
-*    ELSE.
-*      INSERT VALUE ty_agg(
-*        posnr = ls_ref_it-posnr
-*        matnr = lv_matnr
-*        werks = ls_ref_it-werks
-*        meins = ls_pos-meins
-*        qty   = ls_pos-menge ) INTO TABLE lt_agg.
-*    ENDIF.
-*
-*  ENDLOOP.
-*
-*  IF reported-lanfroot IS NOT INITIAL OR lt_agg IS INITIAL.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "-----------------------------
-*  " 6) Partners from reference
-*  "-----------------------------
-*  DATA lt_partners_dat2 TYPE STANDARD TABLE OF bapiparnr  WITH DEFAULT KEY.
-*  DATA lt_partners_gen  TYPE STANDARD TABLE OF bapipartnr WITH DEFAULT KEY.
-*
-*  SELECT parvw, kunnr
-*    FROM vbpa
-*    WHERE vbeln = @lv_refdoc
-*      AND kunnr <> ''
-*      AND parvw IN ('AG','WE','RE','RG','PY')
-*    INTO TABLE @DATA(lt_vbpa).
-*
-*  lt_partners_dat2 = VALUE #( FOR p IN lt_vbpa ( partn_role = p-parvw partn_numb = p-kunnr ) ).
-*  lt_partners_gen  = VALUE #( FOR p IN lt_vbpa ( partn_role = p-parvw partn_numb = p-kunnr ) ).
-*
-*  "=============================================================
-*  " 7) Force German during BAPI to avoid "Missing text ... language EN"
-*  "=============================================================
-*  DATA(lv_old_langu) = sy-langu.
-*  DATA lv_bapi_langu TYPE sylangu VALUE 'D'.  "German
-*
-*  TRY.
-*      SET LOCALE LANGUAGE lv_bapi_langu.
-*
-*      "=========================================================
-*      " Branch A: VBTYP = 'C' -> use BAPI_SALESORDER_CREATEFROMDAT2
-*      "=========================================================
-*      IF lv_vbtyp = 'C'.
-*
-*        DATA: ls_head_in   TYPE bapisdhd1,
-*              ls_head_inx  TYPE bapisdhd1x,
-*              ls_logic     TYPE bapisdls,
-*              lt_items_in  TYPE bapisditm_tt,
-*              lt_items_inx TYPE bapisditmx_tt,
-*              lt_sch_in    TYPE STANDARD TABLE OF bapischdl  WITH DEFAULT KEY,
-*              lt_sch_inx   TYPE STANDARD TABLE OF bapischdlx WITH DEFAULT KEY,
-*              lt_return    TYPE bapiret2_tab,
-*              lv_new_vbeln TYPE vbeln_va.
-*
-*        CLEAR: ls_head_in, ls_head_inx, ls_logic, lt_items_in, lt_items_inx, lt_sch_in, lt_sch_inx, lt_return, lv_new_vbeln.
-*
-*        ls_head_in-doc_type    = gc_auart.
-*        ls_head_in-sales_org   = ls_ref_hdr-vkorg.
-*        ls_head_in-distr_chan  = ls_ref_hdr-vtweg.
-*        ls_head_in-division    = ls_ref_hdr-spart.
-*        ls_head_in-ref_doc     = lv_refdoc.
-*        ls_head_in-refdoc_cat  = 'G'.
-*        ls_head_in-req_date_h  = ls_input-deliverydate.
-*        ls_head_in-purch_no_c  = ls_input-customerref.
-*
-*        "Set language if component exists
-*        FIELD-SYMBOLS <f> TYPE any.
-*        ASSIGN COMPONENT 'LANGU' OF STRUCTURE ls_head_in TO <f>.
-*        IF sy-subrc = 0. <f> = lv_bapi_langu. ENDIF.
-*
-*        ls_head_inx-updateflag = 'I'.
-*        ls_head_inx-doc_type   = 'X'.
-*        ls_head_inx-sales_org  = 'X'.
-*        ls_head_inx-distr_chan = 'X'.
-*        ls_head_inx-division   = 'X'.
-*        ls_head_inx-ref_doc    = 'X'.
-*        ls_head_inx-refdoc_cat = 'X'.
-*        ls_head_inx-req_date_h = 'X'.
-*        ls_head_inx-purch_no_c = 'X'.
-*
-*        ASSIGN COMPONENT 'LANGU' OF STRUCTURE ls_head_inx TO <f>.
-*        IF sy-subrc = 0. <f> = 'X'. ENDIF.
-*
-*        ls_logic-cond_handl = 'X'.
-*
-*        LOOP AT lt_agg INTO DATA(ls_agg).
-*
-*          DATA: ls_item_in  TYPE bapisditm,
-*                ls_item_inx TYPE bapisditmx,
-*                ls_sch1     TYPE bapischdl,
-*                ls_sch1x    TYPE bapischdlx.
-*
-*          CLEAR: ls_item_in, ls_item_inx, ls_sch1, ls_sch1x.
-*
-*          ls_item_in-itm_number = ls_agg-posnr.
-*          ls_item_in-material   = ls_agg-matnr.
-*          ls_item_in-target_qty = ls_agg-qty.
-*          ls_item_in-target_qu  = ls_agg-meins.
-*          ls_item_in-ref_doc    = lv_refdoc.
-*          ls_item_in-ref_doc_it = ls_agg-posnr.
-*          ls_item_in-ref_doc_ca = 'G'.
-*          IF ls_agg-werks IS NOT INITIAL.
-*            ls_item_in-plant = ls_agg-werks.
-*          ENDIF.
-*          APPEND ls_item_in TO lt_items_in.
-*
-*          ls_item_inx-itm_number = ls_agg-posnr.
-*          ls_item_inx-updateflag = 'I'.
-*          ls_item_inx-material   = 'X'.
-*          ls_item_inx-target_qty = 'X'.
-*          ls_item_inx-target_qu  = 'X'.
-*          ls_item_inx-ref_doc    = 'X'.
-*          ls_item_inx-ref_doc_it = 'X'.
-*          ls_item_inx-ref_doc_ca = 'X'.
-*          IF ls_item_in-plant IS NOT INITIAL.
-*            ls_item_inx-plant = 'X'.
-*          ENDIF.
-*          APPEND ls_item_inx TO lt_items_inx.
-*
-*          ls_sch1-itm_number = ls_agg-posnr.
-*          ls_sch1-sched_line = '0001'.
-*          ls_sch1-req_qty    = ls_agg-qty.
-*          ls_sch1-req_date   = ls_input-deliverydate.
-*          APPEND ls_sch1 TO lt_sch_in.
-*
-*          ls_sch1x-itm_number = ls_agg-posnr.
-*          ls_sch1x-sched_line = '0001'.
-*          ls_sch1x-updateflag = 'I'.
-*          ls_sch1x-req_qty    = 'X'.
-*          ls_sch1x-req_date   = 'X'.
-*          APPEND ls_sch1x TO lt_sch_inx.
-*
-*        ENDLOOP.
-*
-*        CALL FUNCTION 'BAPI_SALESORDER_CREATEFROMDAT2'
-*          EXPORTING
-*            order_header_in      = ls_head_in
-*            order_header_inx     = ls_head_inx
-*            logic_switch         = ls_logic
-*          IMPORTING
-*            salesdocument        = lv_new_vbeln
-*          TABLES
-*            return               = lt_return
-*            order_items_in       = lt_items_in
-*            order_items_inx      = lt_items_inx
-*            order_schedules_in   = lt_sch_in
-*            order_schedules_inx  = lt_sch_inx
-*            order_partners       = lt_partners_dat2.
-*
-*        IF line_exists( lt_return[ type = 'E' ] ) OR line_exists( lt_return[ type = 'A' ] ) OR lv_new_vbeln IS INITIAL.
-*          LOOP AT lt_return INTO DATA(ls_e1) WHERE type CA 'EA'.
-*            APPEND VALUE #( %msg = new_message(
-*              id       = ls_e1-id
-*              number   = ls_e1-number
-*              v1       = ls_e1-message_v1
-*              v2       = ls_e1-message_v2
-*              v3       = ls_e1-message_v3
-*              v4       = ls_e1-message_v4
-*              severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*          ENDLOOP.
-*          failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*          RETURN.
-*        ENDIF.
-*
-*        result = VALUE #(
-*          ( %param = VALUE #(
-*              techkey   = 'X'
-*              vbeln     = lv_new_vbeln
-*              _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Success (DAT2)' ) )
-*          ) )
-*        ).
-*        RETURN.
-*
-*      ENDIF.
-*
-*      "=========================================================
-*      " Branch B: VBTYP <> 'C' (e.g. 'L') -> use generic BAPI
-*      "=========================================================
-*      DATA lv_busobj TYPE swo_objtyp.
-*      CLEAR lv_busobj.
-*
-*      CALL FUNCTION 'SD_OBJECT_TYPE_DETERMINE'
-*        EXPORTING
-*          i_document_type   = lv_vbtyp
-*        IMPORTING
-*          e_business_object = lv_busobj.
-*
-*      IF lv_busobj IS INITIAL.
-*        APPEND VALUE #( %msg = new_message(
-*          id       = '00'
-*          number   = '001'
-*          v1       = |Cannot determine BOR object for VBTYP { lv_vbtyp }|
-*          severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*        failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*        RETURN.
-*      ENDIF.
-*
-*      DATA: ls_head_gen TYPE bapisdhead,
-*            lt_item_gen TYPE STANDARD TABLE OF bapiitemin WITH DEFAULT KEY,
-*            ls_ret1     TYPE bapireturn1,
-*            lv_new_doc  TYPE vbeln_va.
-*
-*      CLEAR: ls_head_gen, lt_item_gen, ls_ret1, lv_new_doc.
-*
-*      ls_head_gen-doc_type   = gc_auart.
-*      ls_head_gen-sales_org  = ls_ref_hdr-vkorg.
-*      ls_head_gen-distr_chan = ls_ref_hdr-vtweg.
-*      ls_head_gen-division   = ls_ref_hdr-spart.
-*      ls_head_gen-ref_doc    = lv_refdoc.
-*      ls_head_gen-ref_doc_ca = 'G'.
-*      ls_head_gen-req_date_h = ls_input-deliverydate.
-*      ls_head_gen-purch_no_c = ls_input-customerref.
-*
-*      "Set language if component exists
-*      FIELD-SYMBOLS <g> TYPE any.
-*      ASSIGN COMPONENT 'LANGU' OF STRUCTURE ls_head_gen TO <g>.
-*      IF sy-subrc = 0. <g> = lv_bapi_langu. ENDIF.
-*
-*      LOOP AT lt_agg INTO DATA(ls_agg2).
-*        APPEND VALUE bapiitemin(
-*          itm_number = ls_agg2-posnr
-*          material   = ls_agg2-matnr
-*          target_qty = ls_agg2-qty
-*          target_qu  = ls_agg2-meins
-*          ref_doc    = lv_refdoc
-*          ref_doc_it = ls_agg2-posnr
-*          ref_doc_ca = 'G'
-*          plant      = ls_agg2-werks ) TO lt_item_gen.
-*      ENDLOOP.
-*
-*      CALL FUNCTION 'BAPI_SALESDOCU_CREATEFROMDATA'
-*        EXPORTING
-*          order_header_in = ls_head_gen
-*          business_object = lv_busobj
-*          without_commit  = abap_true
-*        IMPORTING
-*          salesdocument   = lv_new_doc
-*          return          = ls_ret1
-*        TABLES
-*          order_items_in  = lt_item_gen
-*          order_partners  = lt_partners_gen.
-*
-*      IF lv_new_doc IS INITIAL OR ls_ret1-type CA 'EAX'.
-*        APPEND VALUE #( %msg = new_message(
-*          id       = ls_ret1-id
-*          number   = ls_ret1-number
-*          v1       = ls_ret1-message_v1
-*          v2       = ls_ret1-message_v2
-*          v3       = ls_ret1-message_v3
-*          v4       = ls_ret1-message_v4
-*          severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*        failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*        RETURN.
-*      ENDIF.
-*
-*      result = VALUE #(
-*        ( %param = VALUE #(
-*            techkey   = 'X'
-*            vbeln     = lv_new_doc
-*            _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Success (GENERIC)' ) )
-*        ) )
-*      ).
-*
-**    FINALLY.
-*      "Restore original language
-*      SET LOCALE LANGUAGE lv_old_langu.
-*    ENDTRY.
-*
-*ENDMETHOD.
-
-*METHOD createlanf.
-*
-*  CONSTANTS gc_auart TYPE auart VALUE 'ZLRA'.
-*
-*  "1) Input
-*  READ TABLE keys INTO DATA(ls_key) INDEX 1.
-*  DATA(ls_input) = ls_key-%param.
-*
-*  DATA lv_contract TYPE vbeln_va.
-*  lv_contract = |{ ls_input-contractvbeln ALPHA = IN }|.
-*
-*  "2) Contract header
-*  SELECT SINGLE * FROM vbak
-*    WHERE vbeln = @lv_contract
-*    INTO @DATA(ls_vbak).
-*
-*  IF sy-subrc <> 0.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00' number = '001'
-*      v1       = |Contract { lv_contract } not found|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "3) Contract items
-*  TYPES: BEGIN OF ty_ctr_item,
-*           posnr TYPE posnr_va,
-*           matnr TYPE matnr,
-*           werks TYPE werks_d,
-*           vrkme TYPE vrkme,
-*           pstyv TYPE pstyv,
-*           netpr TYPE netpr,
-*           kpein TYPE kpein,
-*           kmein TYPE kmein,
-*         END OF ty_ctr_item.
-*
-*  DATA lt_ctr_items TYPE STANDARD TABLE OF ty_ctr_item WITH EMPTY KEY.
-*
-*  SELECT posnr, matnr, werks, vrkme, pstyv, netpr, kpein, kmein
-*    FROM vbap
-*    WHERE vbeln = @lv_contract
-*    INTO TABLE @lt_ctr_items.
-*
-*  IF lt_ctr_items IS INITIAL.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00' number = '001'
-*      v1       = |No items found in contract { lv_contract }|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "4) Aggregate input positions by POSNR (we derive POSNR by MATNR mapping)
-*  TYPES: BEGIN OF ty_agg,
-*           posnr TYPE posnr_va,
-*           qty   TYPE kwmeng,
-*         END OF ty_agg.
-*
-*  DATA lt_agg TYPE HASHED TABLE OF ty_agg WITH UNIQUE KEY posnr.
-*  FIELD-SYMBOLS <agg> TYPE ty_agg.
-*
-*  LOOP AT ls_input-_positions INTO DATA(ls_pos) WHERE menge > 0.
-*
-*    DATA lv_matnr  TYPE matnr.
-*    lv_matnr = ls_pos-matnr.
-*    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
-*      EXPORTING input  = lv_matnr
-*      IMPORTING output = lv_matnr.
-*
-*    "Map MATNR -> contract item
-*    READ TABLE lt_ctr_items INTO DATA(ls_ctr) WITH KEY matnr = lv_matnr.
-*    IF sy-subrc <> 0.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = '00' number = '001'
-*        v1       = |Material { ls_pos-matnr } not found in contract { lv_contract }|
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*      CONTINUE.
-*    ENDIF.
-*
-*    "Unit check (optional but recommended)
-*    IF ls_pos-meins IS NOT INITIAL AND ls_ctr-vrkme IS NOT INITIAL AND ls_pos-meins <> ls_ctr-vrkme.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = '00' number = '001'
-*        v1       = |UoM mismatch for { ls_pos-matnr }: input { ls_pos-meins } <> contract { ls_ctr-vrkme }|
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*      CONTINUE.
-*    ENDIF.
-*
-*    ASSIGN lt_agg[ posnr = ls_ctr-posnr ] TO <agg>.
-*    IF sy-subrc = 0.
-*      <agg>-qty = <agg>-qty + ls_pos-menge.
-*    ELSE.
-*      INSERT VALUE ty_agg( posnr = ls_ctr-posnr qty = ls_pos-menge ) INTO TABLE lt_agg.
-*    ENDIF.
-*
-*  ENDLOOP.
-*
-*  IF reported-lanfroot IS NOT INITIAL OR lt_agg IS INITIAL.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "5) Partners from contract
-*  DATA lt_partners TYPE STANDARD TABLE OF bapipartnr WITH DEFAULT KEY.
-*
-*  SELECT parvw, kunnr
-*    FROM vbpa
-*    WHERE vbeln = @lv_contract
-*      AND kunnr <> ''
-*    INTO TABLE @DATA(lt_vbpa).
-*
-*  lt_partners = VALUE #( FOR p IN lt_vbpa ( partn_role = p-parvw partn_numb = p-kunnr ) ).
-*
-*  IF NOT line_exists( lt_partners[ partn_role = 'AG' ] ) AND ls_vbak-kunnr IS NOT INITIAL.
-*    APPEND VALUE bapipartnr( partn_role = 'AG' partn_numb = ls_vbak-kunnr ) TO lt_partners.
-*  ENDIF.
-*
-*  "6) Build BAPI header (CREATEFROMDATA1)
-*  DATA ls_head  TYPE bapisdhead1.
-*  DATA ls_headx TYPE bapisdhead1x.
-*
-*  CLEAR: ls_head, ls_headx.
-*
-*  ls_head-doc_type   = gc_auart.
-*  ls_head-sales_org  = ls_vbak-vkorg.
-*  ls_head-distr_chan = ls_vbak-vtweg.
-*  ls_head-division   = ls_vbak-spart.
-*  ls_head-req_date_h = ls_input-deliverydate.
-*  ls_head-purch_no_c = ls_input-customerref.
-*
-*  ls_head-ref_doc    = lv_contract.
-*  ls_head-ref_doc_cat = 'G'.
-*
-*  ls_headx-updateflag = 'I'.
-*  ls_headx-doc_type   = 'X'.
-*  ls_headx-sales_org  = 'X'.
-*  ls_headx-distr_chan = 'X'.
-*  ls_headx-division   = 'X'.
-*  ls_headx-req_date_h = 'X'.
-*  ls_headx-purch_no_c = 'X'.
-*  ls_headx-ref_doc    = 'X'.
-*  ls_headx-ref_doc_cat = 'X'.
-*
-*  "7) Build items + schedules + conditions
-*  DATA lt_items    TYPE STANDARD TABLE OF bapisditem WITH DEFAULT KEY.
-*  DATA lt_itemsx   TYPE STANDARD TABLE OF bapisditemx WITH DEFAULT KEY.
-*  DATA lt_sched    TYPE STANDARD TABLE OF bapischedule WITH DEFAULT KEY.
-*  DATA lt_schedx   TYPE STANDARD TABLE OF bapischedulex WITH DEFAULT KEY.
-*  DATA lt_cond     TYPE STANDARD TABLE OF bapicondition WITH DEFAULT KEY.
-*  DATA lt_return   TYPE bapiret2_tab.
-*
-*  CLEAR: lt_items, lt_itemsx, lt_sched, lt_schedx, lt_cond, lt_return.
-*
-*  LOOP AT lt_agg INTO DATA(ls_agg).
-*
-*    READ TABLE lt_ctr_items INTO ls_ctr WITH KEY posnr = ls_agg-posnr.
-*    IF sy-subrc <> 0.
-*      CONTINUE.
-*    ENDIF.
-*
-*    "ITEM
-*    DATA ls_item  TYPE bapisditem.
-*    DATA ls_itemx TYPE bapisditemx.
-*    CLEAR: ls_item, ls_itemx.
-*
-*    ls_item-itm_number = ls_ctr-posnr.
-*    ls_item-material   = ls_ctr-matnr.
-*    ls_item-plant      = ls_ctr-werks.
-**    ls_item-item_categ = ls_ctr-pstyv.
-*    ls_item-target_qty = ls_agg-qty.
-*    ls_item-target_qu  = ls_ctr-vrkme.
-*
-*    ls_item-ref_doc    = lv_contract.
-*    ls_item-ref_doc_it = ls_ctr-posnr.
-*    ls_item-ref_doc_ca = 'G'.
-*
-*    APPEND ls_item TO lt_items.
-*
-*    ls_itemx-itm_number = ls_ctr-posnr.
-*    ls_itemx-updateflag = 'I'.
-*    ls_itemx-material   = 'X'.
-*    ls_itemx-plant      = 'X'.
-**    ls_itemx-item_categ = 'X'.
-*    ls_itemx-target_qty = 'X'.
-*    ls_itemx-target_qu  = 'X'.
-*    ls_itemx-ref_doc    = 'X'.
-*    ls_itemx-ref_doc_it = 'X'.
-*    ls_itemx-ref_doc_ca = 'X'.
-*    APPEND ls_itemx TO lt_itemsx.
-*
-*    "SCHEDULE (makes Zielmenge consistent)
-*    DATA ls_sc  TYPE bapischedule.
-*    DATA ls_scx TYPE bapischedulex.
-*    CLEAR: ls_sc, ls_scx.
-*
-*    ls_sc-itm_number = ls_ctr-posnr.
-*    ls_sc-sched_line = '0001'.
-*    ls_sc-req_qty    = ls_agg-qty.
-*    ls_sc-req_date   = ls_input-deliverydate.
-*    APPEND ls_sc TO lt_sched.
-*
-*    ls_scx-itm_number = ls_ctr-posnr.
-*    ls_scx-sched_line = '0001'.
-*    ls_scx-updateflag = 'I'.
-*    ls_scx-req_qty    = 'X'.
-*    ls_scx-req_date   = 'X'.
-*    APPEND ls_scx TO lt_schedx.
-*
-*    "CONDITION: pass net price from contract (fix Nettopreis/Nettowert incompletion)
-*    IF ls_ctr-netpr IS INITIAL.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = '00' number = '001'
-*        v1       = |Contract item { ls_ctr-posnr } has no NETPR -> pricing must be maintained|
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*      CONTINUE.
-*    ENDIF.
-*
-*    DATA lv_pu TYPE kpein.
-*    lv_pu = ls_ctr-kpein.
-*    IF lv_pu IS INITIAL.
-*      lv_pu = 1.
-*    ENDIF.
-*
-*    APPEND VALUE bapicondition(
-*      itm_number = ls_ctr-posnr
-*      cond_st_no = '010'
-*      cond_count = '01'
-*      cond_type  = 'PR00'            "Adjust if your system uses ZPR0, etc.
-*      cond_value = ls_ctr-netpr
-*      currency   = ls_vbak-waerk
-*      cond_p_unt = lv_pu
-*      cond_unit  = COND #( WHEN ls_ctr-kmein IS INITIAL THEN ls_ctr-vrkme ELSE ls_ctr-kmein )
-*    ) TO lt_cond.
-*
-*  ENDLOOP.
-*
-*  IF reported-lanfroot IS NOT INITIAL.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "8) Force German locale (your texts exist only in DE)
-*  DATA(lv_old_langu) = sy-langu.
-*  SET LOCALE LANGUAGE 'D'.
-*
-*  DATA lv_new_doc TYPE bapivbeln-vbeln.
-*
-*  CALL FUNCTION 'BAPI_SALESDOCU_CREATEFROMDATA1'
-*    EXPORTING
-*      sales_header_in   = ls_head
-*      sales_header_inx  = ls_headx
-*      int_number_assignment = space
-*    IMPORTING
-*      salesdocument_ex  = lv_new_doc
-*    TABLES
-*      return              = lt_return
-*      sales_items_in      = lt_items
-*      sales_items_inx     = lt_itemsx
-*      sales_partners      = lt_partners
-*      sales_schedules_in  = lt_sched
-*      sales_schedules_inx = lt_schedx
-*      sales_conditions_in = lt_cond.
-*
-*  SET LOCALE LANGUAGE lv_old_langu.
-*
-*  "9) Handle errors
-*  IF lv_new_doc IS INITIAL OR line_exists( lt_return[ type = 'E' ] ) OR line_exists( lt_return[ type = 'A' ] ).
-*
-*    LOOP AT lt_return INTO DATA(ls_r) WHERE type CA 'EA'.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = ls_r-id
-*        number   = ls_r-number
-*        v1       = ls_r-message_v1
-*        v2       = ls_r-message_v2
-*        v3       = ls_r-message_v3
-*        v4       = ls_r-message_v4
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    ENDLOOP.
-*
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "Success
-*  result = VALUE #(
-*    ( %param = VALUE #(
-*        techkey   = 'X'
-*        vbeln     = lv_new_doc
-*        _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Created successfully' ) )
-*    ) )
-*  ).
-*
-*ENDMETHOD.
-
-
-*METHOD createlanf.
-*
-*  READ TABLE keys INTO DATA(ls_key) INDEX 1.
-*  DATA(ls_input) = ls_key-%param.
-*
-*  DATA lv_contract TYPE vbeln_va.
-*  lv_contract = |{ ls_input-contractvbeln ALPHA = IN }|.
-*
-*  DATA lt_return TYPE bapiret2_tab.
-*  DATA lv_new_so TYPE vbeln_va.
-*
-*  DATA lv_sysmsg TYPE char60.
-*  DATA lv_commmsg TYPE char60.
-*
-*  "RFC loopback call -> separate LUW -> no RAP update-task dump
-*  CALL FUNCTION 'Z_LANF_CREATE_DMREQ_RFC'
-*    DESTINATION 'NONE'
-*    EXPORTING
-*      iv_contract     = lv_contract
-*      iv_deliverydate = ls_input-deliverydate
-*      iv_customerref  = ls_input-customerref
-*      iv_auart        = 'ZLRA'
-*    IMPORTING
-*      ev_vbeln        = lv_new_so
-*    TABLES
-*      it_positions    = ls_input-_positions
-*      et_return       = lt_return
-*    EXCEPTIONS
-*      system_failure        = 1 MESSAGE lv_sysmsg
-*      communication_failure = 2 MESSAGE lv_commmsg
-*      OTHERS                = 3.
-*
-*  IF sy-subrc <> 0.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |RFC call failed: { cond #( when sy-subrc = 1 then lv_sysmsg when sy-subrc = 2 then lv_commmsg else |SUBRC { sy-subrc }| ) }|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "Map BAPI return to RAP messages
-*  IF line_exists( lt_return[ type = 'E' ] ) OR line_exists( lt_return[ type = 'A' ] ).
-*    LOOP AT lt_return INTO DATA(ls_r) WHERE type CA 'EA'.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = ls_r-id
-*        number   = ls_r-number
-*        v1       = ls_r-message_v1
-*        v2       = ls_r-message_v2
-*        v3       = ls_r-message_v3
-*        v4       = ls_r-message_v4
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    ENDLOOP.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "Success -> return VBELN
-*  result = VALUE #(
-*    ( %param = VALUE #(
-*        techkey   = 'X'
-*        vbeln     = lv_new_so
-*        _messages = VALUE #( ( msgid = '00' msgno = '000' msgv1 = 'Created successfully' ) )
-*    ) )
-*  ).
-*
-*ENDMETHOD.
-
-
-
-*METHOD createlanf.
-*
-*  "Incoming call line (static action => usually exactly one)
-*  READ TABLE keys INTO DATA(ls_key) INDEX 1.
-*  DATA(ls_input) = ls_key-%param.
-*
-*  "Use incoming TechKey for response key (important!)
-*  DATA lv_tk TYPE abap_char1.
-*  lv_tk = ls_input-techkey.
-*  IF lv_tk IS INITIAL.
-*    lv_tk = '1'.
-*  ENDIF.
-*
-*  DATA lv_contract  TYPE vbeln_va.
-*  lv_contract = |{ ls_input-contractvbeln ALPHA = IN }|.
-*
-*  "Map deep positions (CDS) -> DDIC table type used by RFC FM
-*  DATA lt_pos_rfc  TYPE zlanf_pos_in_tt.
-*  lt_pos_rfc = VALUE #(
-*    FOR p IN ls_input-_positions
-*    WHERE ( menge > 0 )
-*    ( techkey = lv_tk
-*      matnr   = p-matnr
-*      menge   = p-menge
-*      meins   = p-meins )
-*  ).
-*
-*  IF lt_pos_rfc IS INITIAL.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |No positions with Menge > 0|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  DATA lt_return TYPE bapiret2_tab.
-*  DATA lv_new_so TYPE vbeln_va.
-*  DATA lv_sysmsg  TYPE char60.
-*  DATA lv_commmsg TYPE char60.
-*
-*  "Loopback RFC => separate LUW => avoids RAP update-task dump
-*  CALL FUNCTION 'Z_LANF_CREATE_DMREQ_RFC'
-*    DESTINATION 'NONE'
-*    EXPORTING
-*      iv_contract     = lv_contract
-*      iv_deliverydat  = ls_input-deliverydate     "<<< match your FM name (IV_DELIVERYDAT)
-*      iv_customerref  = ls_input-customerref
-*      iv_auart        = 'ZLRA'
-*    IMPORTING
-*      ev_vbeln        = lv_new_so
-*    TABLES
-*      it_positions    = lt_pos_rfc                "<<< IMPORTANT: mapped DDIC table
-*      et_return       = lt_return
-*    EXCEPTIONS
-*      system_failure        = 1 MESSAGE lv_sysmsg
-*      communication_failure = 2 MESSAGE lv_commmsg
-*      OTHERS                = 3.
-*
-*  IF sy-subrc <> 0.
-*    APPEND VALUE #( %msg = new_message(
-*      id       = '00'
-*      number   = '001'
-*      v1       = |RFC call failed: { COND string(
-*                   WHEN sy-subrc = 1 THEN lv_sysmsg
-*                   WHEN sy-subrc = 2 THEN lv_commmsg
-*                   ELSE |SUBRC { sy-subrc }| ) }|
-*      severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "BAPI errors?
-*  IF lv_new_so IS INITIAL
-*     OR line_exists( lt_return[ type = 'E' ] )
-*     OR line_exists( lt_return[ type = 'A' ] ).
-*
-*    LOOP AT lt_return INTO DATA(ls_r) WHERE type CA 'EA'.
-*      APPEND VALUE #( %msg = new_message(
-*        id       = ls_r-id
-*        number   = ls_r-number
-*        v1       = ls_r-message_v1
-*        v2       = ls_r-message_v2
-*        v3       = ls_r-message_v3
-*        v4       = ls_r-message_v4
-*        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-*    ENDLOOP.
-*
-*    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-*    RETURN.
-*  ENDIF.
-*
-*  "Return value in response (THIS is what fixes value:[])
-*  CLEAR result.
-*
-*  APPEND VALUE #(
-*    %cid   = ls_key-%cid
-*    %param = VALUE #(
-**      techkey = lv_tk
-*      vbeln   = |{ lv_new_so ALPHA = OUT }|
-**      _messages = VALUE #(
-**        "Return BAPI messages (optional)
-**        FOR r IN lt_return
-**        ( techkey = lv_tk
-**          msgid   = r-id
-**          msgno   = r-number
-**          msgty   = r-type
-**          msgv1   = r-message_v1
-**          msgv2   = r-message_v2
-**          msgv3   = r-message_v3
-**          msgv4   = r-message_v4 )
-**      )
-*    )
-*  ) TO result.
-*
-*ENDMETHOD.
-
-
-METHOD createlanf.
-
-  READ TABLE keys INTO DATA(ls_key) INDEX 1.
-  DATA(ls_input) = ls_key-%param.
-
-  DATA lv_contract TYPE vbeln_va.
-  lv_contract = |{ ls_input-contractvbeln ALPHA = IN }|.
-
-  DATA lt_pos_rfc  TYPE zlanf_pos_in_tt.
-  lt_pos_rfc = VALUE #(
-    FOR p IN ls_input-_positions
-    WHERE ( menge > 0 )
-    ( matnr = p-matnr
-      menge = p-menge
-      meins = p-meins )
-  ).
-
-  DATA lt_return  TYPE bapiret2_tab.
-  DATA lv_new_so  TYPE vbeln_va.
-  DATA lv_sysmsg  TYPE char60.
-  DATA lv_commmsg TYPE char60.
-
-  CALL FUNCTION 'Z_LANF_CREATE_DMREQ_RFC'
-    DESTINATION 'NONE'
-    EXPORTING
-      iv_contract     = lv_contract
-      iv_deliverydat  = ls_input-deliverydate
-      iv_customerref  = ls_input-customerref
-      iv_auart        = 'ZLRA'
-    IMPORTING
-      ev_vbeln        = lv_new_so
-    TABLES
-      it_positions    = lt_pos_rfc
-      et_return       = lt_return
-    EXCEPTIONS
-      system_failure        = 1 MESSAGE lv_sysmsg
-      communication_failure = 2 MESSAGE lv_commmsg
-      OTHERS                = 3.
-
-  IF sy-subrc <> 0 OR lv_new_so IS INITIAL
-     OR line_exists( lt_return[ type = 'E' ] )
-     OR line_exists( lt_return[ type = 'A' ] ).
-
-    "you can still report errors via reported-... even if response is VBELN-only
-    LOOP AT lt_return INTO DATA(ls_r) WHERE type CA 'EA'.
-      APPEND VALUE #( %msg = new_message(
-        id       = ls_r-id
-        number   = ls_r-number
-        v1       = ls_r-message_v1
-        v2       = ls_r-message_v2
-        v3       = ls_r-message_v3
-        v4       = ls_r-message_v4
-        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-    ENDLOOP.
-
-    IF sy-subrc <> 0.
-      APPEND VALUE #( %msg = new_message(
-        id       = '00' number = '001'
-        v1       = |RFC failed: { COND string(
-                   WHEN sy-subrc = 1 THEN lv_sysmsg
-                   WHEN sy-subrc = 2 THEN lv_commmsg
-                   ELSE |SUBRC { sy-subrc }| ) }|
-        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-    ENDIF.
-
-    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-    RETURN.
-  ENDIF.
-
-  "Return only VBELN
-  result = VALUE #(
-    ( %cid   = ls_key-%cid
-      %param = VALUE #( vbeln = |{ lv_new_so ALPHA = OUT }| ) )
-  ).
-
-ENDMETHOD.
-
-
-METHOD attachdocument.
-
-  DATA: ls_input         TYPE zi_attach_input,
-        lt_return_attach TYPE bapiret2_tab,
-        lv_vbtyp         TYPE vbak-vbtyp,
-        lv_busobj        TYPE swo_objtyp.
-
-  READ TABLE keys INTO DATA(ls_key) INDEX 1.
-  ls_input = CORRESPONDING #( ls_key-%param ).
-
-  DATA(lv_vbeln) = |{ ls_input-vbeln ALPHA = IN }|.
-
-  " Determine SD doc category (VBTYP)
-  SELECT SINGLE vbtyp FROM vbak
-    WHERE vbeln = @lv_vbeln
-    INTO @lv_vbtyp.
-
-  IF sy-subrc <> 0.
-    APPEND VALUE #( type = 'E' id = '00' number = '001'
-      message = |Sales document { lv_vbeln } not found| ) TO lt_return_attach.
-  ELSE.
-    " Determine correct BOR object for that category (avoids BUS2032/L issue)
-    CALL FUNCTION 'SD_OBJECT_TYPE_DETERMINE'
-      EXPORTING
-        i_document_type   = lv_vbtyp
-      IMPORTING
-        e_business_object = lv_busobj.
-
-
-    " Attach URL as GOS/BDS link
-    CALL FUNCTION 'BDS_BUSINESSDOCUMENT_CRE_O_URL'
-      EXPORTING
-        classname       = lv_busobj
-        classtype       = 'BO'
-        object_key      = lv_vbeln
-        url             = ls_input-url
-        url_description = ls_input-title
-      EXCEPTIONS
-        nothing_found   = 1
-        parameter_error = 2
-        not_allowed     = 3
-        error_kpro      = 4
-        internal_error  = 5
-        OTHERS          = 6.
-
-    IF sy-subrc <> 0.
-      APPEND VALUE #( type = 'E' id = sy-msgid number = sy-msgno
-        message_v1 = sy-msgv1 message_v2 = sy-msgv2 message_v3 = sy-msgv3 message_v4 = sy-msgv4
-        message = |Attach URL failed (SY-SUBRC={ sy-subrc })| ) TO lt_return_attach.
-    ELSE.
-      APPEND VALUE #( type = 'S' id = '00' number = '000'
-        message = |URL attached successfully| ) TO lt_return_attach.
-    ENDIF.
-  ENDIF.
-
-  " Return VBELN + messages
-  result = VALUE #(
-    ( %param = VALUE #(
-*        techkey   = 'X'
-        vbeln     = lv_vbeln
-*        _messages = VALUE #(
-*          FOR r IN lt_return_attach (
-*            techkey = 'X'
-*            msgid   = r-id
-*            msgno   = r-number
-*            msgty   = r-type
-*            msgv1   = r-message_v1
-*            msgv2   = r-message_v2
-*            msgv3   = r-message_v3
-*            msgv4   = r-message_v4 ) )
-
-            ) ) ).
-
-ENDMETHOD.
-
-METHOD map_positions_to_contract.
-
-  SELECT posnr, matnr
-    FROM vbap
-    WHERE vbeln = @iv_contract_vbeln
-    INTO TABLE @DATA(lt_contract_pos).
-
-  LOOP AT it_positions ASSIGNING FIELD-SYMBOL(<pos>) WHERE menge > 0.
-
-    DATA(lv_matnr) = <pos>-matnr.
-    CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
-      EXPORTING input  = lv_matnr
-      IMPORTING output = lv_matnr.
-
-    READ TABLE lt_contract_pos ASSIGNING FIELD-SYMBOL(<contr_pos>)
-      WITH KEY matnr = lv_matnr.
-
-    IF sy-subrc = 0.
-      APPEND VALUE bapisditm(
-        itm_number = <contr_pos>-posnr
-        material   = lv_matnr
-        target_qty = <pos>-menge
-        target_qu  = <pos>-meins
-        ref_doc    = iv_contract_vbeln
-        ref_doc_it = <contr_pos>-posnr
-        ref_doc_ca = 'G' ) TO ct_order_items.
-
-      APPEND VALUE bapisditmx(
-        itm_number = <contr_pos>-posnr
-        updateflag = 'I'
-        material   = 'X'
-        target_qty = 'X'
-        target_qu  = 'X'
-        ref_doc    = 'X'
-        ref_doc_it = 'X'
-        ref_doc_ca = 'X' ) TO ct_order_itemsx.
-    ELSE.
-      APPEND VALUE bapiret2(
-        type   = 'E'
-        id     = '00'
-        number = '001'
-        message = |No position for MATNR { lv_matnr } in contract { iv_contract_vbeln }| ) TO ct_return.
-    ENDIF.
-
-  ENDLOOP.
-
-ENDMETHOD.
-
-
-
-ENDCLASS.
-
-CLASS lsc_zi_lanf_root DEFINITION INHERITING FROM cl_abap_behavior_saver.
-  PROTECTED SECTION.
-
-    METHODS finalize REDEFINITION.
-
-    METHODS check_before_save REDEFINITION.
-
-    METHODS save REDEFINITION.
-
-    METHODS cleanup REDEFINITION.
-
-    METHODS cleanup_finalize REDEFINITION.
-
-ENDCLASS.
-
-CLASS lsc_zi_lanf_root IMPLEMENTATION.
-
-  METHOD finalize.
-  ENDMETHOD.
-
-  METHOD check_before_save.
-  ENDMETHOD.
-
-  METHOD save.
-  ENDMETHOD.
-
-  METHOD cleanup.
-  ENDMETHOD.
-
-  METHOD cleanup_finalize.
-  ENDMETHOD.
-
-ENDCLASS.
+This XML file does not appear to have any style information associated with it. The document tree is shown below.
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" xmlns="http://docs.oasis-open.org/odata/ns/edm" Version="4.0">
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_COMMUNICATION',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.Communication.v1" Alias="Communication"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_PERSONALDATA',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.PersonalData.v1" Alias="PersonalData"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_ANALYTICS',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.Analytics.v1" Alias="Analytics"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_COMMON',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.Common.v1" Alias="SAP__common"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_MEASURES',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="Org.OData.Measures.V1" Alias="SAP__measures"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_CORE',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="Org.OData.Core.V1" Alias="SAP__core"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_CAPABILITIES',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="Org.OData.Capabilities.V1" Alias="SAP__capabilities"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_AGGREGATION',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="Org.OData.Aggregation.V1" Alias="SAP__aggregation"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_VALIDATION',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="Org.OData.Validation.V1" Alias="SAP__validation"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_CODELIST',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.CodeList.v1" Alias="SAP__CodeList"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_UI',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.UI.v1" Alias="SAP__UI"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_HTML5',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.HTML5.v1" Alias="SAP__HTML5"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_PDF',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.PDF.v1" Alias="SAP__PDF"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_SESSION',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.Session.v1" Alias="SAP__session"/>
+</edmx:Reference>
+<edmx:Reference Uri="/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Vocabularies(TechnicalName='%2FIWBEP%2FVOC_HIERARCHY',Version='0001',SAP__Origin='LOCAL')/$value">
+<edmx:Include Namespace="com.sap.vocabularies.Hierarchy.v1" Alias="SAP__hierarchy"/>
+</edmx:Reference>
+<edmx:DataServices>
+<Schema Namespace="com.sap.gateway.srvd_a2x.zsb_lanf_bms_interface_v4.v0001" Alias="SAP__self">
+<Annotation Term="SAP__core.SchemaVersion" String="1.0.0"/>
+<EntityType Name="ZI_LANF_ROOTType">
+<Key>
+<PropertyRef Name="Techkey"/>
+</Key>
+<Property Name="Techkey" Type="Edm.String" Nullable="false" MaxLength="30"/>
+<Property Name="SAP__Messages" Type="Collection(com.sap.gateway.srvd_a2x.zsb_lanf_bms_interface_v4.v0001.SAP__Message)" Nullable="false"/>
+</EntityType>
+<ComplexType Name="ZI_LANF_RESPONSE">
+<Property Name="Vbeln" Type="Edm.String" Nullable="false" MaxLength="10"/>
+</ComplexType>
+<ComplexType Name="ZI_LANF_POSITION_INPUT">
+<Property Name="ContractVbeln" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Property Name="Matnr" Type="Edm.String" Nullable="false" MaxLength="40"/>
+<Property Name="Menge" Type="Edm.Decimal" Nullable="false" Precision="13" Scale="3"/>
+<Property Name="Meins" Type="Edm.String" Nullable="false" MaxLength="3"/>
+</ComplexType>
+<ComplexType Name="SAP__Message">
+<Property Name="code" Type="Edm.String" Nullable="false"/>
+<Property Name="message" Type="Edm.String" Nullable="false"/>
+<Property Name="target" Type="Edm.String"/>
+<Property Name="additionalTargets" Type="Collection(Edm.String)" Nullable="false"/>
+<Property Name="transition" Type="Edm.Boolean" Nullable="false"/>
+<Property Name="numericSeverity" Type="Edm.Byte" Nullable="false"/>
+<Property Name="longtextUrl" Type="Edm.String"/>
+</ComplexType>
+<Action Name="AttachDocument" IsBound="true">
+<Parameter Name="_it" Type="Collection(com.sap.gateway.srvd_a2x.zsb_lanf_bms_interface_v4.v0001.ZI_LANF_ROOTType)" Nullable="false"/>
+<Parameter Name="Vbeln" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Parameter Name="Title" Type="Edm.String" Nullable="false" MaxLength="100"/>
+<Parameter Name="Url" Type="Edm.String" Nullable="false" MaxLength="132"/>
+<ReturnType Type="com.sap.gateway.srvd_a2x.zsb_lanf_bms_interface_v4.v0001.ZI_LANF_RESPONSE" Nullable="false"/>
+</Action>
+<Action Name="CreateLanf" IsBound="true">
+<Parameter Name="_it" Type="Collection(com.sap.gateway.srvd_a2x.zsb_lanf_bms_interface_v4.v0001.ZI_LANF_ROOTType)" Nullable="false"/>
+<Parameter Name="ContractVbeln" Type="Edm.String" Nullable="false" MaxLength="10"/>
+<Parameter Name="DeliveryDate" Type="Edm.Date" Nullable="true"/>
+<Parameter Name="CustomerRef" Type="Edm.String" Nullable="false" MaxLength="35"/>
+<Parameter Name="Description" Type="Edm.String" Nullable="false" MaxLength="225"/>
+<Parameter Name="_Positions" Type="Collection(com.sap.gateway.srvd_a2x.zsb_lanf_bms_interface_v4.v0001.ZI_LANF_POSITION_INPUT)" Nullable="false"/>
+<ReturnType Type="com.sap.gateway.srvd_a2x.zsb_lanf_bms_interface_v4.v0001.ZI_LANF_RESPONSE" Nullable="false"/>
+</Action>
+<EntityContainer Name="Container">
+<EntitySet Name="ZI_LANF_ROOT" EntityType="com.sap.gateway.srvd_a2x.zsb_lanf_bms_interface_v4.v0001.ZI_LANF_ROOTType"/>
+</EntityContainer>
+<Annotations Target="SAP__self.ZI_LANF_POSITION_INPUT/Menge">
+<Annotation Term="SAP__measures.Unit" Path="Meins"/>
+<Annotation Term="SAP__common.Label" String="Target Quantity"/>
+<Annotation Term="SAP__common.QuickInfo" String="Target Quantity in Sales Units"/>
+</Annotations>
+<Annotations Target="SAP__self.ZI_LANF_ROOTType">
+<Annotation Term="SAP__common.Label" String="Root for LANF"/>
+<Annotation Term="SAP__common.Messages" Path="SAP__Messages"/>
+</Annotations>
+<Annotations Target="SAP__self.Container/ZI_LANF_ROOT">
+<Annotation Term="SAP__capabilities.SearchRestrictions">
+<Record>
+<PropertyValue Property="Searchable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.InsertRestrictions">
+<Record>
+<PropertyValue Property="Insertable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.DeleteRestrictions">
+<Record>
+<PropertyValue Property="Deletable" Bool="false"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.UpdateRestrictions">
+<Record>
+<PropertyValue Property="Updatable" Bool="false"/>
+<PropertyValue Property="QueryOptions">
+<Record>
+<PropertyValue Property="SelectSupported" Bool="true"/>
+</Record>
+</PropertyValue>
+</Record>
+</Annotation>
+<Annotation Term="SAP__core.OptimisticConcurrency">
+<Collection/>
+</Annotation>
+</Annotations>
+<Annotations Target="SAP__self.Container">
+<Annotation Term="SAP__aggregation.ApplySupported">
+<Record>
+<PropertyValue Property="Transformations">
+<Collection>
+<String>aggregate</String>
+<String>groupby</String>
+<String>filter</String>
+</Collection>
+</PropertyValue>
+<PropertyValue Property="Rollup" EnumMember="SAP__aggregation.RollupType/None"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__common.ApplyMultiUnitBehaviorForSortingAndFiltering" Bool="true"/>
+<Annotation Term="SAP__capabilities.FilterFunctions">
+<Collection>
+<String>eq</String>
+<String>ne</String>
+<String>gt</String>
+<String>ge</String>
+<String>lt</String>
+<String>le</String>
+<String>and</String>
+<String>or</String>
+<String>contains</String>
+<String>startswith</String>
+<String>endswith</String>
+<String>any</String>
+<String>all</String>
+</Collection>
+</Annotation>
+<Annotation Term="SAP__capabilities.SupportedFormats">
+<Collection>
+<String>application/json</String>
+<String>application/pdf</String>
+</Collection>
+</Annotation>
+<Annotation Term="SAP__PDF.Features">
+<Record>
+<PropertyValue Property="DocumentDescriptionReference" String="../../../../default/iwbep/common/0001/$metadata"/>
+<PropertyValue Property="DocumentDescriptionCollection" String="MyDocumentDescriptions"/>
+<PropertyValue Property="ArchiveFormat" Bool="true"/>
+<PropertyValue Property="Border" Bool="true"/>
+<PropertyValue Property="CoverPage" Bool="true"/>
+<PropertyValue Property="FitToPage" Bool="true"/>
+<PropertyValue Property="FontName" Bool="true"/>
+<PropertyValue Property="FontSize" Bool="true"/>
+<PropertyValue Property="Margin" Bool="true"/>
+<PropertyValue Property="Padding" Bool="true"/>
+<PropertyValue Property="Signature" Bool="true"/>
+<PropertyValue Property="HeaderFooter" Bool="true"/>
+<PropertyValue Property="ResultSizeDefault" Int="20000"/>
+<PropertyValue Property="ResultSizeMaximum" Int="20000"/>
+</Record>
+</Annotation>
+<Annotation Term="SAP__capabilities.KeyAsSegmentSupported"/>
+<Annotation Term="SAP__capabilities.AsynchronousRequestsSupported"/>
+</Annotations>
+<Annotations Target="SAP__self.ZI_LANF_RESPONSE/Vbeln">
+<Annotation Term="SAP__common.Label" String="Sales Document"/>
+<Annotation Term="SAP__common.Heading" String="Sales Doc."/>
+</Annotations>
+<Annotations Target="SAP__self.ZI_LANF_POSITION_INPUT/ContractVbeln">
+<Annotation Term="SAP__common.Label" String="Sales Document"/>
+<Annotation Term="SAP__common.Heading" String="Sales Doc."/>
+</Annotations>
+<Annotations Target="SAP__self.ZI_LANF_POSITION_INPUT/Matnr">
+<Annotation Term="SAP__common.Label" String="Material"/>
+<Annotation Term="SAP__common.QuickInfo" String="Material Number"/>
+</Annotations>
+<Annotations Target="SAP__self.ZI_LANF_POSITION_INPUT/Meins">
+<Annotation Term="SAP__common.Label" String="Base Unit of Measure"/>
+<Annotation Term="SAP__common.Heading" String="BUn"/>
+</Annotations>
+<Annotations Target="SAP__self.SAP__VIRTUAL_CO_TY_2/_Positions/ContractVbeln">
+<Annotation Term="SAP__common.Label" String="Sales Document"/>
+<Annotation Term="SAP__common.Heading" String="Sales Doc."/>
+</Annotations>
+<Annotations Target="SAP__self.SAP__VIRTUAL_CO_TY_2/_Positions/Matnr">
+<Annotation Term="SAP__common.Label" String="Material"/>
+<Annotation Term="SAP__common.QuickInfo" String="Material Number"/>
+</Annotations>
+<Annotations Target="SAP__self.SAP__VIRTUAL_CO_TY_2/_Positions/Menge">
+<Annotation Term="SAP__common.Label" String="Target Quantity"/>
+<Annotation Term="SAP__common.QuickInfo" String="Target Quantity in Sales Units"/>
+<Annotation Term="SAP__measures.Unit" Path="_Positions/Meins"/>
+</Annotations>
+<Annotations Target="SAP__self.SAP__VIRTUAL_CO_TY_2/_Positions/Meins">
+<Annotation Term="SAP__common.Label" String="Base Unit of Measure"/>
+<Annotation Term="SAP__common.Heading" String="BUn"/>
+</Annotations>
+<Annotations Target="SAP__self.AttachDocument(Collection(SAP__self.ZI_LANF_ROOTType))/Vbeln">
+<Annotation Term="SAP__common.Label" String="Sales Document"/>
+<Annotation Term="SAP__common.Heading" String="Sales Doc."/>
+</Annotations>
+<Annotations Target="SAP__self.AttachDocument(Collection(SAP__self.ZI_LANF_ROOTType))/Title">
+<Annotation Term="SAP__common.Label" String="Text"/>
+<Annotation Term="SAP__common.QuickInfo" String="Text (100 characters)"/>
+</Annotations>
+<Annotations Target="SAP__self.AttachDocument(Collection(SAP__self.ZI_LANF_ROOTType))/Url">
+<Annotation Term="SAP__common.Label" String="URL"/>
+<Annotation Term="SAP__common.QuickInfo" String="Uniform resource locator"/>
+</Annotations>
+<Annotations Target="SAP__self.CreateLanf(Collection(SAP__self.ZI_LANF_ROOTType))/ContractVbeln">
+<Annotation Term="SAP__common.Label" String="Sales Document"/>
+<Annotation Term="SAP__common.Heading" String="Sales Doc."/>
+</Annotations>
+<Annotations Target="SAP__self.CreateLanf(Collection(SAP__self.ZI_LANF_ROOTType))/DeliveryDate">
+<Annotation Term="SAP__common.Label" String="Purchase order date"/>
+<Annotation Term="SAP__common.Heading" String="PO date"/>
+</Annotations>
+<Annotations Target="SAP__self.CreateLanf(Collection(SAP__self.ZI_LANF_ROOTType))/CustomerRef">
+<Annotation Term="SAP__common.Label" String="Customer Reference"/>
+</Annotations>
+</Schema>
+</edmx:DataServices>
+</edmx:Edmx>
