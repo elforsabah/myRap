@@ -1,123 +1,177 @@
-METHOD adjusttime.
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: {
+    typeName: 'Service',
+    typeNamePlural: 'Services',
+    title: {
+      type: #STANDARD, value: 'ServiceId'
+    },
+    description: {
+      type: #STANDARD, value: 'ServiceTypeDescription'
+    }
+  },
+  presentationVariant: [{
+    sortOrder: [{
+      by: 'ServiceId', direction:  #DESC
+    }],
+   visualizations: [{ type: #AS_LINEITEM }]
+  }]
+}
 
-    " 1. Loop through the keys (Service Instances)
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
+annotate entity /PLCE/C_PDMNLServiceWR with
+{
 
-      " 2. Check if Extension Record exists
-      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-        ENTITY ExtCustom
-        FIELDS ( ServiceUUID )
-        WITH VALUE #( ( ServiceUUID = <ls_key>-ServiceUUID ) )
-        RESULT DATA(lt_extcustom).
+  @UI.facet: [{
+      id: 'F0_CoreDefault',
+      type: #FIELDGROUP_REFERENCE,
+      targetElement: '_ServiceCore',
+      targetQualifier: 'DefaultInformation'
+    },
+    { 
+      id: 'F1_CoreDefault',
+      type: #FIELDGROUP_REFERENCE,
+      targetElement: '_ServiceCore',
+      targetQualifier: 'GeneralInformation'    
+    },
+    { 
+      id: 'F2_CoreDefault',
+      type: #FIELDGROUP_REFERENCE,
+      targetElement: '_ServiceCore',
+      targetQualifier: 'Location'    
+    },
+    { 
+      id: 'F3_CoreDefault',
+      type: #FIELDGROUP_REFERENCE,
+      targetElement: '_ServiceCore',
+      targetQualifier: 'Scheduling'    
+    },
+    { 
+      id: 'F4_CoreDefault',
+      type: #FIELDGROUP_REFERENCE,
+      targetElement: '_ServiceCore',
+      targetQualifier: 'Admin'    
+    },
+    {
+      id: 'F10_WRDefault',
+      type: #FIELDGROUP_REFERENCE,
+      targetQualifier: 'WR_Default'
+    }]
 
-      IF lt_extcustom IS INITIAL.
-        " 3. Create Extension if missing
-        DATA: lv_cid        TYPE string VALUE '$abap_cid_adj_',
-              lt_ext_create TYPE TABLE FOR CREATE /PLCE/R_PDService\_ExtCustom.
 
-        APPEND INITIAL LINE TO lt_ext_create ASSIGNING FIELD-SYMBOL(<ls_ext_create>).
-        <ls_ext_create>-ServiceUUID = <ls_key>-ServiceUUID.
-        <ls_ext_create>-%target = VALUE #( ( %cid = lv_cid ) ).
 
-        MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-          ENTITY Service
-          CREATE BY \_ExtCustom
-          AUTO FILL CID SET FIELDS WITH lt_ext_create
-          MAPPED DATA(lmapped_create)
-          FAILED DATA(lfailed_create)
-          REPORTED DATA(lreported_create).
-        
-        " Optional: Handle creation errors here if needed
-      ENDIF.
+  @UI: {  lineItem: [ { position: 1 },
+                      { hidden: true },
+                      { type:#FOR_ACTION, dataAction:'AssignTour', label:'Assign Tour', invocationGrouping: #CHANGE_SET },
+                      { type:#FOR_ACTION, dataAction:'CreateTour', label:'Create Tour', invocationGrouping: #CHANGE_SET }                                                                                                         
+//                      { type:#FOR_ACTION, dataAction:'PlanAutomatically', label: 'Auto-Plan', invocationGrouping: #CHANGE_SET}
+                    ] }
+  ServiceUUID;
 
-      " 4. Prepare and Format the Value
-      DATA(lv_raw_input) = <ls_key>-%param-ZeitInMin.
-      DATA(lv_formatted_result) TYPE string.
-      
-      " Normalize input (replace comma with dot for calculation check)
-      DATA(lv_calc_val) TYPE string.
-      lv_calc_val = lv_raw_input.
-      REPLACE ALL OCCURRENCES OF ',' IN lv_calc_val WITH '.'.
-      CONDENSE lv_calc_val NO-GAPS.
-      
-      " Convert to number to check sign (handling potential errors if input is somehow bad)
-      TRY.
-          DATA(lv_number) = CONV decfloat34( lv_calc_val ).
-          
-          IF lv_number > 0.
-             " Positive: Add '+' sign
-             lv_formatted_result = |+{ lv_number } MIN|.
-             
-          ELSEIF lv_number < 0.
-             " Negative: Minus sign is automatic
-             lv_formatted_result = |{ lv_number } MIN|.
-             
-          ELSE.
-             " Zero
-             lv_formatted_result = '0 MIN'.
-          ENDIF.
+  @UI.lineItem: [{ position: 10, importance: #HIGH }]  
+  ReferenceId;
 
-      CATCH cx_sy_conversion_no_number.
-          " Fallback if conversion fails (should be caught by precheck, but safe to handle)
-          lv_formatted_result = |{ lv_raw_input } MIN|. 
-      ENDTRY.
+  @UI.fieldGroup: [{position: 20, qualifier: 'DefaultInformation' }]
+  ServiceId;
+  
+  @UI.fieldGroup: [{position: 50, qualifier: 'DefaultInformation' }]
+  AdditionalText;
 
-      " 5. Update the field with the formatted string
-      MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-        ENTITY ExtCustom
-        UPDATE FIELDS ( zz_timeadjustment )
-        WITH VALUE #( ( %key-ServiceUUID = <ls_key>-ServiceUUID
-                        zz_timeadjustment = lv_formatted_result ) )
-        FAILED DATA(lt_failed_update)
-        REPORTED DATA(lt_reported_update).
+  @UI.lineItem: [{ position: 30, importance: #HIGH, cssDefault.width: '5rem'  }]
+  WorkStatusIcon;
 
-      " 6. Aggregate errors
-      APPEND LINES OF lt_failed_update-extcustom TO failed-extcustom.
-      APPEND LINES OF lt_reported_update-extcustom TO reported-extcustom.
+  @UI.lineItem: [{ position: 40, importance: #HIGH, cssDefault.width: '5rem'  }]
+  ServiceStatusIcon;
 
-      " 7. Read Result to refresh UI
-      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-        ENTITY Service
-        ALL FIELDS WITH CORRESPONDING #( keys )
-        RESULT DATA(lt_service_result).
+  @UI.lineItem: [{ position: 50, importance: #HIGH }]
+  CustomerInfo;
 
-      LOOP AT lt_service_result ASSIGNING FIELD-SYMBOL(<ls_result>).
-        INSERT VALUE #( %tky   = <ls_result>-%tky
-                        %param = <ls_result> ) INTO TABLE result.
-      ENDLOOP.
+  @UI: { lineItem: [{ position: 60, importance: #HIGH }] }
+  FullAddress;
 
-    ENDLOOP.
+  @UI.lineItem: [{ position: 70, importance: #HIGH }]
+  @UI.textArrangement: #TEXT_ONLY
+  ServiceType;
+
+  @UI: { lineItem: [{ position: 80, type: #AS_FIELDGROUP, valueQualifier: 'lfg_containertypeat', label: 'ContType At Loc #'}] }
+  @UI.fieldGroup: [ {qualifier: 'lfg_containertypeat', position: 10 }]  
+  ContainerTypeAtLocation;
+  @UI.lineItem: [{ hidden: true }]
+  @UI.fieldGroup: [ {position: 30, qualifier: 'WR_Default', type: #AS_CONNECTED_FIELDS, valueQualifier: 'cf_containertypeat' }]
+  @UI.connectedFields: [{ qualifier: 'cf_containertypeat', groupLabel: 'Container Type At Location', name: 'containertype',  template: '{containertype_count} {containertype}' }]
+  ContainerTypeAtLocationWiText;
+  @UI.lineItem: [{ hidden: true }]
+  @UI.fieldGroup: [{ qualifier: 'lfg_containertypeat', position: 20 }]
+  @UI.connectedFields: [{ qualifier: 'cf_containertypeat', name: 'containertype_count' }]
+  ContainerAtLocationCount;
+
+
+  @UI: { lineItem: [{ position: 90, type: #AS_FIELDGROUP, valueQualifier: 'lfg_containertypenew', label: 'Container Type New #' }] }
+  @UI.fieldGroup: [ {qualifier: 'lfg_containertypenew', position: 10 }]  
+  ContainerTypeNew;
+  @UI.lineItem: [{ hidden: true }]  
+  @UI.fieldGroup: [{position: 40, qualifier: 'WR_Default', type: #AS_CONNECTED_FIELDS, valueQualifier: 'cf_containertypenew' }]
+  @UI.connectedFields: [{ qualifier: 'cf_containertypenew', groupLabel: 'Container Type New', name: 'containertype',  template: '{containertype_count} {containertype}' }]
+  ContainerTypeNewWithText;
+  @UI.lineItem: [{ hidden: true }]
+  @UI.fieldGroup: [{ qualifier: 'lfg_containertypenew', position: 20 }]
+  @UI.connectedFields: [{ qualifier: 'cf_containertypenew', name: 'containertype_count' }]
+  ContainerNewCount;
+
+  @UI: { lineItem: [{ position: 100, type: #AS_FIELDGROUP, valueQualifier: 'lfg_material', label: 'Material #' }] }
+  @UI.fieldGroup: [{qualifier: 'lfg_material', position: 10 }]    
+  Material;
+  @UI.lineItem: [{ hidden: true }]
+  @UI.fieldGroup: [{position: 50, qualifier: 'WR_Default', type: #AS_CONNECTED_FIELDS, valueQualifier: 'cf_material' }]
+  @UI.connectedFields: [{ qualifier: 'cf_material', groupLabel: 'Material', name: 'material',  template: '{material_weight} {material}' }]
+  MaterialWithText;
+  
+  @UI.fieldGroup: [{position: 51, qualifier: 'WR_Default'  }]  
+  MaterialText;
+  
+  
+  @UI.lineItem: [{ hidden: true }]
+  @UI.fieldGroup: [{ qualifier: 'lfg_material', position: 20 }]
+  @UI.connectedFields: [{ qualifier: 'cf_material', name: 'material_weight' }]
+  MaterialWeight;
+
+  @UI.lineItem: [{ position: 110 }]
+  @UI.selectionField: [{ position: 40 }]
+  MaterialGroup;
+
+  @UI.lineItem: [{ position: 120 }]
+  @UI.selectionField: [{ position: 10 }]
+  RequestedDate;
+
+  @UI.lineItem: [{ position: 130 }]
+  TotalDuration;
+
+  @UI.lineItem: [{ position: 140, criticality: 'PlanningStatusCriticality' }]
+  @UI.selectionField: [{ position: 20 }]
+  PlanningStatus;
+  
+  @UI.lineItem: [{ position: 150 }]
+  TourId;
+  
+  @UI.lineItem: [{ position: 160 }]
+  ServiceFrequencyText;
+  
+  @UI.selectionField: [{ element: '_WorkAreaServices.WorkArea', position : 1 }]
+  _WorkAreaServices;
+  @UI.selectionField: [{ element: '_TourAssignments.TourId', position : 30 }]
+  _TourAssignments;
     
-  ENDMETHOD.
+  @UI.lineItem: [{ hidden: true }]
+  MapTitle;
 
-
-
-
-METHOD precheck_adjusttime.
-
-  LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
-
-    " 1. Get Input
-    DATA(lv_input_str) TYPE string.
-    lv_input_str = <ls_key>-%param-ZeitInMin. 
-
-    " 2. Remove spaces (Crucial for regex)
-    CONDENSE lv_input_str NO-GAPS.
-
-    " 3. Validate Format 
-    " Regex: ^ = Start, -? = Optional Minus, [0-9]+ = Digits, ([.,]...)? = Optional decimals
-    IF NOT matches( val = lv_input_str regex = '^-?[0-9]+([.,][0-9]+)?$' ).
-
-      APPEND VALUE #( %tky = <ls_key>-%tky
-                      %fail-cause = if_abap_behv=>cause-unspecific )
-             TO failed-service.
-
-      APPEND VALUE #( %tky = <ls_key>-%tky
-                      %msg = new_message_with_text(
-                               severity = if_abap_behv_message=>severity-error
-                               text     = 'Invalid format. Use: 45, -45, 15.5' )
-                    ) TO reported-service.
-    ENDIF.
-  ENDLOOP.
-
-ENDMETHOD.
+  @UI.lineItem: [{ hidden: true }]
+  MapPopup;
+ 
+  @UI.lineItem: [{ hidden: true }]
+  MapColor;
+          
+  @UI.lineItem: [{ hidden: true }]
+  MapHighlight;
+           
+  @UI.lineItem: [{ hidden: true }]
+  MapSymbol;
+}
