@@ -1,88 +1,409 @@
-METHOD adjusttime.
+managed implementation in class /plce/bp_r_pdservice unique;
+strict ( 2 );
+extensible
+{
+  with determinations on modify;
+  with validations on save;
+}
+with draft;
 
-    " 1. Read TotalDuration via the Association '_Statistic'
-    "    (The field is not in 'Service', so we must follow the association)
-    READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-      ENTITY Service BY \_Statistic
-      FIELDS ( TotalDuration TotalDurationUnit )
-      WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_statistics)
-      FAILED DATA(lt_failed_read).
+define behavior for /PLCE/R_PDService alias Service
+persistent table /plce/tpdsrv
+draft table /plce/dpdsrv
+lock master total etag LastChangedAt
+authorization master ( global )
+etag master LocalLastChangedAt
+extensible
+{
+  create;
+  update;
+  delete ( features : instance );
 
-    " 2. Loop through the INPUT keys (the user's request)
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
+  field ( readonly, numbering : managed ) ServiceUUID;
 
-      " 3. Find the corresponding Statistic record
-      READ TABLE lt_statistics ASSIGNING FIELD-SYMBOL(<ls_stat>)
-           WITH KEY ServiceUUID = <ls_key>-ServiceUUID.
-      
-      IF sy-subrc <> 0.
-        " Handle error: Statistic record not found
-        APPEND VALUE #( %tky = <ls_key>-%tky
-                        %msg = new_message_with_text( severity = if_abap_behv_message=>severity-error 
-                                                      text = 'Statistic record not found.' ) 
-                      ) TO reported-service.
-        CONTINUE.
-      ENDIF.
+  association _ServiceTask { create ( features : instance ); with draft; }
+  association _Attachments { create; with draft; }
+  association _Notes { create; with draft; }
+  association _StatusHistory { create; with draft; }
 
-      " 4. Parse the Input 
-      "    FIX: Ensure the parameter name matches your Abstract Entity (likely ZeitInMin)
-      DATA(lv_input_str) = CONV string( <ls_key>-%param-ZeitInMin ). 
-      REPLACE ALL OCCURRENCES OF ',' IN lv_input_str WITH '.'.
-      CONDENSE lv_input_str NO-GAPS.
+  association _ExtUniversal { create; with draft; }
+  association _ExtWaste { create; with draft; }
+  association _ExtCustom { create; with draft; }
 
-      DATA(lv_adjustment_min) TYPE decfloat34.
-      TRY.
-          lv_adjustment_min = lv_input_str.
-        CATCH cx_sy_conversion_no_number.
-          CONTINUE. 
-      ENDTRY.
+  action ( features : instance, precheck ) assignTour parameter /PLCE/D_PDTourP result [0..*] $self;
+  //action ( features : instance, precheck ) assignTour parameter /PLCE/D_PDTourP result [1] $self; //error in invoke action edit flow (accepts only 1 result)
+  action ( features : instance, precheck ) createTour parameter /PLCE/D_PDTourCreate result [0..*] $self; ///PLCE/D_PDTourCreate ///PLCE/D_PDTourTemplateP
+  //action ( features : instance ) planAutomatically parameter /PLCE/D_PDSPlanAutomaticallyP; ///PLCE/D_PDPlanAutomaticallyP;
 
-      " 5. Convert Current Duration to Minutes
-      DATA(lv_current_min) TYPE decfloat34.
+  action ( features : instance ) completeService;
+  action ( features : instance ) confirmService;
+//  action ( features : instance ) TransferSequence;
 
-      IF <ls_stat>-TotalDurationUnit = 'H' OR <ls_stat>-TotalDurationUnit = 'HR'.
-        lv_current_min = <ls_stat>-TotalDuration * 60.
-      ELSEIF <ls_stat>-TotalDurationUnit = 'MIN'.
-        lv_current_min = <ls_stat>-TotalDuration.
-      ELSE.
-        " Default to Hours if unit is empty
-        lv_current_min = <ls_stat>-TotalDuration * 60.
-      ENDIF.
+  // internal action - trigger async Complete (no pending deviations / completed workstatus)
+  action ( lock : none ) TryCompleteService;
 
-      " 6. Calculate New Total
-      DATA(lv_new_total_min) = lv_current_min + lv_adjustment_min.
-      IF lv_new_total_min < 0. 
-        lv_new_total_min = 0. 
-      ENDIF.
+  validation validateTasks on save { create; }
 
-      " 7. Convert back to Hours (assuming DB stores Hours)
-      DATA(lv_new_total_h) TYPE p LENGTH 16 DECIMALS 3.
-      lv_new_total_h = lv_new_total_min / 60.
+  determination calc_changed_stamp on save { create; update; delete; }
 
-      " 8. Update the Statistic Entity
-      "    IMPORTANT: You must modify the entity that actually holds the field.
-      "    Check your BDEF to confirm the entity alias (e.g., ServiceStatistic or Statistic).
-      MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-        ENTITY ServiceStatistic 
-        UPDATE FIELDS ( TotalDuration )
-        WITH VALUE #( ( %tky = <ls_stat>-%tky  " Use the key from the statistic record
-                        TotalDuration = lv_new_total_h ) )
-        FAILED DATA(lt_failed_update)
-        REPORTED DATA(lt_reported_update).
+  draft action ( features : instance ) Edit;
+  draft action Activate;
+  draft action Discard;
+  draft action Resume;
 
-      " Aggregate errors
-      APPEND LINES OF lt_failed_update-servicestatistic TO failed-service. 
-      APPEND LINES OF lt_reported_update-servicestatistic TO reported-service.
+  draft determine action Prepare extensible
+  {
+    validation Attachments~validateAttachment;
+    //validation ServiceTask~validateServiceTasks;
+    validation validateTasks;
+  }
 
-    ENDLOOP.
+  determination calculateServiceId on modify { create; }
+  determination setInitialStatus on modify { create; }
+  determination UnassignOnDelete on modify { delete; }
 
-    " 9. Read Result ($self) to refresh UI
-    READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-      ENTITY Service
-      ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_result).
 
-    result = VALUE #( FOR service IN lt_result ( %tky = service-%tky %param = service ) ).
+  mapping for /PLCE/TPDSRV corresponding
+  {
+    ServiceUUID = service_uuid;
+    ServiceId = service_id;
+    Profile = profile;
+    Action = action;
+    ServiceType = service_type;
+    ServiceStatus = service_status;
+    ReferenceId = reference_id;
+    ReferenceInternalId = reference_int_id;
+    ServicePriority = service_priority;
+    PlanningStatus = planning_status;
+    RequestedDate = requested_date;
+    EarliestDate = earliest_date;
+    LatestDate = latest_date;
+    CustomerInfo = customer_info;
+    AdditionalText = additional_text;
+    FunctionalLocation = functional_location;
+    ServiceWindow = service_window;
+    ServiceWindowStartTime = service_window_start;
+    ServiceWindowEndTime = service_window_end;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
 
-  ENDMETHOD.
+define behavior for /PLCE/R_PDServiceTask alias ServiceTask
+persistent table /plce/tpdsrvtsk
+draft table /plce/dpdsrvtsk
+lock dependent by _Service
+authorization dependent by _Service
+extensible
+etag master LocalLastChangedAt
+{
+  update;
+  delete ( features : instance );
+
+  field ( readonly, numbering : managed ) ServiceTaskUUID;
+  field ( readonly ) ServiceUUID;
+  field ( readonly : update ) SequenceNumber;
+
+  association _Service { with draft; }
+  association _ExtUniversal { create; with draft; }
+  association _ExtWaste { create; with draft; }
+  // association _ExtCustom { create; with draft; }
+
+  // remove Tour Task Assignment
+  determination DeactivateOnDelete on modify { delete; }
+
+  // recalculate planning status in service & service task
+  determination CalculatePlanningStatus on modify { field TourUUID; }
+  determination calculateServiceTaskId on modify { create; }
+
+  // TODO review
+
+  //determination calculateServiceStatus on save { create; update; }
+  //determination setStatusCreated on save { create; }
+
+  determination calculateDuration on modify { create; field FunctionalLocationCategory; }
+
+  //determination ClearGeoRoute on save { create; delete; field SequenceNumber; }
+  determination ClearGeoRoute on modify { create; delete; field SequenceNumber; }
+
+  validation validateServiceTasks on save { delete; }
+
+  mapping for /PLCE/TPDSRVTSK corresponding
+  {
+    ServiceTaskUUID = service_task_uuid;
+    ServiceUUID = service_uuid;
+    TourUUID = tour_uuid;
+    ServiceTaskId = service_task_id;
+    TaskType = task_type;
+    SequenceNumber = sequence_number;
+    Duration = duration;
+    DurationUnit = duration_unit;
+    FunctionalLocationCategory = funcloc_Md_category;
+    FunctionalLocation = functional_location;
+    PlanningStatus = planning_status;
+    IsServiceTaskOptional = is_srvc_tsk_optional;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
+
+
+define behavior for /PLCE/R_PDServiceAttachment alias Attachments
+persistent table /plce/tpdsrvattm
+draft table /plce/dpdsrvattm
+lock dependent by _Service
+authorization dependent by _Service
+etag master LocalLastChangedAt
+{
+  field ( readonly ) ServiceUUID;
+  field ( readonly, numbering : managed ) AttachmentUUID;
+  field ( readonly ) CreatedAt, CreatedBy, LastChangedAt, LastChangedBy, LocalLastChangedAt;
+ // field ( mandatory ) Attachment;
+
+  update;
+  delete;
+  association _Service { with draft; }
+
+  validation validateAttachment on save { create; field Attachment; }
+
+  mapping for /plce/tpdsrvattm corresponding
+  {
+    ServiceUUID = service_uuid;
+    AttachmentUUID = attachment_uuid;
+    Comments = comments;
+    Attachment = attachment;
+    MimeType = mimetype;
+    Filename = filename;
+    CreatedByUpload = created_by_upload;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
+
+// Extension Universal
+
+define behavior for /PLCE/R_PDServiceExtUNI alias ExtUniversal implementation in class /plce/bp_r_pdserviceuni unique
+persistent table /plce/tpdsrvuni
+draft table /plce/dpdsrvuni
+lock dependent by _Service
+authorization dependent by _Service
+{
+  field ( readonly ) ServiceUUID;
+
+  update;
+  delete;
+
+  association _Service { with draft; }
+
+  mapping for /plce/tpdsrvuni corresponding
+  {
+    ServiceUUID = service_uuid;
+    Product = product;
+    ProductQuantity = product_quantity;
+    ProductQuantityUnit = product_quantity_unit;
+    Packaging = packaging;
+    PackagingCount = packaging_quantity;
+  }
+}
+
+
+define behavior for /PLCE/R_PDServiceTaskExtUNI alias ExtTaskUniversal implementation in class /plce/bp_r_pdserviceuni unique
+persistent table /plce/tpdstskuni
+draft table /plce/dpdstskuni
+lock dependent by _Service
+authorization dependent by _Service
+{
+  field ( readonly ) ServiceUUID, ServiceTaskUUID;
+
+  update;
+  delete;
+
+  association _ServiceTask { with draft; }
+  association _Service { with draft; }
+
+  mapping for /plce/tpdstskuni corresponding
+  {
+    ServiceTaskUUID = service_task_uuid;
+    Product = product;
+    ProductQuantity = product_quantity;
+    ProductQuantityUnit = product_quantity_unit;
+    Packaging = packaging;
+    PackagingCount = packaging_quantity;
+  }
+}
+
+// Extension Waste
+
+define behavior for /PLCE/R_PDServiceExtWR alias ExtWaste implementation in class /plce/bp_r_pdservicewr unique
+persistent table /plce/tpdsrvwr
+draft table /plce/dpdsrvwr
+lock dependent by _Service
+authorization dependent by _Service
+{
+  field ( readonly ) ServiceUUID;
+
+  update;
+  delete;
+
+  association _Service { with draft; }
+
+//  action ( features : instance ) transfer_sequence ;
+
+  determination UpdatePlantLocation on save { field PlantLocation; }
+
+  mapping for /plce/tpdsrvwr corresponding
+  {
+    ServiceUUID = service_uuid;
+    Material = material;
+    MaterialWeight = material_weight;
+    MaterialWeightUnit = material_weight_unit;
+    PlantLocation = plant_location;
+    ContainerSourceLocation = container_source_location;
+    ContainerFinalLocation = container_final_location;
+    ContainerTypeAtLocation = containertype_atloc;
+    ContainerAtLocationCount = container_atloc_count;
+    ContainerAtLocationTidnr = container_atloc_tidnr;
+    ContainerTypeNew = containertype_new;
+    ContainerNewCount = container_new_count;
+    ContainerNewTidnr = container_new_tidnr;
+    EwcCode = ewc_code;
+    ServiceFrequency = service_freq;
+  }
+}
+
+define behavior for /PLCE/R_PDServiceTaskExtWR alias ExtTaskWaste implementation in class /plce/bp_r_pdservicewr unique
+persistent table /plce/tpdstskwr
+draft table /plce/dpdstskwr
+lock dependent by _Service
+authorization dependent by _Service
+{
+  field ( readonly ) ServiceUUID, ServiceTaskUUID;
+
+  update;
+  delete;
+
+  association _ServiceTask { with draft; }
+  association _Service { with draft; }
+
+  mapping for /plce/tpdstskwr corresponding
+  {
+    ServiceTaskUUID = service_task_uuid;
+    Material = material;
+    MaterialWeight = material_weight;
+    MaterialWeightUnit = material_weight_unit;
+    ContainerType = containertype;
+    ContainerCount = container_count;
+    ContainerTidnr = container_tidnr;
+  }
+}
+
+// Extension Custom
+define behavior for /PLCE/R_PDServiceExtCustom alias ExtCustom
+persistent table /plce/tpdsrvcst
+draft table /plce/dpdsrvcst
+lock dependent by _Service
+authorization dependent by _Service
+extensible
+{
+  field ( readonly ) ServiceUUID;
+
+  update;
+  delete;
+
+  association _Service { with draft; }
+
+  mapping for /plce/tpdsrvcst corresponding extensible
+  {
+    ServiceUUID = service_uuid;
+  }
+}
+//define behavior for /PLCE/R_PDServiceTaskExtCustom alias ExtTaskCustom
+//persistent table /plce/tpdsrvtcst
+//draft table /plce/dpdsrvtcst
+//lock dependent by _Service
+//authorization dependent by _Service
+//extensible
+//{
+//  field ( readonly ) ServiceUUID, ServiceTaskUUID;
+//
+//  update;
+//  delete;
+//
+//  association _ServiceTask { with draft; }
+//  association _Service { with draft; }
+//
+//  mapping for /plce/tpdsrvtcst corresponding extensible
+//  {
+//    ServiceTaskUUID = service_task_uuid;
+//  }
+//}
+
+
+define behavior for /PLCE/R_PDServiceNote alias Notes
+persistent table /plce/tpdsrvnote
+draft table /plce/dpdsrvnote
+lock dependent by _Service
+authorization dependent by _Service
+etag master LocalLastChangedAt
+{
+  field ( readonly ) ServiceUUID;
+  field ( readonly, numbering : managed ) ServiceNoteUUID;
+  field ( readonly ) CreatedAt, CreatedBy, LastChangedAt, LastChangedBy, LocalLastChangedAt;
+
+  update;
+  delete;
+  association _Service { with draft; }
+
+//  validation validateNote on save { create; field ServiceNote; }
+
+  mapping for /plce/tpdsrvnote corresponding
+  {
+    ServiceUUID = service_uuid;
+    ServiceNoteUUID = service_note_uuid;
+    ServiceNote = service_note;
+    ServiceNoteDesc = service_note_text;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
+
+define behavior for /PLCE/R_PDServiceStatusHistory alias StatusHistory
+persistent table /plce/tpdsrvsth
+draft table /plce/dpdsrvsth
+lock dependent by _Service
+authorization dependent by _Service
+//etag master LocalLastChangedAt
+{
+  field ( readonly ) ServiceUUID;
+  field ( readonly, numbering : managed ) UUID;
+  field ( readonly ) CreatedAt, CreatedBy, LastChangedAt, LastChangedBy, LocalLastChangedAt;
+
+  update;
+  delete;
+  association _Service { with draft; }
+
+  mapping for /plce/tpdsrvsth corresponding
+  {
+    ServiceUUID = service_uuid;
+    UUID = uuid;
+    ServiceStatus = service_status;
+    PlanningStatus = planning_status;
+    CreatedBy = created_by;
+    CreatedAt = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
