@@ -1,26 +1,28 @@
-extend view entity /PLCE/C_PDMNLTourWR with {
-   
-   // 1. Used Capacity (Minutes)
-   @ObjectModel.virtualElement: true
-   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_TOUR_EXTEND_CALC'
-   @EndUserText.label: 'Kapazitätsauslastung'
-   virtual tour_capacity_new : abap.dec( 10, 0 ),
+METHOD if_sadl_exit_calc_element_read~calculate.
+    " ... (Previous variable definitions) ...
+    FIELD-SYMBOLS: <lv_set_unit> TYPE any. " <--- Add this
 
-   // 2. Remaining Duration (LINKED TO UNIT)
-   @ObjectModel.virtualElement: true
-   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_TOUR_EXTEND_CALC'
-   @EndUserText.label: 'Restdauer'
-   @Semantics.quantity.unitOfMeasure: 'zz_duration_unit'  // <--- The Link
-   virtual zz_remaining_duration : abap.quan( 10, 0 ),    // <--- Changed to QUAN
+    LOOP AT it_original_data ASSIGNING <ls_orig>.
+      READ TABLE ct_calculated_data ASSIGNING <ls_calc> INDEX sy-tabix.
+      CHECK sy-subrc = 0.
 
-   // 3. New Virtual Unit Field
-   @ObjectModel.virtualElement: true
-   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_TOUR_EXTEND_CALC'
-   @Semantics.unitOfMeasure: true
-   virtual zz_duration_unit : abap.unit( 3 ),             // <--- Holds 'MIN'
+      " ... (Your existing calculation logic for minutes) ...
+      
+      " --- EXISTING ASSIGNMENTS ---
+      ASSIGN COMPONENT 'TOUR_CAPACITY_NEW' OF STRUCTURE <ls_calc> TO <lv_set_cap>.
+      IF sy-subrc = 0. <lv_set_cap> = lv_used_min. ENDIF.
 
-   // 4. Total Duration (Helper)
-   @ObjectModel.virtualElement: true
-   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_TOUR_EXTEND_CALC'
-   virtual tour_duration_min : abap.int4
-}
+      ASSIGN COMPONENT 'ZZ_REMAINING_DURATION' OF STRUCTURE <ls_calc> TO <lv_set_rem>.
+      IF sy-subrc = 0. <lv_set_rem> = lv_remaining_min. ENDIF.
+      
+      ASSIGN COMPONENT 'TOUR_DURATION_MIN' OF STRUCTURE <ls_calc> TO <lv_set_tot>.
+      IF sy-subrc = 0. <lv_set_tot> = lv_total_min. ENDIF.
+
+      " --- NEW: SET THE UNIT TO 'MIN' ---
+      ASSIGN COMPONENT 'ZZ_DURATION_UNIT' OF STRUCTURE <ls_calc> TO <lv_set_unit>.
+      IF sy-subrc = 0. 
+        <lv_set_unit> = 'MIN'. 
+      ENDIF.
+
+    ENDLOOP.
+ENDMETHOD.
