@@ -1,31 +1,28 @@
 METHOD precheck_adjusttime.
 
     LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
-
-      " Get the value
-      DATA(lv_input) = <ls_key>-%param-ZeitInMin. 
       
-      " FIX 1: Remove leading/trailing spaces so regex '$' works correctly
-      CONDENSE lv_input NO-GAPS.
+      " 1. Convert to STRING to handle trailing spaces correctly
+      DATA(lv_input_str) = CONV string( <ls_key>-%param-ZeitInMin ).
+      
+      " 2. Remove all spaces (now the string actually shrinks)
+      CONDENSE lv_input_str NO-GAPS.
 
-      " Regex: Matches numbers like 15, 15.5, or 15,5
-      FIND REGEX '^\d+([.,]\d+)?$' IN lv_input.
+      " 3. Check Regex
+      " Using [0-9] is safer than \d in some ABAP versions
+      " Using matches( ) is cleaner than FIND REGEX for validation
+      IF NOT matches( val = lv_input_str regex = '^[0-9]+([.,][0-9]+)?$' ).
 
-      IF sy-subrc <> 0.
-        " Create Failed Key
         APPEND VALUE #( %tky = <ls_key>-%tky
                         %fail-cause = if_abap_behv=>cause-unspecific )
                TO failed-service.
 
-        " FIX 2: Remove %element. You cannot refer to extension fields in reported-service.
         APPEND VALUE #( %tky = <ls_key>-%tky
                         %msg = new_message_with_text(
                                  severity = if_abap_behv_message=>severity-error
                                  text     = 'Invalid format. Use format 15, 15.5 or 15,5' )
-                        " %element line removed to fix Syntax Error
                       ) TO reported-service.
       ENDIF.
     ENDLOOP.
 
   ENDMETHOD.
-
