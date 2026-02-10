@@ -1,177 +1,79 @@
-@Metadata.layer: #CORE
-@UI: {
-  headerInfo: {
-    typeName: 'Service',
-    typeNamePlural: 'Services',
-    title: {
-      type: #STANDARD, value: 'ServiceId'
-    },
-    description: {
-      type: #STANDARD, value: 'ServiceTypeDescription'
-    }
-  },
-  presentationVariant: [{
-    sortOrder: [{
-      by: 'ServiceId', direction:  #DESC
-    }],
-   visualizations: [{ type: #AS_LINEITEM }]
-  }]
-}
+METHOD adjusttime.
 
-annotate entity /PLCE/C_PDMNLServiceWR with
-{
+    " 1. Read the current TotalDuration from the Service entity
+    READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+      ENTITY Service
+      FIELDS ( TotalDuration TotalDurationUnit )
+      WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_services).
 
-  @UI.facet: [{
-      id: 'F0_CoreDefault',
-      type: #FIELDGROUP_REFERENCE,
-      targetElement: '_ServiceCore',
-      targetQualifier: 'DefaultInformation'
-    },
-    { 
-      id: 'F1_CoreDefault',
-      type: #FIELDGROUP_REFERENCE,
-      targetElement: '_ServiceCore',
-      targetQualifier: 'GeneralInformation'    
-    },
-    { 
-      id: 'F2_CoreDefault',
-      type: #FIELDGROUP_REFERENCE,
-      targetElement: '_ServiceCore',
-      targetQualifier: 'Location'    
-    },
-    { 
-      id: 'F3_CoreDefault',
-      type: #FIELDGROUP_REFERENCE,
-      targetElement: '_ServiceCore',
-      targetQualifier: 'Scheduling'    
-    },
-    { 
-      id: 'F4_CoreDefault',
-      type: #FIELDGROUP_REFERENCE,
-      targetElement: '_ServiceCore',
-      targetQualifier: 'Admin'    
-    },
-    {
-      id: 'F10_WRDefault',
-      type: #FIELDGROUP_REFERENCE,
-      targetQualifier: 'WR_Default'
-    }]
+    LOOP AT lt_services ASSIGNING FIELD-SYMBOL(<ls_service>).
 
+      " 2. Get the input parameter for this specific key
+      READ TABLE keys WITH KEY %tky = <ls_service>-%tky ASSIGNING FIELD-SYMBOL(<ls_key>).
+      CHECK sy-subrc = 0.
 
+      " 3. Parse the Input (ZeitInMinute)
+      " We handle the string conversion here to support inputs like "-15" or "15,5"
+      DATA(lv_input_str) = CONV string( <ls_key>-%param-ZeitInMinute ).
+      REPLACE ALL OCCURRENCES OF ',' IN lv_input_str WITH '.'.
+      CONDENSE lv_input_str NO-GAPS.
 
-  @UI: {  lineItem: [ { position: 1 },
-                      { hidden: true },
-                      { type:#FOR_ACTION, dataAction:'AssignTour', label:'Assign Tour', invocationGrouping: #CHANGE_SET },
-                      { type:#FOR_ACTION, dataAction:'CreateTour', label:'Create Tour', invocationGrouping: #CHANGE_SET }                                                                                                         
-//                      { type:#FOR_ACTION, dataAction:'PlanAutomatically', label: 'Auto-Plan', invocationGrouping: #CHANGE_SET}
-                    ] }
-  ServiceUUID;
+      DATA(lv_adjustment_min) TYPE decfloat34.
+      TRY.
+          lv_adjustment_min = lv_input_str.
+        CATCH cx_sy_conversion_no_number.
+          " Skip invalid numbers (should be caught by precheck, but safe to ignore here)
+          CONTINUE.
+      ENDTRY.
 
-  @UI.lineItem: [{ position: 10, importance: #HIGH }]  
-  ReferenceId;
+      " 4. Convert Current Duration (Hours) to Minutes
+      DATA(lv_current_min) TYPE decfloat34.
 
-  @UI.fieldGroup: [{position: 20, qualifier: 'DefaultInformation' }]
-  ServiceId;
-  
-  @UI.fieldGroup: [{position: 50, qualifier: 'DefaultInformation' }]
-  AdditionalText;
+      " Check Unit: If 'H' or 'HR', multiply by 60. If 'MIN', take as is.
+      IF <ls_service>-TotalDurationUnit = 'H' OR <ls_service>-TotalDurationUnit = 'HR'.
+        lv_current_min = <ls_service>-TotalDuration * 60.
+      ELSEIF <ls_service>-TotalDurationUnit = 'MIN'.
+        lv_current_min = <ls_service>-TotalDuration.
+      ELSE.
+        " Default Fallback: Assume Hours (based on your screenshot 0,283 H)
+        lv_current_min = <ls_service>-TotalDuration * 60.
+      ENDIF.
 
-  @UI.lineItem: [{ position: 30, importance: #HIGH, cssDefault.width: '5rem'  }]
-  WorkStatusIcon;
+      " 5. Calculate New Total in Minutes
+      DATA(lv_new_total_min) = lv_current_min + lv_adjustment_min.
 
-  @UI.lineItem: [{ position: 40, importance: #HIGH, cssDefault.width: '5rem'  }]
-  ServiceStatusIcon;
+      " Optional: Prevent negative duration
+      IF lv_new_total_min < 0.
+        lv_new_total_min = 0.
+      ENDIF.
 
-  @UI.lineItem: [{ position: 50, importance: #HIGH }]
-  CustomerInfo;
+      " 6. Convert back to Hours for storage
+      " (Assuming the field TotalDuration is stored in Hours)
+      DATA(lv_new_total_h) TYPE p LENGTH 16 DECIMALS 3. " Adjust decimals to match your DB field
+      lv_new_total_h = lv_new_total_min / 60.
 
-  @UI: { lineItem: [{ position: 60, importance: #HIGH }] }
-  FullAddress;
+      " 7. Update TotalDuration in Service Entity
+      MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY Service
+        UPDATE FIELDS ( TotalDuration )
+        WITH VALUE #( ( %tky = <ls_service>-%tky
+                        TotalDuration = lv_new_total_h ) )
+        FAILED DATA(lt_failed_update)
+        REPORTED DATA(lt_reported_update).
 
-  @UI.lineItem: [{ position: 70, importance: #HIGH }]
-  @UI.textArrangement: #TEXT_ONLY
-  ServiceType;
+      " Aggregate errors
+      APPEND LINES OF lt_failed_update-service TO failed-service.
+      APPEND LINES OF lt_reported_update-service TO reported-service.
 
-  @UI: { lineItem: [{ position: 80, type: #AS_FIELDGROUP, valueQualifier: 'lfg_containertypeat', label: 'ContType At Loc #'}] }
-  @UI.fieldGroup: [ {qualifier: 'lfg_containertypeat', position: 10 }]  
-  ContainerTypeAtLocation;
-  @UI.lineItem: [{ hidden: true }]
-  @UI.fieldGroup: [ {position: 30, qualifier: 'WR_Default', type: #AS_CONNECTED_FIELDS, valueQualifier: 'cf_containertypeat' }]
-  @UI.connectedFields: [{ qualifier: 'cf_containertypeat', groupLabel: 'Container Type At Location', name: 'containertype',  template: '{containertype_count} {containertype}' }]
-  ContainerTypeAtLocationWiText;
-  @UI.lineItem: [{ hidden: true }]
-  @UI.fieldGroup: [{ qualifier: 'lfg_containertypeat', position: 20 }]
-  @UI.connectedFields: [{ qualifier: 'cf_containertypeat', name: 'containertype_count' }]
-  ContainerAtLocationCount;
+    ENDLOOP.
 
+    " 8. Read Result ($self) to refresh UI
+    READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+      ENTITY Service
+      ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_result).
 
-  @UI: { lineItem: [{ position: 90, type: #AS_FIELDGROUP, valueQualifier: 'lfg_containertypenew', label: 'Container Type New #' }] }
-  @UI.fieldGroup: [ {qualifier: 'lfg_containertypenew', position: 10 }]  
-  ContainerTypeNew;
-  @UI.lineItem: [{ hidden: true }]  
-  @UI.fieldGroup: [{position: 40, qualifier: 'WR_Default', type: #AS_CONNECTED_FIELDS, valueQualifier: 'cf_containertypenew' }]
-  @UI.connectedFields: [{ qualifier: 'cf_containertypenew', groupLabel: 'Container Type New', name: 'containertype',  template: '{containertype_count} {containertype}' }]
-  ContainerTypeNewWithText;
-  @UI.lineItem: [{ hidden: true }]
-  @UI.fieldGroup: [{ qualifier: 'lfg_containertypenew', position: 20 }]
-  @UI.connectedFields: [{ qualifier: 'cf_containertypenew', name: 'containertype_count' }]
-  ContainerNewCount;
+    result = VALUE #( FOR service IN lt_result ( %tky = service-%tky %param = service ) ).
 
-  @UI: { lineItem: [{ position: 100, type: #AS_FIELDGROUP, valueQualifier: 'lfg_material', label: 'Material #' }] }
-  @UI.fieldGroup: [{qualifier: 'lfg_material', position: 10 }]    
-  Material;
-  @UI.lineItem: [{ hidden: true }]
-  @UI.fieldGroup: [{position: 50, qualifier: 'WR_Default', type: #AS_CONNECTED_FIELDS, valueQualifier: 'cf_material' }]
-  @UI.connectedFields: [{ qualifier: 'cf_material', groupLabel: 'Material', name: 'material',  template: '{material_weight} {material}' }]
-  MaterialWithText;
-  
-  @UI.fieldGroup: [{position: 51, qualifier: 'WR_Default'  }]  
-  MaterialText;
-  
-  
-  @UI.lineItem: [{ hidden: true }]
-  @UI.fieldGroup: [{ qualifier: 'lfg_material', position: 20 }]
-  @UI.connectedFields: [{ qualifier: 'cf_material', name: 'material_weight' }]
-  MaterialWeight;
-
-  @UI.lineItem: [{ position: 110 }]
-  @UI.selectionField: [{ position: 40 }]
-  MaterialGroup;
-
-  @UI.lineItem: [{ position: 120 }]
-  @UI.selectionField: [{ position: 10 }]
-  RequestedDate;
-
-  @UI.lineItem: [{ position: 130 }]
-  TotalDuration;
-
-  @UI.lineItem: [{ position: 140, criticality: 'PlanningStatusCriticality' }]
-  @UI.selectionField: [{ position: 20 }]
-  PlanningStatus;
-  
-  @UI.lineItem: [{ position: 150 }]
-  TourId;
-  
-  @UI.lineItem: [{ position: 160 }]
-  ServiceFrequencyText;
-  
-  @UI.selectionField: [{ element: '_WorkAreaServices.WorkArea', position : 1 }]
-  _WorkAreaServices;
-  @UI.selectionField: [{ element: '_TourAssignments.TourId', position : 30 }]
-  _TourAssignments;
-    
-  @UI.lineItem: [{ hidden: true }]
-  MapTitle;
-
-  @UI.lineItem: [{ hidden: true }]
-  MapPopup;
- 
-  @UI.lineItem: [{ hidden: true }]
-  MapColor;
-          
-  @UI.lineItem: [{ hidden: true }]
-  MapHighlight;
-           
-  @UI.lineItem: [{ hidden: true }]
-  MapSymbol;
-}
+  ENDMETHOD.
