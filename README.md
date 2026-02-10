@@ -1,105 +1,110 @@
-@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'P&D Service Statistics'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-  serviceQuality: #D,
-  sizeCategory: #XL,
-  dataClass: #TRANSACTIONAL
-}
-define view entity /PLCE/R_PDServiceStatistic
-  as select from /PLCE/R_PDServiceTask
-{
-  key ServiceUUID,
-      cast( 'H' as abap.unit(3) )                                                                                                                                                          as TotalDurationUnit,
-      @Semantics.quantity.unitOfMeasure: 'TotalDurationUnit'
-      @EndUserText.label: 'Total Duration'
-      cast( sum( unit_conversion( quantity => Duration, source_unit => DurationUnit, target_unit => $projection.TotalDurationUnit, error_handling => 'SET_TO_NULL' ) ) as /plce/duration ) as TotalDuration,
-      count( distinct ServiceTaskUUID )                                                                                                                                                    as TaskCount,
-      sum( case when TourUUID = hextobin('00000000000000000000000000000000') then 1 else 0 end )                                                                                           as PlannedTasks,
-      sum( case when TourUUID = hextobin('00000000000000000000000000000000') then 0 else 1 end )                                                                                           as UnplannedTasks
-}
-group by
-  ServiceUUID
+METHOD adjusttime.
 
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
 
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Planning and Dispatching Service Task'
-@ObjectModel.semanticKey: ['ServiceTaskId']
-@ObjectModel.usageType:{
-  serviceQuality: #D,
-  sizeCategory: #XL,
-  dataClass: #TRANSACTIONAL
-}
-define view entity /PLCE/R_PDServiceTask
-  as select from /plce/tpdsrvtsk
+      " 1. Read the Service Tasks associated with this Service
+      "    We need to update a task to change the total duration.
+      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY Service BY \_ServiceTask
+        FIELDS ( ServiceTaskUUID Duration DurationUnit )
+        WITH VALUE #( ( %tky = <ls_key>-%tky ) )
+        RESULT DATA(lt_tasks)
+        FAILED DATA(lt_failed_read).
 
-  association        to parent /PLCE/R_PDService       as _Service            on  $projection.ServiceUUID = _Service.ServiceUUID
+      IF lt_tasks IS INITIAL.
+        " Error: No tasks found. Cannot adjust duration if there are no tasks.
+        APPEND VALUE #( %tky = <ls_key>-%tky
+                        %msg = new_message_with_text( severity = if_abap_behv_message=>severity-error
+                                                      text = 'No Service Tasks found to adjust.' )
+                      ) TO reported-service.
+        CONTINUE.
+      ENDIF.
 
-  //compositions
-  composition [0..1] of /PLCE/R_PDServiceTaskExtUNI    as _ExtUniversal
-  composition [0..1] of /PLCE/R_PDServiceTaskExtWR     as _ExtWaste
-//  composition [0..1] of /PLCE/R_PDServiceTaskExtCustom as _ExtCustom
+      " 2. Parse the Input (Adjustment in Minutes)
+      DATA(lv_input_str) = CONV string( <ls_key>-%param-ZeitInMin ).
+      REPLACE ALL OCCURRENCES OF ',' IN lv_input_str WITH '.'.
+      CONDENSE lv_input_str NO-GAPS.
 
-  association [0..1] to /PLCE/R_PDTour                 as _Tour               on  $projection.TourUUID = _Tour.TourUUID
-  association [1..1] to /PLCE/R_PDTaskType             as _TaskType           on  $projection.TaskType = _TaskType.TaskType
-  association [1]    to /PLCE/R_PDServiceTask_L        as _ServiceTaskLookup  on  $projection.ServiceTaskUUID = _ServiceTaskLookup.ServiceTaskUUID
-                                                                              and $projection.ServiceUUID     = _ServiceTaskLookup.ServiceUUID
-  association [0..1] to /PLCE/R_PDFunctionalLocation   as _FunctionalLocation on  $projection.FunctionalLocation = _FunctionalLocation.FunctionalLocation
-  association [0..*] to /PLCE/P_PDPlanningStatusT      as _PlanningStatusText on  $projection.PlanningStatus = _PlanningStatusText.Value
+      DATA(lv_adj_min) TYPE decfloat34.
+      TRY.
+          lv_adj_min = lv_input_str.
+        CATCH cx_sy_conversion_no_number.
+          CONTINUE.
+      ENDTRY.
 
-{
-      @Semantics.uuid: true
-  key service_task_uuid      as ServiceTaskUUID,
-      @ObjectModel.foreignKey.association: '_Service'
-      service_uuid           as ServiceUUID,
-      service_task_id        as ServiceTaskId,
-      tour_uuid              as TourUUID,
-      @ObjectModel.foreignKey.association: '_TaskType'
-      @EndUserText.label: 'Task Type'
-      task_type              as TaskType,
-      @EndUserText.label: 'Task Sequence'
-      sequence_number        as SequenceNumber, //todo pruefen -> umbenennen in TaskSequence
-      @Semantics.quantity.unitOfMeasure: 'DurationUnit'
-      duration               as Duration, //todo pruefen
-      @EndUserText.label: 'Duration Unit'
-      duration_unit          as DurationUnit, //todo pruefen
+      " 3. Apply logic to the FIRST task found (Simplest strategy)
+      "    We add the +/- adjustment to this task, which automatically updates the Total Sum.
+      READ TABLE lt_tasks ASSIGNING FIELD-SYMBOL(<ls_task>) INDEX 1.
 
-      @EndUserText.label: 'Functional Location Category'
-      funcloc_md_category    as FunctionalLocationCategory, //todo pruefen, kann raus wenn FL eindeutige Cat.
-      @ObjectModel.foreignKey.association: '_FunctionalLocation'
-      functional_location    as FunctionalLocation,
-      _Service.ServiceStatus as ServiceStatus,
-      planning_status        as PlanningStatus,
-      //planning
-      is_srvc_tsk_optional   as IsServiceTaskOptional,
-      @Semantics.user.createdBy: true
-      @EndUserText.label: 'Created By'
-      created_by             as CreatedBy,
-      @Semantics.systemDateTime.createdAt: true
-      @EndUserText.label: 'Created At'
-      created_at             as CreatedAt,
-      @Semantics.user.lastChangedBy: true
-      @EndUserText.label: 'Last Changed By'
-      last_changed_by        as LastChangedBy,
-      @Semantics.systemDateTime.lastChangedAt: true
-      @EndUserText.label: 'Last Changed At'
-      last_changed_at        as LastChangedAt,
-      @Semantics.systemDateTime.localInstanceLastChangedAt: true
-      @EndUserText.label: 'Local Last Changed At'
-      local_last_changed_at  as LocalLastChangedAt,
+      " Convert Adjustment (Minutes) to Task Unit (usually 'H', 'MIN', etc.)
+      DATA(lv_adj_in_task_unit) TYPE decfloat34.
 
-      //parent association
-      _Service,
-      //compositions
-      _ExtUniversal,
-      _ExtWaste,
-//      _ExtCustom,
+      CASE <ls_task>-DurationUnit.
+        WHEN 'H' OR 'HR'.
+          lv_adj_in_task_unit = lv_adj_min / 60.
+        WHEN 'MIN' OR 'M'.
+          lv_adj_in_task_unit = lv_adj_min.
+        WHEN OTHERS.
+          " Default fallback to Hours if unknown
+          lv_adj_in_task_unit = lv_adj_min / 60.
+      ENDCASE.
 
-      //Association
-      _Tour,
-      _TaskType,
-      _FunctionalLocation,
-      _ServiceTaskLookup,
-      _PlanningStatusText
-}
+      " Calculate New Duration for the Task
+      DATA(lv_new_task_duration) = <ls_task>-Duration + lv_adj_in_task_unit.
+
+      " Prevent negative task duration
+      IF lv_new_task_duration < 0.
+         lv_new_task_duration = 0.
+      ENDIF.
+
+      " 4. UPDATE THE SERVICE TASK (Standard RAP Update)
+      MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY ServiceTask
+        UPDATE FIELDS ( Duration )
+        WITH VALUE #( ( %tky     = <ls_task>-%tky
+                        Duration = lv_new_task_duration ) )
+        FAILED DATA(lt_failed_task)
+        REPORTED DATA(lt_reported_task).
+
+      APPEND LINES OF lt_failed_task-servicetask TO failed-servicetask.
+      APPEND LINES OF lt_reported_task-servicetask TO reported-servicetask.
+
+      " 5. UPDATE CUSTOM FIELD (Display Label: +45 MIN)
+      DATA(lv_display_val) TYPE string.
+      IF lv_adj_min > 0.
+         lv_display_val = |+{ lv_adj_min } MIN|.
+      ELSE.
+         lv_display_val = |{ lv_adj_min } MIN|.
+      ENDIF.
+
+      " Check/Create Extension if missing
+      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY ExtCustom FIELDS ( ServiceUUID )
+        WITH VALUE #( ( ServiceUUID = <ls_key>-ServiceUUID ) )
+        RESULT DATA(lt_extcustom).
+
+      IF lt_extcustom IS INITIAL.
+         MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+           ENTITY Service CREATE BY \_ExtCustom
+           AUTO FILL CID WITH VALUE #( ( ServiceUUID = <ls_key>-ServiceUUID ) )
+           FAILED DATA(lt_failed_create).
+      ENDIF.
+
+      MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY ExtCustom
+        UPDATE FIELDS ( zz_timeadjustment )
+        WITH VALUE #( ( %key-ServiceUUID = <ls_key>-ServiceUUID
+                        zz_timeadjustment = lv_display_val ) )
+        FAILED DATA(lt_failed_upd)
+        REPORTED DATA(lt_reported_upd).
+
+      " 6. REFRESH UI
+      READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY Service ALL FIELDS WITH CORRESPONDING #( keys )
+        RESULT DATA(lt_result).
+
+      result = VALUE #( FOR service IN lt_result ( %tky = service-%tky %param = service ) ).
+
+    ENDLOOP.
+
+  ENDMETHOD.
