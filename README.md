@@ -4,7 +4,7 @@ Runtime Error 	RAISE_SHORTDUMP
 Exception 	CX_SADL_DUMP_APPL_MODEL_ERROR
 Development Object 	CLAS ZCL_WR_TOUR_EXTEND_CALC
 Date/Time 	10.02.2026 15:59:44 (System)
-User 	HWSB10035 (Elvis Mbah Forsab)
+
 Client 	442
 Host 	evhsap-srv08_RI4_01
 What happened?
