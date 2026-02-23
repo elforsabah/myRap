@@ -1,154 +1,75 @@
-CLASS zcl_wr_tour_extend_calc DEFINITION
-  PUBLIC
-  CREATE PUBLIC .
-
-  PUBLIC SECTION.
-    INTERFACES if_sadl_exit .
-    INTERFACES if_sadl_exit_calc_element_read .
-  PROTECTED SECTION.
-  PRIVATE SECTION.
-ENDCLASS.
-
-CLASS ZCL_WR_TOUR_EXTEND_CALC IMPLEMENTATION.
-
+Inhalte
+Kopfinformationen
+Was ist passiert?
+Fehleranalyse
+Informationen zur Abbruchstelle
+Quelltextauszug
+Aktive Aufrufe/Ereignisse
+Kopfinformationen
+Kurztext 	Fehler beim Einfügen bzw. Ändern in einer sortierten Tabelle
+Laufzeitfehler 	ITAB_ILLEGAL_SORT_ORDER
+Programm 	ZCL_WR_TOUR_EXTEND_CALC=======CP
+Datum/Uhrzeit 	23.02.2026 07:15:55 (System)
+Benutzer 	HWSB10035 (Elvis Mbah Forsab)
+Mandant 	442
+Host 	evhsap-srv08_RI4_01
+Was ist passiert?
+Fehler im ABAP-Anwendungsprogramm.
+Das laufende ABAP-Programm "ZCL_WR_TOUR_EXTEND_CALC=======CP" mußte abgebrochen werden, da es auf
+eine Anweisung gestoßen ist, die leider nicht ausgeführt werden kann.
+Fehleranalyse
+In die sortierte interne Tabelle (Typ SORTED_TABLE) sollte an
+Position 1 eine Zeile eingefügt bzw. geändert werden.
+Dadurch wurde die für die Tabelle durch ihren Schlüssel festgelegte
+Sortierreihenfolge zerstört.
+Informationen zur Abbruchstelle
+Der Abbruch trat im ABAP-Programm bzw. Include "ZCL_WR_TOUR_EXTEND_CALC=======CP"
+auf, und zwar in "IF_SADL_EXIT_CALC_ELEMENT_READ~GET_CALCULATION_INFO". Das Hauptprogramm war "SAPMHTTP".
+Im Quelltext befindet sich die Abbruchstelle in Zeile 4
+des Includes "ZCL_WR_TOUR_EXTEND_CALC=======CM001".
+Quelltextauszug
+1
+2
+3
+>
+5
+6
   METHOD if_sadl_exit_calc_element_read~get_calculation_info.
     " Request the base Tour fields needed for math and matching
-    APPEND 'TOURUUID'     TO et_requested_orig_elements.
+    APPEND 'TOURUUID' TO et_requested_orig_elements.
     APPEND 'TOURDURATION' TO et_requested_orig_elements.
-    APPEND 'DRIVINGTIME'  TO et_requested_orig_elements.
+    APPEND 'DRIVINGTIME' TO et_requested_orig_elements.
   ENDMETHOD.
-
-  METHOD if_sadl_exit_calc_element_read~calculate.
-    " -------------------------------------------------------------------------
-    " 1. Data Declarations
-    " -------------------------------------------------------------------------
-    TYPES: BEGIN OF ty_tour_key,
-             touruuid TYPE sysuuid_x16,
-           END OF ty_tour_key.
-
-    TYPES: BEGIN OF ty_service_data,
-             touruuid             TYPE sysuuid_x16,
-             totalserviceduration TYPE p LENGTH 10 DECIMALS 2,
-             totaltimeadjustment  TYPE p LENGTH 10 DECIMALS 2,
-           END OF ty_service_data.
-
-    DATA: lt_tour_keys   TYPE STANDARD TABLE OF ty_tour_key,
-          ls_tour_key    TYPE ty_tour_key,
-          lt_service_agg TYPE STANDARD TABLE OF ty_service_data.
-
-    DATA: lv_tour_uuid    TYPE sysuuid_x16,
-          lv_tour_dur_h   TYPE p LENGTH 10 DECIMALS 2,
-          lv_driving_h    TYPE p LENGTH 10 DECIMALS 2,
-          
-          lv_tour_dur_min TYPE p LENGTH 10 DECIMALS 0,
-          lv_driving_min  TYPE p LENGTH 10 DECIMALS 0,
-          
-          lv_svc_dur_h    TYPE p LENGTH 10 DECIMALS 2,
-          lv_svc_dur_min  TYPE p LENGTH 10 DECIMALS 0,
-          lv_svc_adj_min  TYPE p LENGTH 10 DECIMALS 0,
-          
-          lv_new_dur_min  TYPE p LENGTH 10 DECIMALS 0,
-          lv_rem_min      TYPE p LENGTH 10 DECIMALS 0.
-
-    FIELD-SYMBOLS: <ls_orig>      TYPE any,
-                   <ls_calc>      TYPE any,
-                   <lv_val_uuid>  TYPE any,
-                   <lv_val_dur>   TYPE any,
-                   <lv_val_drive> TYPE any,
-                   
-                   <lv_set_cap>   TYPE any,
-                   <lv_set_rem>   TYPE any,
-                   <lv_set_tot>   TYPE any,
-                   <lv_set_unit>  TYPE any.
-
-    " -------------------------------------------------------------------------
-    " 2. Collect all Tour UUIDs for our fast DB query
-    " -------------------------------------------------------------------------
-    LOOP AT it_original_data ASSIGNING <ls_orig>.
-      ASSIGN COMPONENT 'TOURUUID' OF STRUCTURE <ls_orig> TO <lv_val_uuid>.
-      IF sy-subrc = 0 AND <lv_val_uuid> IS NOT INITIAL.
-        ls_tour_key-touruuid = <lv_val_uuid>.
-        APPEND ls_tour_key TO lt_tour_keys.
-      ENDIF.
-    ENDLOOP.
-
-    " Remove duplicates to make the query even faster
-    SORT lt_tour_keys BY touruuid.
-    DELETE ADJACENT DUPLICATES FROM lt_tour_keys COMPARING touruuid.
-
-    " -------------------------------------------------------------------------
-    " 3. Fetch Aggregated Service Data from our new CDS View
-    " -------------------------------------------------------------------------
-    IF lt_tour_keys IS NOT INITIAL.
-      SELECT TourUUID, 
-             TotalServiceDuration, 
-             TotalTimeAdjustment
-        FROM zi_tour_svc_sum_wr   " <--- Must match your new CDS view name
-        FOR ALL ENTRIES IN @lt_tour_keys
-        WHERE TourUUID = @lt_tour_keys-touruuid
-        INTO TABLE @lt_service_agg.
-    ENDIF.
-
-    " -------------------------------------------------------------------------
-    " 4. Perform math and assign to virtual fields row-by-row
-    " -------------------------------------------------------------------------
-    LOOP AT it_original_data ASSIGNING <ls_orig>.
-      READ TABLE ct_calculated_data ASSIGNING <ls_calc> INDEX sy-tabix.
-      CHECK sy-subrc = 0.
-
-      " --- A. Get Tour Fields ---
-      ASSIGN COMPONENT 'TOURUUID'     OF STRUCTURE <ls_orig> TO <lv_val_uuid>.
-      ASSIGN COMPONENT 'TOURDURATION' OF STRUCTURE <ls_orig> TO <lv_val_dur>.
-      ASSIGN COMPONENT 'DRIVINGTIME'  OF STRUCTURE <ls_orig> TO <lv_val_drive>.
-
-      IF sy-subrc <> 0. CONTINUE. ENDIF.
-      
-      lv_tour_uuid  = <lv_val_uuid>.
-      lv_tour_dur_h = COND #( WHEN <lv_val_dur> IS ASSIGNED THEN <lv_val_dur> ELSE 0 ).
-      lv_driving_h  = COND #( WHEN <lv_val_drive> IS ASSIGNED THEN <lv_val_drive> ELSE 0 ).
-
-      " --- B. Convert Tour fields to Minutes ---
-      lv_tour_dur_min = lv_tour_dur_h * 60.
-      lv_driving_min  = lv_driving_h * 60.
-
-      " --- C. Read pre-aggregated Service Data from our DB result ---
-      READ TABLE lt_service_agg INTO DATA(ls_agg) WITH KEY touruuid = lv_tour_uuid.
-      IF sy-subrc = 0.
-        lv_svc_dur_h   = ls_agg-totalserviceduration.
-        lv_svc_adj_min = ls_agg-totaltimeadjustment. " Already in minutes
-      ELSE.
-        CLEAR: lv_svc_dur_h, lv_svc_adj_min.
-      ENDIF.
-      
-      " Convert Service TotalDuration to Minutes
-      lv_svc_dur_min = lv_svc_dur_h * 60.
-
-      " --- D. THE MATH ---
-      " 1. NewDuration = TotalDuration(Min) + DrivingTime(Min) + zz_timeadjustment(Min)
-      lv_new_dur_min = lv_svc_dur_min + lv_driving_min + lv_svc_adj_min.
-
-      " 2. Remaining = TourDuration(Min) - NewDuration
-      lv_rem_min = lv_tour_dur_min - lv_new_dur_min.
-
-      " --- E. Map to UI Virtual Fields ---
-      
-      " Map 1: tour_capacity_new = NewDuration
-      ASSIGN COMPONENT 'TOUR_CAPACITY_NEW' OF STRUCTURE <ls_calc> TO <lv_set_cap>.
-      IF sy-subrc = 0. <lv_set_cap> = lv_new_dur_min. ENDIF.
-
-      " Map 2: tour_duration_min = TourDuration (Target for Progress Bar)
-      ASSIGN COMPONENT 'TOUR_DURATION_MIN' OF STRUCTURE <ls_calc> TO <lv_set_tot>.
-      IF sy-subrc = 0. <lv_set_tot> = lv_tour_dur_min. ENDIF.
-
-      " Map 3: zz_remaining_duration = Remaining Time
-      ASSIGN COMPONENT 'ZZ_REMAINING_DURATION' OF STRUCTURE <ls_calc> TO <lv_set_rem>.
-      IF sy-subrc = 0. <lv_set_rem> = lv_rem_min. ENDIF.
-
-      " Map 4: Force Unit to 'MIN' for the UI
-      ASSIGN COMPONENT 'ZZ_DURATION_UNIT' OF STRUCTURE <ls_calc> TO <lv_set_unit>.
-      IF sy-subrc = 0. <lv_set_unit> = 'MIN'. ENDIF.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-ENDCLASS.
+Aktive Aufrufe/Ereignisse
+Nr.	Ereignis	Programm	Include	Zeile
+31	IF_SADL_EXIT_CALC_ELEMENT_READ~GET_CALCULATION_INFO	ZCL_WR_TOUR_EXTEND_CALC=======CP	ZCL_WR_TOUR_EXTEND_CALC=======CM001	4
+30	CALL_ADJUST_REQUESTED_EXIT	CL_SADL_EXIT_HANDLER==========CP	CL_SADL_EXIT_HANDLER==========CM00N	7
+29	ADJUST_REQUESTED_SINGLE_LEVEL	CL_SADL_EXIT_HANDLER==========CP	CL_SADL_EXIT_HANDLER==========CM016	20
+28	ADJUST_REQUESTED	CL_SADL_EXIT_HANDLER==========CP	CL_SADL_EXIT_HANDLER==========CM002	20
+27	_APPLY_ELEMENT_EXITS_PRE_QUERY	CL_SADL_ABQI==================CP	CL_SADL_ABQI==================CM02D	26
+26	HANDLE_PATHS_AND_PRE_SEL_EXITS	CL_SADL_ABQI==================CP	CL_SADL_ABQI==================CM02O	53
+25	_SELECT	CL_SADL_ABQI==================CP	CL_SADL_ABQI==================CM01G	26
+24	IF_SADL_ABQI~SELECT	CL_SADL_ABQI==================CP	CL_SADL_ABQI==================CM004	114
+23	IF_SADL_QUERY_FETCH~FETCH	CL_SADL_ENTITY_RUNTIME========CP	CL_SADL_ENTITY_RUNTIME========CM002	22
+22	_GET_ENTITYSET_VIA_FETCH	CL_SADL_GW_ODATA_RUNTIME======CP	CL_SADL_GW_ODATA_RUNTIME======CM00R	54
+21	IF_SADL_GW_ODATA_RUNTIME~GET_ENTITY_SET	CL_SADL_GW_ODATA_RUNTIME======CP	CL_SADL_GW_ODATA_RUNTIME======CM001	9
+20	IF_SADL_GW_V4_GENERIC_DPC~READ_ENTITY_LIST	CL_SADL_GW_V4_GENERIC_DPC=====CP	CL_SADL_GW_V4_GENERIC_DPC=====CM00G	49
+19	/IWBEP/IF_V4_DP_ADVANCED~READ_ENTITY_LIST	CL_SADL_GW_V4_DPC_ADAPTER=====CP	CL_SADL_GW_V4_DPC_ADAPTER=====CM004	23
+18	EXECUTE_BATCH_OPERATION	/IWBEP/CL_V4_ABS_DATA_PROVIDERCP	/IWBEP/CL_V4_ABS_DATA_PROVIDERCM01O	35
+17	/IWBEP/IF_V4_DP_BATCH~PROCESS_BATCH	/IWBEP/CL_V4_ABS_DATA_PROVIDERCP	/IWBEP/CL_V4_ABS_DATA_PROVIDERCM01K	46
+16	/IWBEP/IF_V4_DP_BATCH~PROCESS_BATCH	CL_SADL_GW_V4_DPC_ADAPTER=====CP	CL_SADL_GW_V4_DPC_ADAPTER=====CM01T	4
+15	/IWBEP/IF_V4_DATA_PROVIDER_FW~PROCESS_BATCH	/IWBEP/CL_V4_DP_PROXY=========CP	/IWBEP/CL_V4_DP_PROXY=========CM006	50
+14	/IWBEP/IF_V4_DATA_PROVIDER_FW~PROCESS_BATCH	/IWBEP/CL_V4_LOCAL_DP_PROXY===CP	/IWBEP/CL_V4_LOCAL_DP_PROXY===CM009	5
+13	/IWCOR/IF_OD_PROC_BATCH~EXECUTE	/IWBEP/CL_OD_PROCESSOR========CP	/IWBEP/CL_OD_PROCESSOR========CM00B	234
+12	PROCESS_BATCH	/IWCOR/CL_OD_PROC_DISPATCHER==CP	/IWCOR/CL_OD_PROC_DISPATCHER==CM00F	26
+11	/IWCOR/IF_OD_PROCESSOR~PROCESS	/IWCOR/CL_OD_PROC_DISPATCHER==CP	/IWCOR/CL_OD_PROC_DISPATCHER==CM005	125
+10	DISPATCH	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM004	255
+9	DISPATCH	/IWBEP/CL_OD_ROOT_HANDLER=====CP	/IWBEP/CL_OD_ROOT_HANDLER=====CM003	124
+8	HANDLE_WITH_MODE	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM00L	209
+7	/IWCOR/IF_REST_HANDLER~HANDLE	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM00F	3
+6	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWCOR/CL_REST_HTTP_HANDLER===CP	/IWCOR/CL_REST_HTTP_HANDLER===CM001	121
+5	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWBEP/CL_OD_HTTP_REQ_HANDLER=CP	/IWBEP/CL_OD_HTTP_REQ_HANDLER=CM007	70
+4	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWBEP/CL_OD_ICF_HANDLER======CP	/IWBEP/CL_OD_ICF_HANDLER======CM001	39
+3	EXECUTE_REQUEST	CL_HTTP_SERVER================CP	CL_HTTP_SERVER================CM00D	814
+2	HTTP_DISPATCH_REQUEST	SAPLHTTP_RUNTIME	LHTTP_RUNTIMEU02	1655
+1	%_HTTP_START	SAPMHTTP	SAPMHTTP	12
