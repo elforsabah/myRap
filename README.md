@@ -14,17 +14,14 @@ CLASS zcl_wr_tour_extend_calc IMPLEMENTATION.
   METHOD if_sadl_exit_calc_element_read~get_calculation_info.
     " Request the base Tour fields needed for math and matching
     APPEND 'DRIVINGTIME'             TO et_requested_orig_elements.
-     " --- NEW: Request the MaximumTourDuration and its Unit ---
     APPEND 'MAXIMUMTOURDURATION'     TO et_requested_orig_elements.
     APPEND 'MAXIMUMTOURDURATIONUNIT' TO et_requested_orig_elements.
     APPEND 'TOURCAPACITY'            TO et_requested_orig_elements.
     APPEND 'TOURDURATION'            TO et_requested_orig_elements.
     APPEND 'TOURUUID'                TO et_requested_orig_elements.
-
-
   ENDMETHOD.
 
-    METHOD if_sadl_exit_calc_element_read~calculate.
+  METHOD if_sadl_exit_calc_element_read~calculate.
     " -------------------------------------------------------------------------
     " 1. Data Declarations
     " -------------------------------------------------------------------------
@@ -154,12 +151,19 @@ CLASS zcl_wr_tour_extend_calc IMPLEMENTATION.
       lv_svc_dur_min = lv_svc_dur_h * 60.
 
       " --- D. THE MATH ---
-      " 1. NewDuration = Service Duration(Min) + DrivingTime(Min) + Adjustment(Min)
-      lv_new_dur_min = lv_svc_dur_min + lv_driving_min + lv_svc_adj_min.
+      IF lv_max_dur_min = 0.
+        " If Maximum Duration is 0, force everything to 0 for a clean '0 von 0' UI
+        lv_new_dur_min  = 0.
+        lv_rem_min      = 0.
+        lv_tour_dur_min = 0. " Overwrites target to 0
+      ELSE.
+        " 1. NewDuration = Service Duration(Min) + DrivingTime(Min) + Adjustment(Min)
+        lv_new_dur_min = lv_svc_dur_min + lv_driving_min + lv_svc_adj_min.
 
-      " 2. Remaining = Maximum Duration(Min) - NewDuration
-      " (This correctly caps the available time to the Maximum Duration)
-      lv_rem_min = lv_max_dur_min - lv_new_dur_min.
+        " 2. Remaining = Maximum Duration(Min) - NewDuration
+        " (This correctly caps the available time to the Maximum Duration)
+        lv_rem_min = lv_max_dur_min - lv_new_dur_min.
+      ENDIF.
 
       " --- E. Map to UI Virtual Fields ---
 
@@ -182,8 +186,6 @@ CLASS zcl_wr_tour_extend_calc IMPLEMENTATION.
       " Map 5: MaximumTourDuration_Converted
       ASSIGN COMPONENT 'MAXIMUMTOURDURATION_CONVERTED' OF STRUCTURE <ls_calc> TO <lv_set_max_conv>.
       IF sy-subrc = 0. <lv_set_max_conv> = lv_max_dur_min. ENDIF.
-
     ENDLOOP.
-
   ENDMETHOD.
 ENDCLASS.
