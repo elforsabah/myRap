@@ -1,48 +1,58 @@
-METHOD if_sadl_exit_calc_element_read~get_calculation_info.
-    " Request the real numeric field so we can format it
-    APPEND 'ZZ_TIMEADJUSTMENT' TO et_requested_orig_elements.
-    " (Append any other fields you need for service_criticality, etc.)
-  ENDMETHOD.
+class ZCL_WR_SERVICE_EXTEND_CALC definition
+  public
+  create public .
 
-  METHOD if_sadl_exit_calc_element_read~calculate.
-    DATA: lv_time_num TYPE i,
-          lv_time_str TYPE string.
+public section.
 
-    FIELD-SYMBOLS: <ls_orig>        TYPE any,
-                   <ls_calc>        TYPE any,
-                   <lv_val_num>     TYPE any,
-                   <lv_set_display> TYPE any.
+  interfaces IF_SADL_EXIT .
+  interfaces IF_SADL_EXIT_CALC_ELEMENT_READ .
+protected section.
+private section.
+ENDCLASS.
 
-    LOOP AT it_original_data ASSIGNING <ls_orig>.
-      READ TABLE ct_calculated_data ASSIGNING <ls_calc> INDEX sy-tabix.
-      CHECK sy-subrc = 0.
 
-      " ... (Your existing logic for service_criticality) ...
 
-      " 1. Read the pure number from the database
-      ASSIGN COMPONENT 'ZZ_TIMEADJUSTMENT' OF STRUCTURE <ls_orig> TO <lv_val_num>.
-      IF sy-subrc = 0 AND <lv_val_num> IS NOT INITIAL.
-        lv_time_num = <lv_val_num>.
-      ELSE.
-        lv_time_num = 0.
-      ENDIF.
+CLASS ZCL_WR_SERVICE_EXTEND_CALC IMPLEMENTATION.
 
-      " 2. Format the string for the UI (+37 MIN, -15 MIN, etc.)
-      IF lv_time_num > 0.
-        " Add the plus sign for positive numbers
-        lv_time_str = |+{ lv_time_num } MIN|.
-      ELSEIF lv_time_num < 0.
-        " Minus sign is automatically handled by the number, just add MIN
-        lv_time_str = |{ lv_time_num } MIN|.
-      ELSE.
-        lv_time_str = |0 MIN|.
-      ENDIF.
 
-      " 3. Map the formatted string to the Virtual Field for the UI
-      ASSIGN COMPONENT 'ZZ_TIMEADJUST_DISPLAY' OF STRUCTURE <ls_calc> TO <lv_set_display>.
+METHOD if_sadl_exit_calc_element_read~calculate.
+  FIELD-SYMBOLS: <ls_original>            TYPE any,
+                 <ls_calculated>          TYPE any,
+                 <lv_refid>               TYPE any,
+                 <lv_service_criticality> TYPE int1,
+                 <lv_reactiontime>        TYPE zwr_d_ewmd_reactiontime.
+
+  CLEAR ct_calculated_data.
+  DATA lv_test TYPE string.
+  LOOP AT it_original_data ASSIGNING <ls_original>.
+    APPEND INITIAL LINE TO ct_calculated_data ASSIGNING <ls_calculated>.
+    MOVE-CORRESPONDING <ls_original> TO <ls_calculated>.
+
+    ASSIGN COMPONENT 'REFERENCEID' OF STRUCTURE <ls_original> TO <lv_refid>.
+    IF sy-subrc = 0.
+      DATA lv_reactiontime TYPE zwr_d_ewmd_reactiontime.
+*
+*      " Fetch via compliant CDS (not direct table)
+      SELECT SINGLE reaction_time  " aliased field for ZZPOINT_ORIGIN_WDOI
+        FROM zi_wr_ewa_order_object
+        WHERE referenceid = @<lv_refid>
+        INTO @lv_reactiontime.
       IF sy-subrc = 0.
-        <lv_set_display> = lv_time_str.
+        " Map to 1 (red/critical if replanned) or 0 (neutral) — fixed reversed logic
+        ASSIGN COMPONENT 'SERVICE_CRITICALITY' OF STRUCTURE <ls_calculated> TO <lv_service_criticality>.
+        IF sy-subrc = 0.
+          <lv_service_criticality> = COND #( WHEN lv_reactiontime IS NOT INITIAL THEN 1 ELSE 0 ).
+        ENDIF.
       ENDIF.
+    ENDIF.
+  ENDLOOP.
+  
+ENDMETHOD.
 
-    ENDLOOP.
-  ENDMETHOD.
+
+  method IF_SADL_EXIT_CALC_ELEMENT_READ~GET_CALCULATION_INFO.
+   " Request fields needed for calculations (case-sensitive CDS names)
+    APPEND 'REFERENCEID' TO et_requested_orig_elements.
+
+  endmethod.
+ENDCLASS.
