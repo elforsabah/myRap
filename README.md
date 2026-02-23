@@ -1,4 +1,4 @@
- METHOD adjusttime.
+METHOD adjusttime.
     " 1. Loop through the keys (Service Instances)
     LOOP AT keys ASSIGNING FIELD-SYMBOL(<ls_key>).
 
@@ -29,45 +29,36 @@
         " Optional: Handle creation errors here if needed
       ENDIF.
 
-      " 4. Prepare and Format the Value
+      " ====================================================================
+      " 4. Prepare the Numeric Value (String formatting removed!)
+      " ====================================================================
       DATA(lv_raw_input) = <ls_key>-%param-ZeitInMin.
-      DATA lv_formatted_result TYPE string.
+      
+      " Assuming your DB field is now an INT4. If it's a DEC, change TYPE i to TYPE p.
+      DATA lv_numeric_result TYPE i. 
 
-      " Normalize input (replace comma with dot for calculation check)
+      " Normalize input (replace comma with dot if user typed "37,5")
       DATA lv_calc_val TYPE string.
       lv_calc_val = lv_raw_input.
       REPLACE ALL OCCURRENCES OF ',' IN lv_calc_val WITH '.'.
       CONDENSE lv_calc_val NO-GAPS.
 
-      " Convert to number to check sign (handling potential errors if input is somehow bad)
+      " Safely convert the input to a pure number
       TRY.
-          DATA(lv_number) = CONV decfloat34( lv_calc_val ).
-
-          IF lv_number > 0.
-             " Positive: Add '+' sign
-             lv_formatted_result = |+{ lv_number } MIN|.
-
-          ELSEIF lv_number < 0.
-             " Negative: Minus sign is automatic
-             lv_formatted_result = |{ lv_number } MIN|.
-
-          ELSE.
-             " Zero
-*             lv_formatted_result = '0 MIN'.
-             lv_formatted_result = ' '.
-          ENDIF.
-
+          lv_numeric_result = CONV i( lv_calc_val ).
       CATCH cx_sy_conversion_no_number.
-          " Fallback if conversion fails (should be caught by precheck, but safe to handle)
-          lv_formatted_result = |{ lv_raw_input } MIN|.
+          " Fallback if the user typed garbage text instead of a number
+          lv_numeric_result = 0. 
       ENDTRY.
 
-      " 5. Update the field with the formatted string
+      " ====================================================================
+      " 5. Update the field with the PURE NUMBER
+      " ====================================================================
       MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
         ENTITY ExtCustom
         UPDATE FIELDS ( zz_timeadjustment )
         WITH VALUE #( ( %key-ServiceUUID = <ls_key>-ServiceUUID
-                        zz_timeadjustment = lv_formatted_result ) )
+                        zz_timeadjustment = lv_numeric_result ) ) " <--- Pure Number
         FAILED DATA(lt_failed_update)
         REPORTED DATA(lt_reported_update).
 
