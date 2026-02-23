@@ -1,11 +1,1 @@
-METHOD if_sadl_exit_calc_element_read~get_calculation_info.
-    " Request the base Tour fields needed for math and matching
-    INSERT 'DRIVINGTIME'             INTO TABLE et_requested_orig_elements.
-    INSERT 'TOURCAPACITY'            INTO TABLE et_requested_orig_elements.
-    INSERT 'TOURDURATION'            INTO TABLE et_requested_orig_elements.
-    INSERT 'TOURUUID'                INTO TABLE et_requested_orig_elements.
-    
-    " --- NEW: Request the MaximumTourDuration and its Unit ---
-    INSERT 'MAXIMUMTOURDURATION'     INTO TABLE et_requested_orig_elements.
-    INSERT 'MAXIMUMTOURDURATIONUNIT' INTO TABLE et_requested_orig_elements.
-  ENDMETHOD.
+<img width="1379" height="796" alt="image" src="https://github.com/user-attachments/assets/cc00bd4b-b699-4225-a8f3-99143f5c3298" />
