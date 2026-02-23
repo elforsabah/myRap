@@ -1,4 +1,4 @@
-@EndUserText.label: 'Tour WR'
+git@EndUserText.label: 'Tour WR'
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 @Search.searchable: true
 @Metadata.allowExtensions: true
@@ -395,3 +395,166 @@ define root view entity /PLCE/C_PDMNLServiceWR
 
 }
 
+
+@Metadata.layer: #CUSTOMER
+@UI: {
+lineItem: [{ criticality: 'service_criticality' }]
+}
+annotate entity /PLCE/C_PDMNLServiceWR with
+
+{
+  @UI.lineItem: [
+     { position: 190, importance: #HIGH },
+     {
+       type                : #FOR_ACTION,
+       dataAction          : 'assignworkarea',   // bound action name
+       label               : 'Arbeitsbereich zuweisen',
+       iconUrl: 'sap-icon://wrench',
+  //      requiresSelection   : false,              // => global action
+       invocationGrouping  : #CHANGE_SET,        // optional
+       emphasized          : true,               // optional
+       position            : 100,
+       importance          : #HIGH
+
+     },
+     
+     { 
+       type                : #FOR_ACTION,
+       dataAction          : 'adjusttime',   // bound action name
+       label               : 'Zeitanpassung ändern',
+       iconUrl: 'sap-icon://wrench',
+//        requiresSelection   : false,              // => global action
+       invocationGrouping  : #CHANGE_SET,        // optional
+       emphasized          : true,               // optional
+       position            : 100,
+       importance          : #HIGH
+       
+     }
+   ]
+   
+  
+  @EndUserText.label: 'Fachbereich'
+  @UI.selectionField: [{position: 20}]
+  @Consumption.valueHelpDefinition: [
+    {
+      entity         : { name: 'ZZPD_WORKREA_VH', element: 'WorkArea' },
+      label          : 'Workarea',
+      useForValidation: true
+    }
+  ]
+  zz_tech_fachbe;
+  @EndUserText.label: 'Termin-Diskrepanz'
+  zz_discrepancy; // Termin-Diskrepanz
+  @EndUserText.label: 'Reaktionszeit'
+  zz_reactiontime; // “Reaktionszeit
+  @EndUserText.label: 'Fahrzeuginfo'
+  zz_vehicleinfo;  // Fahrzeuginfo
+  @EndUserText.label: 'Zeitanpassung in Min'
+  @UI.lineItem: [{ position: 131, importance: #HIGH } ]
+  zz_timeadjustment; // Zeitanpassung
+  @UI.hidden: true
+  service_criticality;
+  
+}
+
+@Metadata.layer: #PARTNER
+
+annotate entity /PLCE/C_PDMNLTourWR
+    with 
+{
+    @UI.lineItem: [{ position: 1 },
+                 { hidden: true },
+                { type:#FOR_ACTION, dataAction:'GenerateGeoRoute', label:'Calculate Track', invocationGrouping: #CHANGE_SET, position: 40  },
+                 { type:#FOR_ACTION, dataAction:'releaseTour', label:'Tour Freigeben', invocationGrouping: #CHANGE_SET, position: 30  },
+                 { type:#FOR_ACTION, dataAction:'recallTour', label:'Tour zurück rufen', invocationGrouping: #CHANGE_SET, position: 25 },
+                 { type:#FOR_ACTION, dataAction:'createtour', label:'Tour anlegen', invocationGrouping: #CHANGE_SET, position: 10 },
+                 { type:#FOR_ACTION, dataAction:'deleteTour', label:'Tour Löschen', invocationGrouping: #CHANGE_SET, position: 20 },
+                 { type:#FOR_ACTION, dataAction:'SequenceAutomated', label: 'Tour automatisch ordnen', position: 50 },
+                 { type:#FOR_ACTION, dataAction:'TransferSequence', label:'Servicereihfolge übertragen', invocationGrouping: #CHANGE_SET, position: 70 },
+                 { type:#FOR_ACTION, dataAction:'GenerateGeoRoute', label:'Calculate Track', invocationGrouping: #CHANGE_SET, qualifier: 'DefaultMap' }
+                 
+                 
+               ]                             
+//   
+   @UI.hidden: true
+    TourUUID; 
+ 
+    // Remaining Duration (e.g. 280)
+  @EndUserText.label: 'Restdauer(freie Kapazität)'
+  @UI.lineItem: [{ position: 101, importance: #HIGH }]  
+  zz_remaining_duration;
+ 
+  // Capacity Used (e.g. 230)
+  @EndUserText.label: 'Kapazitätsauslastung(in Min)'
+  @UI.lineItem: [
+    { position: 102, type: #AS_DATAPOINT, label: 'Kapazitätsauslastung(in Min)', importance: #HIGH },
+    { position: 50,  type: #AS_DATAPOINT, label: 'Kapazitätsauslastung(in Min)', importance: #HIGH, qualifier: 'DefaultMap' }
+  ]
+  @UI.dataPoint: {
+    visualization: #PROGRESS,
+    // Compares 230 (Used Min) vs 510 (Total Min)
+    targetValueElement: 'tour_duration_min', 
+    criticality: 'TourCapacityColorValue'
+  }
+  @UI.fieldGroup: [{position: 110, qualifier: 'DefaultInformation', type: #AS_DATAPOINT }]
+  tour_capacity_new;
+  
+  @UI.hidden: true
+  tour_duration_min;
+  
+  @UI.hidden: true
+  @UI.lineItem: [{ position: 450, importance: #HIGH }] 
+  TourDuration;
+  
+  @UI.hidden: true
+  @UI.lineItem: [{ position: 451, importance: #HIGH }] 
+  TourCapacity;
+}
+
+
+extend view entity /PLCE/C_PDMNLTourWR with {
+//   /PLCE/R_PDTour._ExtCustom.zz_remaining_duration, // Restdauer
+   
+ 
+   // 1. Used Capacity (MUST BE DEC FOR PROGRESS BAR TO WORK)
+   @ObjectModel.virtualElement: true
+   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_TOUR_EXTEND_CALC'
+   @EndUserText.label: 'Kapazitätsauslastung'
+ 
+//   @UI.hidden: true
+   virtual tour_capacity_new : abap.dec( 10, 0 ), 
+
+   // 2. Total Duration (TARGET - Link Unit HERE)
+   @ObjectModel.virtualElement: true
+   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_TOUR_EXTEND_CALC'
+   @Semantics.quantity.unitOfMeasure: 'zz_duration_unit' 
+//   @UI.hidden: true
+   virtual tour_duration_min : abap.quan( 10, 0 ),      
+
+   // 3. Unit Field (Holds 'MIN')
+   @ObjectModel.virtualElement: true
+   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_TOUR_EXTEND_CALC'
+   @Semantics.unitOfMeasure: true
+   @UI.hidden: true
+   virtual zz_duration_unit : abap.unit( 3 ),
+
+   // 4. Remaining Duration (Standard display)
+   @ObjectModel.virtualElement: true
+   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_TOUR_EXTEND_CALC'
+   @EndUserText.label: 'Restdauer'
+   @Semantics.quantity.unitOfMeasure: 'zz_duration_unit'
+//   @UI.hidden: true
+   virtual zz_remaining_duration : abap.quan( 10, 0 )
+}
+ 
+    
+extend view entity /PLCE/C_PDMNLServiceWR with {
+   /PLCE/R_PDService._ExtCustom.zz_tech_fachbe, //as Fachberei
+   /PLCE/R_PDService._ExtCustom.zz_discrepancy,  // Termin-Diskrepanz
+   
+   @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_SERVICE_EXTEND_CALC'  // Reference your new class
+   virtual service_criticality : abap.int1,
+   /PLCE/R_PDService._ExtCustom.zz_reactiontime, // “Reaktionszeit
+   /PLCE/R_PDService._ExtCustom.zz_vehicleinfo,  // Fahrzeuginfo
+   /PLCE/R_PDService._ExtCustom.zz_timeadjustment // Zeitanpassung
+}
