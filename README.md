@@ -13,10 +13,14 @@ CLASS zcl_wr_tour_extend_calc IMPLEMENTATION.
 
   METHOD if_sadl_exit_calc_element_read~get_calculation_info.
     " Request the base Tour fields needed for math and matching
-    append 'DRIVINGTIME'  TO et_requested_orig_elements.
-    append 'TOURCAPACITY'  TO  et_requested_orig_elements.
-    append 'TOURDURATION' TO et_requested_orig_elements.
-    append 'TOURUUID'     TO et_requested_orig_elements.
+    APPEND 'DRIVINGTIME'             TO et_requested_orig_elements.
+    APPEND 'TOURCAPACITY'            TO et_requested_orig_elements.
+    APPEND 'TOURDURATION'            TO et_requested_orig_elements.
+    APPEND 'TOURUUID'                TO et_requested_orig_elements.
+    
+    " --- NEW: Request the MaximumTourDuration and its Unit ---
+    APPEND 'MAXIMUMTOURDURATION'     TO et_requested_orig_elements.
+    APPEND 'MAXIMUMTOURDURATIONUNIT' TO et_requested_orig_elements.
   ENDMETHOD.
 
   METHOD if_sadl_exit_calc_element_read~calculate.
@@ -49,18 +53,28 @@ CLASS zcl_wr_tour_extend_calc IMPLEMENTATION.
           lv_svc_adj_min  TYPE p LENGTH 10 DECIMALS 0,
 
           lv_new_dur_min  TYPE p LENGTH 10 DECIMALS 0,
-          lv_rem_min      TYPE p LENGTH 10 DECIMALS 0.
+          lv_rem_min      TYPE p LENGTH 10 DECIMALS 0,
+          
+          " --- NEW: Variable for Maximum Tour Duration ---
+          lv_max_dur      TYPE p LENGTH 10 DECIMALS 3.
 
-    FIELD-SYMBOLS: <ls_orig>      TYPE any,
-                   <ls_calc>      TYPE any,
-                   <lv_val_uuid>  TYPE any,
-                   <lv_val_dur>   TYPE any,
-                   <lv_val_drive> TYPE any,
+    FIELD-SYMBOLS: <ls_orig>             TYPE any,
+                   <ls_calc>             TYPE any,
+                   <lv_val_uuid>         TYPE any,
+                   <lv_val_dur>          TYPE any,
+                   <lv_val_drive>        TYPE any,
+                   
+                   " --- NEW: Field symbols for reading source data ---
+                   <lv_val_max_dur>      TYPE any,
+                   <lv_val_max_dur_unit> TYPE any,
 
-                   <lv_set_cap>   TYPE any,
-                   <lv_set_rem>   TYPE any,
-                   <lv_set_tot>   TYPE any,
-                   <lv_set_unit>  TYPE any.
+                   <lv_set_cap>          TYPE any,
+                   <lv_set_rem>          TYPE any,
+                   <lv_set_tot>          TYPE any,
+                   <lv_set_unit>         TYPE any,
+                   
+                   " --- NEW: Field symbol for setting converted data ---
+                   <lv_set_max_conv>     TYPE any.
 
     " -------------------------------------------------------------------------
     " 2. Collect all Tour UUIDs for our fast DB query
@@ -99,11 +113,14 @@ CLASS zcl_wr_tour_extend_calc IMPLEMENTATION.
 
       " --- A. Get Tour Fields ---
 
-
       ASSIGN COMPONENT 'DRIVINGTIME'  OF STRUCTURE <ls_orig> TO <lv_val_drive>.
       ASSIGN COMPONENT 'TOURDURATION' OF STRUCTURE <ls_orig> TO <lv_val_dur>.
-      ASSIGN COMPONENT 'TOURCAPACITY' OF STRUCTURE <ls_orig> TO <lv_val_dur>.
+      ASSIGN COMPONENT 'TOURCAPACITY' OF STRUCTURE <ls_orig> TO <lv_val_dur>. " Note: You might want to check this, it overwrites TOURDURATION assignment
       ASSIGN COMPONENT 'TOURUUID'     OF STRUCTURE <ls_orig> TO <lv_val_uuid>.
+      
+      " --- NEW: Assign MaximumTourDuration fields ---
+      ASSIGN COMPONENT 'MAXIMUMTOURDURATION'     OF STRUCTURE <ls_orig> TO <lv_val_max_dur>.
+      ASSIGN COMPONENT 'MAXIMUMTOURDURATIONUNIT' OF STRUCTURE <ls_orig> TO <lv_val_max_dur_unit>.
 
       IF sy-subrc <> 0. CONTINUE. ENDIF.
 
@@ -151,8 +168,13 @@ CLASS zcl_wr_tour_extend_calc IMPLEMENTATION.
       " Map 4: Force Unit to 'MIN' for the UI
       ASSIGN COMPONENT 'ZZ_DURATION_UNIT' OF STRUCTURE <ls_calc> TO <lv_set_unit>.
       IF sy-subrc = 0. <lv_set_unit> = 'MIN'. ENDIF.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-ENDCLASS.
+      
+      " --- NEW: Map 5: Convert and map MaximumTourDuration ---
+      ASSIGN COMPONENT 'MAXIMUMTOURDURATION_CONVERTED' OF STRUCTURE <ls_calc> TO <lv_set_max_conv>.
+      IF sy-subrc = 0 AND <lv_val_max_dur> IS ASSIGNED AND <lv_val_max_dur_unit> IS ASSIGNED.
+        lv_max_dur = <lv_val_max_dur>.
+        IF <lv_val_max_dur_unit> = 'H'.
+          <lv_set_max_conv> = lv_max_dur * 60.
+        ELSE.
+          " If it is already in MIN or another unit, map it directly
+          <lv_set
