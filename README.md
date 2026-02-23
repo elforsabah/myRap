@@ -1,1 +1,17 @@
-<img width="940" height="540" alt="image" src="https://github.com/user-attachments/assets/516f9fa9-6797-4005-a7b1-6527b371c14a" />
+define view entity ZI_TOUR_SVC_SUM_WR
+  as select from /PLCE/R_PDTourServiceAsg as asg
+    inner join   /PLCE/R_PDService        as svc on asg.ServiceUUID = svc.ServiceUUID
+{
+  key asg.TourUUID,
+      
+      @Semantics.quantity.unitOfMeasure: 'TotalDurationUnit'
+      sum(svc.TotalDuration) as TotalServiceDuration,
+      
+      // Look how clean this is now! Natively sums the pure numbers.
+      sum(svc._ExtCustom.zz_timeadjustment) as TotalTimeAdjustment,
+      
+      svc.TotalDurationUnit
+}
+group by
+  asg.TourUUID,
+  svc.TotalDurationUnit
