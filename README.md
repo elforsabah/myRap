@@ -177,4 +177,11 @@ CLASS zcl_wr_tour_extend_calc IMPLEMENTATION.
           <lv_set_max_conv> = lv_max_dur * 60.
         ELSE.
           " If it is already in MIN or another unit, map it directly
-          <lv_set
+          <lv_set_max_conv> = lv_max_dur.
+        ENDIF.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+ENDCLASS.
