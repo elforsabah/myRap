@@ -1,13 +1,1 @@
-extend view entity /PLCE/R_PDServiceExtCustom with 
-
- {
-/plce/tpdsrvcst.zz_tech_fachbe,  //Fachbereich
-/plce/tpdsrvcst.zz_discrepancy,  // Termin-Diskrepanz
-/plce/tpdsrvcst.zz_reactiontime, // “Reaktionszeit
-/plce/tpdsrvcst.zz_vehicleinfo,  // Fahrzeuginfo
-/plce/tpdsrvcst.zz_order_date,   // Auftragsdatum
-/plce/tpdsrvcst.zz_timeadjustment // Zeitanpassung
-
-
-}
-
+<img width="795" height="827" alt="image" src="https://github.com/user-attachments/assets/891c5b88-2adb-4004-94d7-a894359b73fd" />
