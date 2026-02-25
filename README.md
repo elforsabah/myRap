@@ -1,3 +1,2 @@
-// 1. DEFINE the Association (The Bridge)
-   association [0..1] to /PLCE/C_PDMNLTourWR as _TourForRefresh 
-      on $projection.TourId = _TourForRefresh.TourId
+<img width="734" height="805" alt="image" src="https://github.com/user-attachments/assets/39417d79-1941-44f9-958f-5fe50daa693b" />
+
