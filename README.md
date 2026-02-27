@@ -1,8 +1,3 @@
-Es wurde gewünscht, dass in der neuen Funktion "Tour anlegen" geprüft wird, ob zu einem Tag innerhalb des gewählten Zeitraums schon eine Tagestour zur Tourvorlage existiert. In dem Fall das Anlegen für das Datum bitte überspringen und das im angezeigten Protokoll vermerken.
-Im Protokoll bitte für alle Einträge soll jeweils das Datum je angelegter (oder übersprungener) Tour mit angezeigt werden.
-Nach dem Anlegen der Touren (ggf. nach Bestätigen des Protokolls) soll die Ansicht möglichst gleich automatisch aktualisiert werden, sodass die angelegten Touren in der Liste zu sehen sind.
-
-
 CLASS lhc_Tour DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
 
@@ -15,35 +10,33 @@ CLASS lhc_Tour DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS precheck_createtour FOR PRECHECK
       IMPORTING keys FOR ACTION Tour~createtour .
 
-
     METHODS assign_earliest_to_latest_date FOR DETERMINE ON MODIFY
     IMPORTING keys FOR Tour~assign_earliest_to_latest_date.
 ENDCLASS.
 
 CLASS lhc_Tour IMPLEMENTATION.
 
+  METHOD assign_earliest_to_latest_date.
 
-METHOD assign_earliest_to_latest_date.
+    READ ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
+      ENTITY Tour
+        FIELDS ( StartDate EndDate )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_tour).
 
-  READ ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
-    ENTITY Tour
-      FIELDS ( StartDate EndDate )
-      WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_tour).
+    MODIFY ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
+      ENTITY Tour
+        UPDATE FIELDS ( EndDate )
+        WITH VALUE #(
+          FOR ls IN lt_tour
+          WHERE ( StartDate IS NOT INITIAL AND EndDate IS INITIAL )
+          ( %tky    = ls-%tky
+            EndDate = ls-StartDate )
+        )
+      FAILED   DATA(lt_fai)
+      REPORTED DATA(lt_rep).
 
-  MODIFY ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
-    ENTITY Tour
-      UPDATE FIELDS ( EndDate )
-      WITH VALUE #(
-        FOR ls IN lt_tour
-        WHERE ( StartDate IS NOT INITIAL AND EndDate IS INITIAL )
-        ( %tky    = ls-%tky
-          EndDate = ls-StartDate )
-      )
-    FAILED   DATA(lt_fai)
-    REPORTED DATA(lt_rep).
-
-ENDMETHOD.
+  ENDMETHOD.
 
   METHOD get_global_authorizations.
   ENDMETHOD.
@@ -65,13 +58,13 @@ ENDMETHOD.
       lv_first_date = <group>-first_date.
       " If no last_date was entered, use first_date (create just one tour)
       lv_last_date  = COND /plce/date(
-                         WHEN <group>-last_date IS INITIAL
-                         THEN lv_first_date
-                         ELSE <group>-last_date ).
+                          WHEN <group>-last_date IS INITIAL
+                          THEN lv_first_date
+                          ELSE <group>-last_date ).
 
       " Simple safety: if user swapped dates, flip them
       IF lv_last_date < lv_first_date.
-        DATA(lv_tmp) = lv_first_date.
+        DATA(lv_tmp)  = lv_first_date.
         lv_first_date = lv_last_date.
         lv_last_date  = lv_tmp.
       ENDIF.
@@ -81,43 +74,70 @@ ENDMETHOD.
       " 2) Create one tour per day in the range
       WHILE lv_current_date <= lv_last_date.
 
-        " unique CID for this inner action call
-        lv_cid = cl_system_uuid=>create_uuid_x16_static( ).
+        " -- NEW: Check if a tour already exists for this template and date
+        DATA lv_exists TYPE abap_bool VALUE abap_false.
+        
+        " Note: Adjust the fields 'TourTemplate' and 'StartDate' to match your CDS View /PLCE/R_PDTour
+        SELECT SINGLE @abap_true
+          FROM /plce/r_pdtour 
+          WHERE TourTemplate = @<group>-template
+            AND StartDate    = @lv_current_date
+          INTO @lv_exists.
 
-        MODIFY ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
-          ENTITY Tour
-            EXECUTE createTourWithTemplate
-            FROM VALUE #(
-              ( %cid                 = lv_cid
-                %param-without_draft = 'X'
-                %param-tour_template = <group>-template
-                %param-start_date    = lv_current_date ) )
-          MAPPED   DATA(mapped_tour)
-          FAILED   DATA(failed_tour)
-          REPORTED DATA(reported_tour).
+        IF lv_exists = abap_true.
+          " -- NEW: Skip creation and log it in the protocol with the date
+          APPEND VALUE #(
+            %msg = new_message(
+                     id       = 'Z_MSG_CL_SERVICE_EXT' " Your message class
+                     number   = '004' " Create a MSG: 'Skipped: Tour already exists for &1'
+                     severity = if_abap_behv_message=>severity-information " or warning
+                     v1       = |{ lv_current_date DATE = USER }|
+                   )
+          ) TO reported-%other.
 
-          " Read created tour(s) to build result & message
-          READ ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
+        ELSE.
+          " -- EXISTING LOGIC: Create the tour because it does not exist yet
+          " unique CID for this inner action call
+          lv_cid = cl_system_uuid=>create_uuid_x16_static( ).
+
+          MODIFY ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
             ENTITY Tour
-              ALL FIELDS
-              WITH CORRESPONDING #( mapped_tour-tour )
-            RESULT DATA(tours).
+              EXECUTE createTourWithTemplate
+              FROM VALUE #(
+                ( %cid                 = lv_cid
+                  %param-without_draft = 'X'
+                  %param-tour_template = <group>-template
+                  %param-start_date    = lv_current_date ) )
+            MAPPED   DATA(mapped_tour)
+            FAILED   DATA(failed_tour)
+            REPORTED DATA(reported_tour).
 
-          IF lines( tours ) > 0.
-            " Success message per created tour (optional)
-            INSERT NEW /plce/cx_pd_exception(
-                     textid   = /plce/cx_pd_exception=>tour_confirmed
-                     severity = if_abap_behv_message=>severity-success
-                     tour     = tours[ 1 ]-TourId )
-              INTO TABLE reported-%other.
+            " Read created tour(s) to build result & message
+            READ ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
+              ENTITY Tour
+                ALL FIELDS
+                WITH CORRESPONDING #( mapped_tour-tour )
+              RESULT DATA(tours).
 
-            " Static action result: append all created tours
-            result = VALUE #( BASE result
-                              FOR tour IN tours
-                              (
-                               %cid = lv_cid
-                               %param = tour ) ).
-          ENDIF.
+            IF lines( tours ) > 0.
+              " -- CHANGED: Output success message containing the Date
+              APPEND VALUE #(
+                %msg = new_message(
+                         id       = 'Z_MSG_CL_SERVICE_EXT' 
+                         number   = '005' " Create a MSG: 'Success: Tour created for &1'
+                         severity = if_abap_behv_message=>severity-success
+                         v1       = |{ lv_current_date DATE = USER }|
+                       )
+              ) TO reported-%other.
+
+              " Static action result: append all created tours
+              result = VALUE #( BASE result
+                                FOR tour IN tours
+                                (
+                                 %cid   = lv_cid
+                                 %param = tour ) ).
+            ENDIF.
+        ENDIF.
 
         " next day
         lv_current_date = lv_current_date + 1.
@@ -127,19 +147,18 @@ ENDMETHOD.
   ENDMETHOD.
 
   METHOD precheck_createtour.
-
     " Today (system date)
     DATA(lv_today) = cl_abap_context_info=>get_system_date( ).
 
     LOOP AT keys ASSIGNING FIELD-SYMBOL(<key>).
 
-      DATA lv_failed TYPE abap_bool VALUE abap_false.
-      DATA lv_start  TYPE /plce/date.
-      DATA lv_end    TYPE /plce/date.
+      DATA lv_failed   TYPE abap_bool VALUE abap_false.
+      DATA lv_start    TYPE /plce/date.
+      DATA lv_end      TYPE /plce/date.
       DATA lv_template TYPE /plce/pdtour_template.
 
-      lv_start = <key>-%param-start_date.
-      lv_end   = <key>-%param-end_date.
+      lv_start    = <key>-%param-start_date.
+      lv_end      = <key>-%param-end_date.
       lv_template = <key>-%param-tour_template.
 
       " unique CID for this inner action call
@@ -156,33 +175,28 @@ ENDMETHOD.
                      v1       = |{ lv_start DATE = USER }|
                    )
           )
-     TO reported-tour.
+        TO reported-tour.
         lv_failed = abap_true.
       ENDIF.
 
       " 2) Start date must be <= end date (if end date is given)
       IF lv_end IS NOT INITIAL AND lv_end < lv_start.
-
-
         APPEND VALUE #(
-      %cid = <key>-%cid
-      %msg = new_message(
-               id       = 'Z_MSG_CL_SERVICE_EXT'
-               number   = '002'
-               severity = if_abap_behv_message=>severity-error
-               v1       = |{ lv_start DATE = USER }|
-               v2       = |{ lv_end DATE = USER }|
-             )
-    )
-TO reported-tour.
-
+          %cid = <key>-%cid
+          %msg = new_message(
+                   id       = 'Z_MSG_CL_SERVICE_EXT'
+                   number   = '002'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = |{ lv_start DATE = USER }|
+                   v2       = |{ lv_end DATE = USER }|
+                 )
+        )
+        TO reported-tour.
         lv_failed = abap_true.
       ENDIF.
 
       " 3) Tour template must not be empty
-
-      IF lv_template IS INITIAL..
-
+      IF lv_template IS INITIAL.
         APPEND VALUE #(
              %cid = <key>-%cid
              %msg = new_message(
@@ -191,9 +205,9 @@ TO reported-tour.
                       severity = if_abap_behv_message=>severity-error
                     )
             )
-            TO reported-tour.
-                    lv_failed = abap_true.
-                  ENDIF.
+        TO reported-tour.
+        lv_failed = abap_true.
+      ENDIF.
 
       " If any check failed, block this action call
       IF lv_failed = abap_true.
@@ -201,6 +215,5 @@ TO reported-tour.
       ENDIF.
 
     ENDLOOP.
-
   ENDMETHOD.
 ENDCLASS.
