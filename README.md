@@ -1,3 +1,7 @@
-" Map 6: Driving Time in Minutes
-      ASSIGN COMPONENT 'ZZ_DRIVING_TIME_MIN' OF STRUCTURE <ls_calc> TO FIELD-SYMBOL(<lv_set_drive_min>).
-      IF sy-subrc = 0. <lv_set_drive_min> = lv_driving_min. ENDIF.
+// 1. Hide the standard SAP field (Hours)
+  @UI.hidden: true
+  DrivingTime;
+
+  // 2. Show your new custom field (Minutes)
+  @UI.lineItem: [{ position: 105, importance: #HIGH }] // Adjust position as needed
+  zz_driving_time_min;
