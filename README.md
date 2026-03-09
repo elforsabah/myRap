@@ -1,40 +1,7 @@
-<img width="1746" height="290" alt="image" src="https://github.com/user-attachments/assets/0a850563-2e45-44ee-bf41-38aff6ff40f1" />
-method ZZ_UPD_WDOI_FROM_SERVICE.
-*#36113 WP-3.1.11: P2C2-26 DEV Change of service Types in the process
-  data:
-    LTOURID      type /PLCE/PDTOUR_ID,
-    LSERVICE     type /PLCE/SWR_SERVICE_RSLT,
-    LRESULTDATAS type /PLCE/PWR_TOUR_RSLT,
-    LV_ACTION    type /PLCE/PDACTION,
-    LV_SERVICE_TYPE type SERVICE_TYPE ##NEEDED.
-
-  check IO_BO_WDOI->DATAREF->/PLCP/PD_SERVICE_UUID is not initial.
-
-  if LINE_EXISTS( ORDERITEMRESULTS[ POBJNR = IO_BO_WDOI->DATAREF->POBJNR ] ).
-    LTOURID = ORDERITEMRESULTS[ POBJNR = IO_BO_WDOI->DATAREF->POBJNR ]-/PLCP/PD_TOUR_ID.
-  endif.
-
-  if LTOURID is not initial and
-     LINE_EXISTS( RESULTDATAS[ TOURID = LTOURID ] ) and
-     LINE_EXISTS( RESULTDATAS[ TOURID = LTOURID ]-SERVICES[ SERVICEUUID = IO_BO_WDOI->DATAREF->/PLCP/PD_SERVICE_UUID ] ).
-
-    LSERVICE = RESULTDATAS[ TOURID = LTOURID ]-SERVICES[ SERVICEUUID = IO_BO_WDOI->DATAREF->/PLCP/PD_SERVICE_UUID ].
-
-    LV_SERVICE_TYPE = LSERVICE-ACTION.
-  else.
-    select single ACTION "#EC CI_SEL_NESTED
-      from /PLCE/TPDSRV
-      where SERVICE_UUID = @IO_BO_WDOI->DATAREF->/PLCP/PD_SERVICE_UUID
-      into @data(LACTION).
-    if SY-SUBRC is initial.
-      LV_SERVICE_TYPE = LACTION.
-    endif.
-  endif.
-
-  if LV_SERVICE_TYPE is not initial and IO_BO_WDOI->DATAREF->SERVICE_TYPE <> LV_SERVICE_TYPE.
-    try.
-        IO_BO_WDOI->ZZ_BOOK_CHANGE_STYPE( IV_SERVICE_TYPE = LV_SERVICE_TYPE ).
-      catch CX_EEWA_BASE.
-    endtry.
-  endif.
-endmethod.
+" Use both POBJNR and the unique Service UUID to find the exact row
+  if LINE_EXISTS( ORDERITEMRESULTS[ POBJNR = IO_BO_WDOI->DATAREF->POBJNR 
+                                    /PLCP/PD_SERVICE_UUID = IO_BO_WDOI->DATAREF->/PLCP/PD_SERVICE_UUID ] ).
+                                    
+    LTOURID = ORDERITEMRESULTS[ POBJNR = IO_BO_WDOI->DATAREF->POBJNR 
+                                /PLCP/PD_SERVICE_UUID = IO_BO_WDOI->DATAREF->/PLCP/PD_SERVICE_UUID ]-/PLCP/PD_TOUR_ID.
+  endif.
