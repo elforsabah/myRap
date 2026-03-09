@@ -1,1 +1,7 @@
-<img width="1246" height="414" alt="image" src="https://github.com/user-attachments/assets/41f397bd-60be-4f09-b910-5471bba45cce" />
+" Attempt to match using the Service UUID first (if the BO item already has it)
+" If not, fall back to matching by the specific item Sequence Number (LAUFNR)
+loop at ORDERITEMRESULTS reference into data(LRESULTREF) 
+  where POBJNR = LITEMKEYREF->POBJNR
+    and ( /PLCP/PD_SERVICE_UUID = LITEMREF->/PLCP/PD_SERVICE_UUID " Match by UUID if available
+          or ( LITEMREF->/PLCP/PD_SERVICE_UUID is initial         " OR if UUID is blank...
+               and LAUFNR = LITEMREF->LAUFNR ) ).                 " Match by standard SAP Sequence Number
