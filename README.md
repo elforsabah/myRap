@@ -1,6 +1,6 @@
-Der Datenversand (Die technische Kommunikation)
-Hier geht es darum, wie die Daten vom SAP-System auf die Tablets kommen.
+4. Der Rückweg der Daten (Bidirektionale Schnittstelle)
+Das ist eine der größten Verbesserungen für euren Arbeitsalltag:
 
-Das Abschicken: Sobald der Disponent auf "Freigeben" klickt, schnürt SAP ein elektronisches Paket mit all den oben genannten Daten und schickt es über das Netzwerk direkt an das System der Tablets (BMS).
+Vorher (Einbahnstraße): Die abgerechneten Zeiten, Mengen und Gewichte mussten am Ende mühsam per Hand von Übersichten zurück ins System getippt werden.
 
-Umgang mit Fehlern: Wenn das Paket nicht ankommt (z. B. weil das Zielsystem gerade nicht erreichbar ist oder Pflichtdaten fehlen), bekommt der Disponent im SAP sofort eine verständliche Fehlermeldung. So weiß er direkt, was er korrigieren muss.
+Jetzt (Zweibahnstraße): Wenn der Fahrer draußen seinen Auftrag beendet, soll sein Tablet die gesammelten Echt-Daten (wann war er da, wie schwer war der Container?) automatisch zurück an das SAP-System schicken. Das SAP-System muss also darauf vorbereitet werden, diese Rückmeldungen elektronisch zu empfangen und direkt zu verbuchen.
