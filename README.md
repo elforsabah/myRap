@@ -1,7 +1,9 @@
-Der neue Knopf "Tour an BMS freigeben" ist bereits im System eingebaut. So soll er im Arbeitsalltag funktionieren:
+Damit die Tablets der Fahrer die SAP-Daten verstehen, müssen wir sie passend übersetzen. Früher wurden dafür viele "Tricks" benutzt, die wir jetzt sauber aufräumen müssen:
 
-Was beim Klicken passiert (Auslöser): Wählt der Mitarbeiter (Disponent) eine Tour aus und drückt diesen neuen Knopf, sammelt das SAP-System automatisch alle einzelnen Aufträge zusammen, die auf dieser Tour gefahren werden sollen.
+Die Unterschrift: Früher hat das System mühsam in den Notizen nach dem Wortteil "UTERSCHR" gesucht, um zu wissen, ob der Kunde unterschreiben muss. Jetzt schicken wir einfach ein klares "Ja" oder "Nein" mit.
 
-Was NICHT passieren darf (Ausschluss): Die alten Standard-Funktionen (im Bild rechts rot durchgestrichen) dürfen durch diesen Klick auf keinen Fall aus Versehen mitlaufen. Sie müssen strikt getrennt bleiben.
+Der "Abfall-Trick": Früher wurden die Begriffe für Abfall und Artikel beim Export absichtlich vertauscht. Das wurde gemacht, damit die Fahrer auf dem Tablet den genaueren Artikelnamen sehen konnten. Hier müsst ihr mit dem Tablet-Team klären: Brauchen wir diesen Trick noch, oder versteht das neue System das jetzt auch so?
 
-Die Erfolgsmeldung (Status): Nach dem Klick muss der Mitarbeiter sofort sehen können, ob die Daten erfolgreich an das Tablet der Fahrer (das BMS) gesendet wurden. Dafür gibt es die Spalte "BMS-Status". Dort erscheint dann beispielsweise ein grüner Haken, wenn alles gut ging, oder ein rotes Kreuz, wenn ein Fehler aufgetreten ist.
+Die Notizen: Bisher wurden alle möglichen Sonderinfos (wie Bestellnummern oder Prüfhinweise für bestimmte Kunden) zusammen in ein einziges Textfeld gequetscht. Jetzt haben wir getrennte Felder für "normale Notizen" und "besondere Hinweise" und können das viel aufgeräumter übergeben.
+
+Behälter und Aufgaben: Die Infos, was genau gemacht werden soll (Tonne aufstellen, abholen oder leeren) und wie viel berechnet wird, werden jetzt strukturiert in Listenform an das Tablet geschickt.
