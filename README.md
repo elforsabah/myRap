@@ -406,3 +406,115 @@ METHOD terminateService.
   ENDMETHOD.
 
 ENDCLASS.
+
+
+
+
+
+class ZCL_WR_WASTE_ORDER_API definition
+  public
+  inheriting from /PLCP/CL_TA_WA_ORDER_RSLT "Inherit to access GETBO & SAVE_BO
+  final
+  create public .
+
+public section.
+
+    " Static wrapper for easy calling from RAP / Interaction Center
+  class-methods CANCEL_WASTE_ORDER_ITEM
+    importing
+      !IV_POBJNR type CHAR30
+      !IV_REASON_PREDEFINED type CHAR255
+      !IV_REASON_TEXT type STRING
+    raising
+      CX_EEWA_BASE .
+private section.
+
+    " Instance method to actually execute the logic using inherited methods
+  methods EXECUTE_CANCEL
+    importing
+      !IV_POBJNR type CHAR30
+      !IV_REASON_PREDEFINED type CHAR255
+      !IV_REASON_TEXT type STRING
+    raising
+      CX_EEWA_BASE .
+ENDCLASS.
+
+
+
+CLASS ZCL_WR_WASTE_ORDER_API IMPLEMENTATION.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Private Method ZCL_WR_WASTE_ORDER_API->EXECUTE_CANCEL
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_POBJNR                      TYPE        CHAR30
+* | [--->] IV_REASON_PREDEFINED           TYPE        CHAR255
+* | [--->] IV_REASON_TEXT                 TYPE        STRING
+* | [!CX!] CX_EEWA_BASE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD execute_cancel.
+    DATA: ls_item_key TYPE ewa_order_object_ikey,
+          lo_bo_item  TYPE REF TO zcl_wr_eewa_bo_wdorderitem.
+
+    " 1. Find the Order Item keys based on POBJNR
+    SELECT SINGLE ordernr, order_laufnr
+      FROM ewa_order_object
+      INTO @ls_item_key
+      WHERE pobjnr = @iv_pobjnr.
+
+    CHECK sy-subrc = 0.
+
+    " 2. Instantiate the IS-U Waste Order Item BO using inherited GETBO
+    lo_bo_item ?= getbo(
+        par_objtype = cl_eewa_bo_wdorderitem=>cot_wdorderitem
+        par_key     = ls_item_key
+        par_lock    = 'X' ).
+
+    " 3. Apply the Storno Updates to the BO Data Reference
+    lo_bo_item->dataref->conftype1 = iv_reason_predefined.  " Vordefinierte Grund
+
+    " Append the text without overwriting existing comments
+    IF lo_bo_item->dataref->text IS INITIAL.
+      lo_bo_item->dataref->text = iv_reason_text. " Gegebene Grund
+    ELSE.
+      lo_bo_item->dataref->text = lo_bo_item->dataref->text && ` ` && iv_reason_text.
+    ENDIF.
+
+    " 4. Perform the Negative Confirmation (Rückmeldung)
+    TRY.
+        " Standard Item BO methods to check and execute the confirmation
+        lo_bo_item->check_book_confirm_neg( ). "Negative Rückmeldung
+        lo_bo_item->book_confirm_neg( ).       "Negative Rückmeldung
+
+        " 5. Save using the inherited SAVE_BO and unlock
+        save_bo( lo_bo_item ).
+        lo_bo_item->unlock_for_edit( ).
+
+      CATCH cx_eewa_base INTO DATA(lex).
+        " Ensure we unlock before passing the error up to Fiori
+        lo_bo_item->unlock_for_edit( ).
+        RAISE EXCEPTION lex.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method ZCL_WR_WASTE_ORDER_API=>CANCEL_WASTE_ORDER_ITEM
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_POBJNR                      TYPE        CHAR30
+* | [--->] IV_REASON_PREDEFINED           TYPE        CHAR255
+* | [--->] IV_REASON_TEXT                 TYPE        STRING
+* | [!CX!] CX_EEWA_BASE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD cancel_waste_order_item.
+    " 1. Instantiate this class to access the inherited instance methods
+    DATA(lo_api) = NEW zcl_wr_waste_order_api( ).
+    " 2. Call the instance method
+    lo_api->execute_cancel(
+      iv_pobjnr      = iv_pobjnr
+      IV_REASON_PREDEFINED = iv_reason_predefined
+      iv_reason_text = iv_reason_text
+    ).
+  ENDMETHOD.
+ENDCLASS.
