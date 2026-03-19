@@ -1,1120 +1,912 @@
-class ZCL_PD_PROC_WASTE_ORDERS definition
+class ZCL_PLCP_TA_WA_ORDER_RSLT definition
   public
-  inheriting from /PLCE/CL_PD_PROC_WASTE_ORDERS
+  inheriting from /PLCP/CL_TA_WA_ORDER_RSLT
   create public .
 
 public section.
 
-  types:
-    begin of ZZ_TY_DATA,
-    SRV_UPD      type table for update /PLCE/R_PDSERVICE,
-    SRV_UPD_UN   type table for update /PLCE/R_PDSERVICEEXTUNI,
-    SRV_UPD_WA   type table for update /PLCE/R_PDSERVICEEXTWR,
-    SRV_UPD_CUST type table for update /PLCE/R_PDServiceExtCustom,
-    TSKS_DELE    type table for delete /PLCE/R_PDSERVICETASK,
-    TSKS_DELE_UN type table for delete /PLCE/R_PDSERVICETASK,
-    TSKS_DELE_WA type table for delete /PLCE/R_PDSERVICETASK,
-    TSKS_CREA    type table for create /PlCE/R_PDSERVICE\_SERVICETASK,
-    TSKS_CREA_UN type table for create /PLCE/R_PDSERVICETASK\_EXTUNIVERSAL,
-    TSKS_CREA_WA type table for create /PLCE/R_PDSERVICETASK\_EXTWASTE.
-  types end of ZZ_TY_DATA .
-  types:
-    begin of ZTP_SERVICE_EXT,
-        SERVICE      type ref to /PLCE/R_PDSERVICE,
-        EXTUNIVERSAL type ref to /PLCE/R_PDServiceExtUNI,
-        EXTWASTE     type ref to /PLCE/R_PDServiceExtWR,
-        EXTCustom    type ref to /PLCE/R_PDServiceExtCustom,
-      end of ZTP_SERVICE_EXT .
-  types:
-    begin of ZTS_MODIFY_SERVICE,
-        CID            type ABP_BEHV_CID,
-        SERVICE        type /PLCE/R_PDSERVICE,
-        EXTUNIVERSAL   type /PLCE/R_PDServiceExtUNI,
-        EXTWASTE       type /PLCE/R_PDServiceExtWR,
-        EXTCustom    type ref to /PLCE/R_PDServiceExtCustom,
-        T_SERVICE_TASK type TP_SERVICE_TASK,
-      end of ZTS_MODIFY_SERVICE .
-  types:
-    ZTP_MODIFY_SERVICE type sorted table of ZTS_MODIFY_SERVICE with unique key CID .
-  types:
-    begin of ZTS_MODIFY_SERVICE_EXT,
-        CID            type ABP_BEHV_CID,
-        SERVICE        type /PLCE/R_PDSERVICE,
-        EXTUNIVERSAL   type /PLCE/R_PDServiceExtUNI,
-        EXTWASTE       type /PLCE/R_PDServiceExtWR,
-        EXTCUSTOM      type /PLCE/R_PDServiceExtCustom,
-        ATTACHMENTS    type TP_MODIFY_SERVICE_ATTACHEMNT,
-        T_SERVICE_TASK type TP_MODIFY_SERVICE_TASK_EXT,
-        T_SERVICE_NOTES type TP_MODIFY_SERVICE_NOTE_EXT,
-      end of ZTS_MODIFY_SERVICE_EXT .
-  types:
-    ZTP_MODIFY_SERVICE_EXT type sorted table of ZTS_MODIFY_SERVICE_EXT with unique key CID .
+  class-methods CLASS_CONSTRUCTOR .
 
-  class-methods ZZ_CHANGE_SERVICE_TYPE
-    importing
-      !PAR_KEY type /PLCE/SPDSRV_KEY
-      !PAR_SVTPTO type /PLCE/PDSERVICE_TYPE
-      !PAR_LOG type ref to /PLCE/CL_APPLLOG_HELPER optional
-      !PAR_COMMIT type KENNZX optional
-      !PAR_SIMULATE type KENNZX optional
-    raising
-      /PLCE/CX_BASEEXCEPTION .
-  class-methods ZZ_FILL_SERVICE_TASK
-    importing
-      !PAR_KEY type /PLCE/SPDSRV_KEY
-      !PAR_SVTPTO type /PLCE/PDSERVICE_TYPE
-      !PAR_LOG type ref to /PLCE/CL_APPLLOG_HELPER optional
-    returning
-      value(PAR_RESULT) type ZZ_TY_DATA
-    raising
-      /PLCE/CX_BASEEXCEPTION .
-
-  methods PROCESS_WASTEORDERS
+  methods BOOK_ATTACHMENTS
+    redefinition .
+  methods BOOK_ORDER_ITEMS
     redefinition .
 protected section.
 
-  data AD_SERVICE type ref to ZTP_SERVICE_EXT .
-  data AT_SERVICE_TO_CREATE type ZTP_MODIFY_SERVICE_EXT .
+  class-data:
+    GT_CONFNOTE_TA  TYPE STANDARD TABLE OF /PLCE/SPDCNFNT_KEY .
+  class-data GV_RUN_ORIGINAL type CHAR1 .
 
-  methods FILL_SERVICES
+  methods ZZ_IMPORT_INFO_CONFNOTES
+    importing
+      !IT_CONFNOTES type /PLCP/PWA_CONFNOTE_RSLT
+      !IO_BO type ref to CL_EEWA_BO_BASE
+    raising
+      CX_EEWA_BASE .
+  methods ZZ_UPDATE_ELOCSD_NEW
+    importing
+      !ID_SERV_RESULT type ref to /PLCP/SWA_WDOI_RSLT .
+  methods BOOK_ORDER_ITEMS_SPEC
+    importing
+      !PAR_SEQUENCE_ONLY type KENNZX default SPACE
+    raising
+      CX_EEWA_BASE .
+  methods ZZ_CONFIRM_WDOI
+    importing
+      !IO_BO_WDOI type ref to ZCL_WR_EEWA_BO_WDORDERITEM .
+  methods ZZ_UPD_WDOI_FROM_SERVICE
+    importing
+      !IO_BO_WDOI type ref to ZCL_WR_EEWA_BO_WDORDERITEM .
+
+  methods CALL_METHOD
     redefinition .
-  methods FILL_SERVICE_DATA
+  methods EXECUTE_DATA_UPLOAD
     redefinition .
-  methods FILL_SERVICE_TASK_DATA
+  methods MOVE_ITEM_DETAILS
     redefinition .
-  methods PROCESS_UPDATE
+  methods PREPARE_RESULT_DATA_ITEM
     redefinition .
-  methods SAVE_SERVICE
+  methods PREPARE_RESULT_DATA_ITEM_ATTA
+    redefinition .
+  methods PREPARE_RESULT_DATA_ITEM_CN
     redefinition .
 private section.
 ENDCLASS.
 
 
 
-CLASS ZCL_PD_PROC_WASTE_ORDERS IMPLEMENTATION.
+CLASS ZCL_PLCP_TA_WA_ORDER_RSLT IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Protected Method ZCL_PD_PROC_WASTE_ORDERS->FILL_SERVICES
+* | Instance Public Method ZCL_PLCP_TA_WA_ORDER_RSLT->BOOK_ATTACHMENTS
 * +-------------------------------------------------------------------------------------------------+
-* | [--->] IT_WASTE_ORDER_ITEM_DATA       TYPE        /PLCE/CL_PD_IMP_WASTE_ORDERS=>TP_WASTEORDER
-* | [!CX!] /PLCE/CX_BASEEXCEPTION
+* | [!CX!] CX_EEWA_BASE
 * +--------------------------------------------------------------------------------------</SIGNATURE>
-  method FILL_SERVICES.
-
+  method BOOK_ATTACHMENTS.
     data:
-        LSEQUENCE type I.
+      LS_DATA          type ZWR_GOS_CREATE_INFO,
+      LO_FILENAME      type ref to CL_FS_PATH,
+      LV_EXT           type STRING,
+      LV_SUCCESS       type ABAP_BOOL,
+      LO_BO            type ref to CL_EEWA_BO_BASE,
+      LO_BO_ORDER      type ref to CL_EEWA_BO_WDORDER,
+      LT_DBATTACHMENTS type standard table of /PLCP/TWRATTA,
+      LV_METAGOSID     type /WATP/DOBJNR,
+      LV_BOR_TYPE      type SWO_OBJTYP,
+      LT_LOCAL_ATT_RESULT type standard table of /PLCP/SWA_ATTACHMENT_RSLT.
 
-*    try.
+    LT_LOCAL_ATT_RESULT = ATTACHMENTRESULTS.
+    clear ATTACHMENTRESULTS.
 
-    loop at IT_WASTE_ORDER_ITEM_DATA reference into FR_WASTE_ORDER_ITEM.
-      clear LSEQUENCE.
-*          if SHOULD_SERVICE_BE_CREATED( ).
-      data(LV_ACTION) = GET_ACTION( ).
-      if LV_ACTION is initial.
-        FO_MSGLOG->/PLCE/IF_PROTOCOL~REPORT_MESSAGE(
-          exporting
-            IV_SEVERITY   = FO_MSGLOG->/PLCE/IF_PROTOCOL~C_SEVERITY-ERROR
-            IV_ID         = '/PLCE/MC_PD_MSG'
-            IV_NUMBER     = '110'
-            IV_VARIABLE_1 = conv #( FR_WASTE_ORDER_ITEM->WASTE_TYPE )
-        ).
-      endif.
-      data(LST_TEMPLS) = READ_SERVICE_TEMPLATES( exporting IV_ACTION = LV_ACTION ).
-      loop at LST_TEMPLS assigning field-symbol(<SERVICETMPL>)
-        where SemanticTemplateName <> 'ST_SERVICE_NOTE'.
-        insert value #( CID = GET_NEXT_CID( ) ) into table AT_SERVICE_TO_CREATE assigning field-symbol(<LS_SERVICE_TO_CREATE>).
-        create data AD_SERVICE.
-        AD_SERVICE->SERVICE = ref #( <LS_SERVICE_TO_CREATE>-SERVICE ).
-        AD_SERVICE->EXTUNIVERSAL = ref #( <LS_SERVICE_TO_CREATE>-EXTUNIVERSAL ).
-        AD_SERVICE->EXTWASTE = ref #( <LS_SERVICE_TO_CREATE>-EXTWASTE ).
-        AD_SERVICE->EXTCUSTOM = ref #( <LS_SERVICE_TO_CREATE>-EXTCUSTOM ).
-*              append initial line to FT_SERVICE_TO_CREATE reference into AD_SERVICE.
-        FILL_SERVICE_DATA(
-          exporting
-            IS_SERVICE_TEMPLATE = <SERVICETMPL>
-        ).
-        if LINES( FR_WASTE_ORDER_ITEM->NOTES ) is not initial.
-          loop at FR_WASTE_ORDER_ITEM->NOTES reference into data(LWASTESERVICENOTEREF).
-            insert initial line into table <LS_SERVICE_TO_CREATE>-T_SERVICE_NOTES reference into data(LSERVICENOTEREF).
-            FO_ACCESS_POOL->SET_CONTEXT(
-              IV_SEMANTIC_CONTEXT = 'EWA_WASTE_SERVICE_NOTE' "/PLCE/CL_SEMANTIC_CONSTANTS=>C_SEMANTIC_CONTEXT-???
-              IR_DATA             = LWASTESERVICENOTEREF
-            ).
-            FO_ACCESS_POOL->SET_CONTEXT(
-              IV_SEMANTIC_CONTEXT = 'SERVICE_NOTE' "/PLCE/CL_SEMANTIC_CONSTANTS=>C_SEMANTIC_CONTEXT-???
-              IR_DATA             = ref #( LSERVICENOTEREF->SERVICE_NOTE )
-            ).
+*    SUPER->BOOK_ATTACHMENTS( ).
+    loop at LT_LOCAL_ATT_RESULT reference into data(LATTACHMENTREF) where DATA is not initial.
+      clear LS_DATA.
+      select single UUID from /PLCP/TWRATTA into @data(LDOCID_EXIST)
+        where UUID = @LATTACHMENTREF->DATA->ATTACHMENTUUID.
 
-            FO_MAPPER->EXECUTE_SEMANTIC_TEMPL_CONFIG(
-              IV_PROFILE                = GET_PROFILE( )
-              IV_SEMANTIC_TEMPLATE_NAME = 'ST_SERVICE_NOTE'
-            ).
-
-          endloop.
-
+      if SY-SUBRC is not initial.
+        if LATTACHMENTREF->DATA->FILENAME is not initial.
+          LO_FILENAME = CL_FS_PATH=>CREATE(
+            exporting
+              NAME = LATTACHMENTREF->DATA->FILENAME
+              PATH_KIND = CL_FS_PATH=>PATH_KIND_SMART
+          ).
+          LS_DATA-FILE_DATA-FILENAME = LO_FILENAME->GET_FILE_NAME( ).
+          LV_EXT = TO_UPPER( LO_FILENAME->GET_FILE_EXTENSION( ) ).
+        else.
+          LV_EXT = GET_DOC_TYPE( PAR_MIMETYPE = LATTACHMENTREF->DATA->MIMETYPE ).
         endif.
+        shift LV_EXT left deleting leading '.'.
+        LS_DATA-FILE_DATA-DOC_TYPE = LV_EXT.
 
-
-        if LINES( FR_WASTE_ORDER_ITEM->ATTACHMENTS ) is not initial.
-          loop at FR_WASTE_ORDER_ITEM->ATTACHMENTS reference into data(LWASTEATTACHMENTREF).
-            insert initial line into table <LS_SERVICE_TO_CREATE>-ATTACHMENTS reference into data(LSERVICEATTAREF).
-*                FO_ACCESS_POOL->SET_CONTEXT(
-*                  IV_SEMANTIC_CONTEXT = 'EWA_WASTE_SERVICE_NOTE' "/PLCE/CL_SEMANTIC_CONSTANTS=>C_SEMANTIC_CONTEXT-???
-*                  IR_DATA             = LWASTESERVICENOTEREF
-*                ).
-*                FO_ACCESS_POOL->SET_CONTEXT(
-*                  IV_SEMANTIC_CONTEXT = 'SERVICE_NOTE' "/PLCE/CL_SEMANTIC_CONSTANTS=>C_SEMANTIC_CONTEXT-???
-*                  IR_DATA             = ref #( LSERVICENOTEREF->SERVICE_NOTE )
-*                ).
-*
-*                FO_MAPPER->EXECUTE_SEMANTIC_TEMPL_CONFIG(
-*                  IV_PROFILE                = GET_PROFILE( )
-*                  IV_SEMANTIC_TEMPLATE_NAME = 'ST_SERVICE_NOTE'
-*                ).
-            LSERVICEATTAREF->ATTACHMENT-Filename = LWASTEATTACHMENTREF->FILENAME.
-            LSERVICEATTAREF->ATTACHMENT-Attachment = LWASTEATTACHMENTREF->ATTACHMENT.
-            LSERVICEATTAREF->ATTACHMENT-MimeType = LWASTEATTACHMENTREF->MIMETYPE.
-            LSERVICEATTAREF->ATTACHMENT-CreatedByUpload = 'X'.
-
-          endloop.
-
-        endif.
-
-
-        data(LSTT_TEMPLS) = READ_SERVICE_TASK_TEMPLATES( AD_SERVICE->SERVICE->SERVICETYPE ).
-        loop at LSTT_TEMPLS assigning field-symbol(<LS_SERVICE_TASK_TEMPLATE>)
-          where TaskType <> 'ADDITIONAL_SERVICE'.
-          append initial line to <LS_SERVICE_TO_CREATE>-T_SERVICE_TASK assigning field-symbol(<SERVICE_TASK_TO_CREATE>).
-          create data FR_SERVICE_TASK.
-          FR_SERVICE_TASK->SERVICETASK = ref #( <SERVICE_TASK_TO_CREATE>-SERVICETASK ).
-          FR_SERVICE_TASK->EXTUNIVERSAL = ref #( <SERVICE_TASK_TO_CREATE>-EXTUNIVERSAL ).
-          FR_SERVICE_TASK->EXTWASTE = ref #( <SERVICE_TASK_TO_CREATE>-EXTWASTE ).
-          FILL_SERVICE_TASK_DATA( <LS_SERVICE_TASK_TEMPLATE> ).
-        endloop.
-        if LINES( FR_WASTE_ORDER_ITEM->ADDITIONAL_SERVICES ) is not initial.
-          LSEQUENCE = <SERVICE_TASK_TO_CREATE>-SERVICETASK-SequenceNumber.
-
-          loop at FR_WASTE_ORDER_ITEM->ADDITIONAL_SERVICES reference into data(LADDSERVICEREF).
-            loop at LSTT_TEMPLS assigning <LS_SERVICE_TASK_TEMPLATE>
-              where TaskType = 'ADDITIONAL_SERVICE'.
-
-              append initial line to <LS_SERVICE_TO_CREATE>-T_SERVICE_TASK assigning <SERVICE_TASK_TO_CREATE>.
-              create data FR_SERVICE_TASK.
-              FR_SERVICE_TASK->SERVICETASK = ref #( <SERVICE_TASK_TO_CREATE>-SERVICETASK ).
-              FR_SERVICE_TASK->EXTUNIVERSAL = ref #( <SERVICE_TASK_TO_CREATE>-EXTUNIVERSAL ).
-              FR_SERVICE_TASK->EXTWASTE = ref #( <SERVICE_TASK_TO_CREATE>-EXTWASTE ).
-
-              FO_ACCESS_POOL->SET_CONTEXT(
-                IV_SEMANTIC_CONTEXT = 'EWA_WASTE_ADDITIONAL_SERVICE' "/PLCE/CL_SEMANTIC_CONSTANTS=>C_SEMANTIC_CONTEXT-???
-                IR_DATA             = LADDSERVICEREF
-              ).
-              FILL_SERVICE_TASK_DATA( <LS_SERVICE_TASK_TEMPLATE> ).
-              LSEQUENCE = LSEQUENCE + 10.
-              <SERVICE_TASK_TO_CREATE>-SERVICETASK-SequenceNumber = LSEQUENCE.
-
-*                  FO_MAPPER->EXECUTE_SEMANTIC_TEMPL_CONFIG(
-*                    IV_PROFILE                = GET_PROFILE( )
-*                    IV_SEMANTIC_TEMPLATE_NAME = <LS_SERVICE_TASK_TEMPLATE>-SemanticTemplateName
-*                  ).
-
-            endloop.
-          endloop.
-        endif.
-      endloop.
-*          endif.
-    endloop.
-
-*      catch /PLCE/CX_BASEEXCEPTION into data(LBASEEX).
-*        FO_MSGLOG->/PLCE/IF_PROTOCOL~REPORT_EXCEPTION(
-*          exporting
-**           IV_SEVERITY  =
-*            IV_EXCEPTION = LBASEEX
-*        ).
-*    endtry.
-
-  endmethod.
-
-
-* <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Protected Method ZCL_PD_PROC_WASTE_ORDERS->FILL_SERVICE_DATA
-* +-------------------------------------------------------------------------------------------------+
-* | [--->] IS_SERVICE_TEMPLATE            TYPE        LINE OF TP_SERVICE_TMPL(optional)
-* | [!CX!] /PLCE/CX_BASEEXCEPTION
-* +--------------------------------------------------------------------------------------</SIGNATURE>
-  method FILL_SERVICE_DATA.
-    field-symbols:
-      <FIELD_FROM> type DATA,
-      <FIELD_TO>   type DATA.
-
-*    AD_SERVICE->* = corresponding #( IS_SERVICE_TEMPLATE mapping SequenceNumber = SqncNr ).
-    AD_SERVICE->SERVICE->* = corresponding #( IS_SERVICE_TEMPLATE ).
-
-    if FR_WASTE_ORDER_ITEM is not initial.
-*      AD_SERVICE->SERVICE->ReferenceId         = |{ FR_WASTE_ORDER_ITEM->ORDERNR alpha = out }/{ FR_WASTE_ORDER_ITEM->ORDER_LAUFNR }|. condense AD_SERVICE->SERVICE->ReferenceId.
-      AD_SERVICE->SERVICE->ReferenceId         = |{ FR_WASTE_ORDER_ITEM->WDOITEMID alpha = out }|. condense AD_SERVICE->SERVICE->ReferenceId.
-      AD_SERVICE->SERVICE->ReferenceInternalId = FR_WASTE_ORDER_ITEM->POBJNR.
-*      AD_SERVICE->SERVICE->ExternalOrderType  = AD_SERVICE_ORDER_ITEM->ServiceOrderItemCategory. "ServiceDocumentItemObjectType
-      AD_SERVICE->SERVICE->Profile = GET_PROFILE( ).
-
-      FO_ACCESS_POOL->SET_CONTEXT(
-        IV_SEMANTIC_CONTEXT = /PLCE/CL_SEMANTIC_CONSTANTS=>C_SEMANTIC_CONTEXT-SERVICE
-        IR_DATA             = AD_SERVICE
-      ).
-      FO_ACCESS_POOL->SET_CONTEXT(
-        IV_SEMANTIC_CONTEXT = 'EWA_WASTE_ORDER_ITEM' "/PLCE/CL_SEMANTIC_CONSTANTS=>C_SEMANTIC_CONTEXT-??
-        IR_DATA             = FR_WASTE_ORDER_ITEM
-      ).
-      FO_MAPPER->EXECUTE_SEMANTIC_TEMPL_CONFIG(
-        IV_PROFILE                = GET_PROFILE( )
-        IV_SEMANTIC_TEMPLATE_NAME = IS_SERVICE_TEMPLATE-SemanticTemplateName
-      ).
-    endif.
-  endmethod.
-
-
-* <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Protected Method ZCL_PD_PROC_WASTE_ORDERS->FILL_SERVICE_TASK_DATA
-* +-------------------------------------------------------------------------------------------------+
-* | [--->] IS_SRVC_TSK_TMPL               TYPE        LINE OF TP_SERVICE_TASK_TMPL(optional)
-* | [!CX!] /PLCE/CX_BASEEXCEPTION
-* +--------------------------------------------------------------------------------------</SIGNATURE>
-  method FILL_SERVICE_TASK_DATA.
-
-    FR_SERVICE_TASK->SERVICETASK->* = corresponding #( IS_SRVC_TSK_TMPL mapping SequenceNumber = SqncNr ).
-    FR_SERVICE_TASK->SERVICETASK->ServiceUUID = AD_SERVICE->SERVICE->ServiceUUID.
-
-    FO_ACCESS_POOL->SET_CONTEXT(
-      IV_SEMANTIC_CONTEXT = /PLCE/CL_SEMANTIC_CONSTANTS=>C_SEMANTIC_CONTEXT-SERVICE
-      IR_DATA             = AD_SERVICE
-    ).
-    FO_ACCESS_POOL->SET_CONTEXT(
-      IV_SEMANTIC_CONTEXT = 'EWA_WASTE_ORDER_ITEM' "/PLCE/CL_SEMANTIC_CONSTANTS=>C_SEMANTIC_CONTEXT-???
-      IR_DATA             = FR_WASTE_ORDER_ITEM
-    ).
-    FO_ACCESS_POOL->SET_CONTEXT(
-      IV_SEMANTIC_CONTEXT = /PLCE/CL_SEMANTIC_CONSTANTS=>C_SEMANTIC_CONTEXT-SERVICE_TASK
-      IR_DATA             = FR_SERVICE_TASK
-    ).
-    FO_MAPPER->EXECUTE_SEMANTIC_TEMPL_CONFIG(
-      IV_PROFILE                = GET_PROFILE( )
-      IV_SEMANTIC_TEMPLATE_NAME = IS_SRVC_TSK_TMPL-SemanticTemplateName
-    ).
-  endmethod.
-
-
-* <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Protected Method ZCL_PD_PROC_WASTE_ORDERS->PROCESS_UPDATE
-* +-------------------------------------------------------------------------------------------------+
-* | [!CX!] /PLCE/CX_BASEEXCEPTION
-* +--------------------------------------------------------------------------------------</SIGNATURE>
-  method PROCESS_UPDATE.
-    types:
-      begin of _TATTAKEY,
-        ServiceUUID    type /PLCE/PDSERVICE_UUID,
-        AttachmentUUID type /PLCE/PDATTACHMENT_UUID,
-      end of _TATTAKEY.
-
-    data:
-      LSRVKEYS    type /PLCE/PPDSRV_KEY,
-      LSRVTSKKEYS type /PLCE/PPDSRVTSK_KEY.
-
-
-    data:
-      LRS_UPD       type table for update /PLCE/R_PDSERVICE,
-      LRSUNI_UPD    type table for update /PLCE/R_PDSERVICEEXTUNI,
-      LRSWA_UPD     type table for update /PLCE/R_PDSERVICEEXTWR,
-      LRSCT_UPD     type table for update /PLCE/R_PDServiceExtCustom,
-      LRSTSK_UPD    type table for update /PLCE/R_PDSERVICETASK,
-      LRSTSKUNI_UPD type table for update /PLCE/R_PDSERVICETASKEXTUNI,
-      LRSTSKWA_UPD  type table for update /PLCE/R_PDSERVICETASKEXTWR,
-      LRS_ATTA_CREA type table for create /PLCE/R_PDSERVICE\_Attachments.
-*      LRS_ATTA_CREA type table for create /PLCE/R_PDServiceAttachment.
-
-    data:
-      LSRVKEYS_DEL        type /PLCE/PPDSRV_KEY,
-      LSRVKEYS_UNI_DEL    type /PLCE/PPDSRV_KEY,
-      LSRVKEYS_WA_DEL     type /PLCE/PPDSRV_KEY,
-      LSRVKEYS_CT_DEL     type /PLCE/PPDSRV_KEY,
-      LSRVTSKKEYS_DEL     type /PLCE/PPDSRVTSK_KEY,
-      LSRVTSKKEYS_UNI_DEL type /PLCE/PPDSRVTSK_KEY,
-      LSRVTSKKEYS_WA_DEL  type /PLCE/PPDSRVTSK_KEY,
-      LSRATTAKEYS_DEL     type standard table of _TATTAKEY.
-
-    types:
-      begin of _TPOBJNR,
-        POBJNR type C length 30,
-      end of _TPOBJNR.
-
-    data:
-      LPOBJNRS type standard table of _TPOBJNR.
-****  FILL_KEYS
-    if LINES( FT_WASTE_ORDER_ITEM_UPD ) is not initial.
-      LPOBJNRS = corresponding #( FT_WASTE_ORDER_ITEM_UPD ).
-
-      if LINES( LPOBJNRS ) is not initial.
-        select SERVICEUUID from /PLCE/R_PDSERVICE
-          for all entries in @LPOBJNRS
-          where REFERENCEINTERNALID = @LPOBJNRS-POBJNR
-          into table @LSRVKEYS.
-      endif.
-      if LINES( LSRVKEYS ) is not initial.
-
-        select SERVICETASKUUID from /PLCE/R_PDSERVICETASK
-          for all entries in @LSRVKEYS
-          where SERVICEUUID = @LSRVKEYS-SERVICE_UUID
-          into table @LSRVTSKKEYS.
-
-      endif.
-
-**** READ_ENTITIES
-
-      read entities of /PLCE/R_PDSERVICE
-        entity SERVICE
-          all fields
-          with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-*    with corresponding #( LKEYS mapping from entity )
-          result data(LRS)
-*      result ( LRS )
-          by \_EXTUNIVERSAL all fields with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-          result data(LRSUNI)
-          by \_EXTWASTE all fields with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-          result data(LRSWA)
-          by \_ExtCustom all fields with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-          result data(LRSCT)
-          by \_SERVICETASK all fields with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-          result data(LRSTSK)
-          by \_ATTACHMENTS all fields with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-          result data(LRSATTA).
-
-      read entities of /PLCE/R_PDSERVICE
-        entity SERVICETASK
-          by \_EXTWASTE all fields with corresponding #( LRSTSK )  "value #( for L in LRSTSK ( %KEY-ServiceTaskUUID = L-%KEY-ServiceTaskUUID ) )
-          result data(LRSTSKWA)
-          by \_EXTUNIVERSAL all fields with corresponding #( LRSTSK )  "value #( for L in LRSTSK ( %KEY-ServiceTaskUUID = L-%KEY-ServiceTaskUUID ) )
-          result data(LRSTSKUNI).
-
-
-      LRS_UPD = corresponding #( LRS ).
-      LRSUNI_UPD = corresponding #( LRSUNI ).
-      LRSWA_UPD = corresponding #( LRSWA ).
-      LRSCT_UPD = corresponding #( LRSWA ).
-      LRSTSK_UPD = corresponding #( LRSTSK ).
-      LRSTSKUNI_UPD = corresponding #( LRSTSKUNI ).
-      LRSTSKWA_UPD = corresponding #( LRSTSKWA ).
-
-**** READ_ENTITIES
-
-**** MAP_DATA
-
-      data:
-        LTSRV     type standard table of /PLCE/TPDSRV,
-        LSRV_CREA type /PLCE/TPDSRV,
-        LSRV_UPD  type /PLCE/TPDSRV.
-
-      LTSRV = corresponding #( LRS_UPD mapping from entity  ).
-
-      loop at LRS_UPD reference into data(LRSUPDREF).
-
-*    LRSUPDREF->
-
-**** Eigentlich kann es nur einen geben!!!!
-        loop at AT_SERVICE_TO_CREATE reference into data(LSERVICECREATEREF)
-          where SERVICE-REFERENCEINTERNALID = LRSUPDREF->REFERENCEINTERNALID. "#EC CI_SORTSEQ
-
-**** Base entity
-          LSRV_CREA = corresponding #( LSERVICECREATEREF->SERVICE mapping from entity ).
-          LSRV_UPD = corresponding #( LRSUPDREF->* mapping from entity ).
-
-          clear:
-            LSRV_UPD-SERVICE_UUID, LSRV_UPD-SERVICE_ID.
-
-          if LSRV_UPD-DATA <> LSRV_CREA-DATA.
-* match!
-            LRSUPDREF->%DATA = corresponding #( base ( LRSUPDREF->%DATA ) LSERVICECREATEREF->SERVICE except %KEY SERVICEID ).
-            /PLCE/CL_BASE_MISC=>SET_MODIFY_CONTROL_FIELDS( IR_STRUCT = LRSUPDREF IV_SET_ALL_FIELDS = ABAP_TRUE ).
-
-          endif.
-
-*** EXTUNI
-          read table LRSUNI_UPD reference into data(LRSUNI_UPDREF)
-            with table key ENTITY components %KEY-SERVICEUUID = LRSUPDREF->%KEY-SERVICEUUID.
-
-          if SY-SUBRC is initial.
-            LRSUNI_UPDREF->%DATA = corresponding #( base ( LRSUNI_UPDREF->%DATA ) LSERVICECREATEREF->EXTUNIVERSAL except %KEY ).
-            /PLCE/CL_BASE_MISC=>SET_MODIFY_CONTROL_FIELDS( IR_STRUCT = LRSUNI_UPDREF IV_SET_ALL_FIELDS = ABAP_TRUE ).
-          else.
-*** new relation
-*          insert LSERVICECREATEREF->EXTUNIVERSAL into table ...
-          endif.
-
-*** EXTWA
-          read table LRSWA_UPD reference into data(LRSWA_UPDREF)
-            with table key ENTITY components %KEY-SERVICEUUID = LRSUPDREF->%KEY-SERVICEUUID.
-
-          if SY-SUBRC is initial.
-            LRSWA_UPDREF->%DATA = corresponding #( base ( LRSWA_UPDREF->%DATA ) LSERVICECREATEREF->EXTWASTE except %KEY ).
-            /PLCE/CL_BASE_MISC=>SET_MODIFY_CONTROL_FIELDS( IR_STRUCT =  LRSWA_UPDREF IV_SET_ALL_FIELDS = ABAP_TRUE ).
-*            LRSWA_UPDREF->* = corresponding #( base ( LRSWA_UPDREF->* ) LSERVICECREATEREF->EXTWASTE changing control except SERVICEUUID %KEY ).
-          else.
-*** new relation
-*          insert LSERVICECREATEREF->EXTWASTE into table ...
-          endif.
-
-          read table LRSCT_UPD reference into data(LRSCT_UPDREF)
-            with table key ENTITY components %KEY-SERVICEUUID = LRSUPDREF->%KEY-SERVICEUUID.
-
-          if SY-SUBRC is initial.
-            LRSCT_UPDREF->%DATA = corresponding #( base ( LRSCT_UPDREF->%DATA ) LSERVICECREATEREF->EXTCUSTOM except %KEY ).
-            /PLCE/CL_BASE_MISC=>SET_MODIFY_CONTROL_FIELDS( IR_STRUCT =  LRSCT_UPDREF IV_SET_ALL_FIELDS = ABAP_TRUE ).
-*            LRSWA_UPDREF->* = corresponding #( base ( LRSWA_UPDREF->* ) LSERVICECREATEREF->EXTWASTE changing control except SERVICEUUID %KEY ).
-          else.
-*** new relation
-*          insert LSERVICECREATEREF->EXTWASTE into table ...
-          endif.
-
-**** Attachments <- always
-          if LINES( LSERVICECREATEREF->ATTACHMENTS ) is not initial.
-            insert initial line into table LRS_ATTA_CREA assigning field-symbol(<ATTA_CREA>).
-            loop at LSERVICECREATEREF->ATTACHMENTS reference into data(LATTAREF).
-              insert initial line into table <ATTA_CREA>-%TARGET assigning field-symbol(<ATTA_CREA_LINE>).
-              <ATTA_CREA_LINE> = corresponding #( LATTAREF->ATTACHMENT ).
-              <ATTA_CREA_LINE>-ServiceUUID = LRSUPDREF->ServiceUUID.
-              <ATTA_CREA_LINE>-%CID = GET_NEXT_CID( ).
-
-              /PLCE/CL_BASE_MISC=>SET_MODIFY_CONTROL_FIELDS( IR_STRUCT = ref #( <ATTA_CREA_LINE> ) ).
-              <ATTA_CREA_LINE>-%CONTROL-ServiceUUID = IF_ABAP_BEHV=>MK-OFF.
-            endloop.
-            <ATTA_CREA>-ServiceUUID = LRSUPDREF->ServiceUUID.
-*            <ATTA_CREA>-%CID_REF = LRSUPDREF->ServiceUUID.
-          endif.
-
-***** Tasks
-
-**** upd & delete
-
-***  update/insert
-          loop at LSERVICECREATEREF->T_SERVICE_TASK reference into data(LSERVICETASKCREATEREF).
-
-            read table LRSTSK_UPD reference into data(LRSTSK_UPDREF)
+        if LV_EXT is not initial and STRLEN( LV_EXT ) = 3.
+          if LATTACHMENTREF->TOURUUID is not initial and LATTACHMENTREF->SERVICEUUID is initial.
+            read table FORDER_KEYS
               with key
-                       SERVICEUUID = LRSUPDREF->SERVICEUUID  " todo --- Fehler nachstellen
-                       TASKTYPE = LSERVICETASKCREATEREF->SERVICETASK-TASKTYPE
-                       SEQUENCENUMBER = LSERVICETASKCREATEREF->SERVICETASK-SEQUENCENUMBER.
+                /PLCP/PD_TOUR_ID = LATTACHMENTREF->/PLCP/PD_TOUR_ID
+                ORDER_DATE = LATTACHMENTREF->ORDER_DATE
+                ROUTE = LATTACHMENTREF->ROUTE reference into data(LKEYREF) binary search.
 
-            if SY-SUBRC is initial.
-
-              LRSTSK_UPDREF->%DATA = corresponding #( base ( LRSTSK_UPDREF->%DATA ) LSERVICETASKCREATEREF->SERVICETASK
-                except %KEY SERVICEUUID PLANNINGSTATUS TOURUUID ).
-              /PLCE/CL_BASE_MISC=>SET_MODIFY_CONTROL_FIELDS( IR_STRUCT = LRSTSK_UPDREF IV_SET_ALL_FIELDS = ABAP_TRUE ).
-              LRSTSK_UPDREF->%CONTROL-ServiceUUID = IF_ABAP_BEHV=>MK-OFF.
-              LRSTSK_UPDREF->%CONTROL-SequenceNumber = IF_ABAP_BEHV=>MK-OFF.
-
-              read table LRSTSKUNI_UPD reference into data(LRSTSKUNI_UPDREF)
-                with table key ENTITY components SERVICETASKUUID = LRSTSK_UPDREF->SERVICETASKUUID.
-
-              if SY-SUBRC is initial.
-                LRSTSKUNI_UPDREF->%DATA = corresponding #( base ( LRSTSKUNI_UPDREF->%DATA ) LSERVICETASKCREATEREF->EXTUNIVERSAL except %KEY SERVICEUUID ).
-                /PLCE/CL_BASE_MISC=>SET_MODIFY_CONTROL_FIELDS( IR_STRUCT = LRSTSKUNI_UPDREF IV_SET_ALL_FIELDS = ABAP_TRUE ).
-                LRSTSKUNI_UPDREF->%CONTROL-ServiceUUID = IF_ABAP_BEHV=>MK-OFF.
-              else.
-***           insert new UNI Task
-              endif.
-
-              read table LRSTSKWA_UPD reference into data(LRSTSKWA_UPDREF)
-                with table key ENTITY components SERVICETASKUUID = LRSTSK_UPDREF->SERVICETASKUUID.
-
-              if SY-SUBRC is initial.
-                LRSTSKWA_UPDREF->%DATA = corresponding #( base ( LRSTSKWA_UPDREF->%DATA ) LSERVICETASKCREATEREF->EXTWASTE except %KEY SERVICEUUID ).
-                /PLCE/CL_BASE_MISC=>SET_MODIFY_CONTROL_FIELDS( IR_STRUCT = LRSTSKWA_UPDREF IV_SET_ALL_FIELDS = ABAP_TRUE ).
-                LRSTSKWA_UPDREF->%CONTROL-ServiceUUID = IF_ABAP_BEHV=>MK-OFF.
-              else.
-***           insert new WA Task
-              endif.
-
-
+            if SY-SUBRC is initial and LKEYREF->ORDERNR is not initial.
+              TA_GETBO_VAR LO_BO_ORDER CL_EEWA_BO_WDORDER=>COT_WDORDER LKEYREF->ORDERNR.
+              LO_BO ?= LO_BO_ORDER.
             else.
-***       alle Task Teile müssen angelegt werden.
-
+              raise exception type /PLCP/CX_EEWA_BASE
+                message id '/PLCP/MC_WA'
+                type 'E'
+                number 031 ##NUMBER_OK
+                with LATTACHMENTREF->/PLCP/PD_TOUR_ID.
             endif.
 
-          endloop.
-
-
-****  Delete
-
-          if LSERVICETASKCREATEREF->EXTUNIVERSAL is initial.
-            read table LRSUNI_UPD reference into LRSUNI_UPDREF
-              with table key ENTITY components %KEY = corresponding #( LRSUPDREF->%KEY ).
-
-            if SY-SUBRC is initial.
-              if LSERVICECREATEREF->EXTUNIVERSAL is initial.
-                insert corresponding #( LRSUNI_UPDREF->%KEY ) into table LSRVKEYS_UNI_DEL.
-              endif.
-            endif.
+          else.
+            select single ORDERNR, ORDER_LAUFNR from EWA_ORDER_OBJECT where POBJNR = @LATTACHMENTREF->POBJNR into @data(LITEMKEY).
+            TA_GETBO_VAR LO_BO_ORDER CL_EEWA_BO_WDORDER=>COT_WDORDER LITEMKEY-ORDERNR.
+            TA_GETBO_VAR LO_BO       CL_EEWA_BO_WDORDERITEM=>COT_WDORDERITEM LITEMKEY.
           endif.
 
-          if LSERVICETASKCREATEREF->EXTWASTE is initial.
-            read table LRSWA_UPD reference into LRSWA_UPDREF
-              with table key ENTITY components %KEY = corresponding #( LRSUPDREF->%KEY ).
+          LV_BOR_TYPE = LO_BO->GET_GOS_BOR_OBJTYPE( ).
+          if ZCL_WR_MISC_GOS=>CL_GET_IS_METAGOS_ACTIVE( IV_BOR_TYPE = LV_BOR_TYPE ) = ABAP_FALSE.
+            insert LATTACHMENTREF->* into table ATTACHMENTRESULTS.
+            SUPER->BOOK_ATTACHMENTS( ).
+            clear ATTACHMENTRESULTS.
+          else.
+            LS_DATA-BOR_OBJECT-TYPEID = LV_BOR_TYPE.
+            LS_DATA-BOR_OBJECT-INSTID = LO_BO->GET_GOS_BOR_OBJKEY( ).
+            LS_DATA-DESCRIPTION = LATTACHMENTREF->ZZ_COMMENTS.
 
-            if SY-SUBRC is initial.
-              if LSERVICECREATEREF->EXTWASTE is initial.
-                insert corresponding #( LRSWA_UPDREF->%KEY ) into table LSRVKEYS_WA_DEL.
-              endif.
+            LS_DATA-SOURCE_DATA-ATTA_SOURCE_TSTAMP = LATTACHMENTREF->ZZ_TIMESTAMP.
+            LS_DATA-SOURCE_DATA-ATTA_SOURCE_USER = LATTACHMENTREF->ZZ_CREATED_BY.
+            LS_DATA-SOURCE_DATA-ATTA_SOURCE = LATTACHMENTREF->ZZ_ATTA_SOURCE.
+            LS_DATA-SOURCE_DATA-ATTA_SOURCE_PERNR = LATTACHMENTREF->ZZ_ATTA_SOURCE_PERNR.
+            LS_DATA-FILE_DATA-CONTENT = LATTACHMENTREF->DATA->ATTACHMENT.
+
+            if LATTACHMENTREF->ZZ_ATTA_SOURCE_CONFNOTE is not initial.
+              LS_DATA-FILE_DATA-FILENAME = |{ LATTACHMENTREF->ZZ_ATTA_SOURCE_CONFNOTE };{ LS_DATA-SOURCE_DATA-ATTA_SOURCE_TSTAMP }.{ LS_DATA-FILE_DATA-DOC_TYPE }|.
             endif.
-          endif.
 
+            LS_DATA-TITLE = LS_DATA-FILE_DATA-FILENAME.
+            if LS_DATA-TITLE is initial.
+              LS_DATA-TITLE = 'EXT'.
+            endif.
 
-          loop at LRSTSK_UPD reference into LRSTSK_UPDREF where SERVICEUUID = LRSUPDREF->SERVICEUUID.
-            read table LSERVICECREATEREF->T_SERVICE_TASK  reference into LSERVICETASKCREATEREF "transporting no fields
-              with key "SERVICETASK-SERVICEUUID = LRSTSK_UPDREF->SERVICEUUID
-                       SERVICETASK-TASKTYPE = LRSTSK_UPDREF->TASKTYPE
-                       SERVICETASK-SEQUENCENUMBER = LRSTSK_UPDREF->SEQUENCENUMBER.
-
-            if SY-SUBRC is not initial.
-              insert corresponding #( LRSTSK_UPDREF->%KEY ) into table LSRVTSKKEYS_DEL.
+            call function 'Z_WR_CREATE_ATTACHMENT'
+              exporting
+                IS_DATA           = LS_DATA
+              importing
+                EV_SUCCEED        = LV_SUCCESS
+                EV_METAGOSID      = LV_METAGOSID
+              exceptions
+                ATTACHMENT_FAILED = 1
+                others            = 2.
+            if SY-SUBRC <> 0.
+              CL_EEWA_MISC=>RAISE_SYMSG( ).
             else.
-
-              read table LRSTSKUNI_UPD reference into LRSTSKUNI_UPDREF
-                with table key ENTITY components %KEY = corresponding #( LRSTSK_UPDREF->%KEY ).
-
-              if SY-SUBRC is initial.
-                if LSERVICETASKCREATEREF->EXTUNIVERSAL is initial.
-                  insert corresponding #( LRSTSK_UPDREF->%KEY ) into table LSRVTSKKEYS_UNI_DEL.
-                endif.
-              endif.
-
-              read table LRSTSKWA_UPD reference into LRSTSKWA_UPDREF
-                  with table key ENTITY components %KEY = corresponding #( LRSTSK_UPDREF->%KEY ).
-
-              if SY-SUBRC is initial.
-                if LSERVICETASKCREATEREF->EXTWASTE is initial.
-                  insert corresponding #( LRSTSK_UPDREF->%KEY ) into table LSRVTSKKEYS_WA_DEL.
-                endif.
-              endif.
-
+              insert value #( UUID = LATTACHMENTREF->DATA->ATTACHMENTUUID DOC_ID = LV_METAGOSID ) into table LT_DBATTACHMENTS.
             endif.
-
-          endloop.
-
-        endloop.
-      endloop.
-
-*** Attachments
-      LSRATTAKEYS_DEL = value #( for LATTALINE in LRSATTA where ( CreatedByUpload is not initial )
-        ( corresponding #( LATTALINE ) ) ).
-
-**** SAVE
-      delete:
-        LRS_UPD where %CONTROL is initial,
-        LRSUNI_UPD where %CONTROL is initial,
-        LRSWA_UPD where %CONTROL is initial,
-        LRSCT_UPD where %CONTROL is initial,
-        LRSTSK_UPD where %CONTROL is initial,
-        LRSTSKWA_UPD where %CONTROL is initial,
-        LRSTSKUNI_UPD where %CONTROL is initial.
-
-
-      modify entities of /PLCE/R_PDSERVICE
-        entity SERVICE
-          update from LRS_UPD
-*          update set fields with corresponding #( LRS_UPD ) "set fields with LRS_UPD  ##SETFIELDS_OK
-          delete from corresponding #( LSRVKEYS_DEL )
-          create by \_Attachments from corresponding #( LRS_ATTA_CREA )
-        entity EXTUNIVERSAL
-          update from LRSUNI_UPD
-*          update set fields with corresponding #( LRSUNI_UPD ) ##SETFIELDS_OK
-          delete from corresponding #( LSRVKEYS_UNI_DEL )
-        entity EXTWASTE
-*          update set fields with corresponding #( LRSWA_UPD ) ##SETFIELDS_OK
-          update from LRSWA_UPD
-          delete from corresponding #( LSRVKEYS_WA_DEL )
-        entity ExtCustom
-*          update set fields with corresponding #( LRSWA_UPD ) ##SETFIELDS_OK
-          update from LRSCT_UPD
-          delete from corresponding #( LSRVKEYS_CT_DEL )
-        entity Attachments
-          delete from corresponding #( LSRATTAKEYS_DEL )
-        entity SERVICETASK
-          update from LRSTSK_UPD
-*          update set fields with corresponding #( LRSTSK_UPD except SERVICEUUID SEQUENCENUMBER ) ##SETFIELDS_OK
-          delete from corresponding #( LSRVTSKKEYS_DEL )
-        entity EXTTASKUNIVERSAL
-          update from LRSTSKUNI_UPD
-*          update set fields with corresponding #( LRSTSKUNI_UPD except SERVICEUUID ) ##SETFIELDS_OK
-          delete from corresponding #( LSRVTSKKEYS_UNI_DEL )
-        entity EXTTASKWASTE
-          update from LRSTSKWA_UPD
-*          update set fields with corresponding #( LRSTSKWA_UPD except SERVICEUUID  ) ##SETFIELDS_OK
-          delete from corresponding #( LSRVTSKKEYS_WA_DEL )
-        mapped data(MAPPED_UPDATE)
-        failed data(FAILED_UPDATE)
-        reported data(REPORTED_UPDATE).
-
-      if FAILED_UPDATE is initial.
-*        modify entities of /PLCE/R_PDSERVICE
-*          entity SERVICE
-**            update from LRS_UPD
-**  *          update set fields with corresponding #( LRS_UPD ) "set fields with LRS_UPD  ##SETFIELDS_OK
-**            delete from corresponding #( LSRVKEYS_DEL )
-*            create by \_Attachments from corresponding #( LRS_ATTA_CREA )
-*          mapped data(MAPPED_UPDATE_ATTA)
-*          failed data(FAILED_UPDATE_ATTA)
-*          reported data(REPORTED_UPDATE_ATTA).
-
-*        if FAILED_UPDATE_ATTA is initial.
-          commit entities
-            response of /PLCE/R_PDSERVICE
-              failed data(FAILED_COMMIT_SRVC)
-              reported data(REPORTED_COMMIT_SRVC).
-*        else.
-*          rollback entities.                          "#EC CI_ROLLBACK.
-*        endif.
-      else.
-        rollback entities.                            "#EC CI_ROLLBACK.
-      endif.
-
-      /PLCE/CL_BASE_MISC=>CHECK_RESPONSE(
-        exporting
-          IS_RESPONSE = REPORTED_UPDATE
-          IR_LOG      = FO_MSGLOG                 " APPLOG
-      ).
-
-    endif.
-
-  endmethod.
-
-
-* <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_PD_PROC_WASTE_ORDERS->PROCESS_WASTEORDERS
-* +-------------------------------------------------------------------------------------------------+
-* | [--->] IV_PROFILE                     TYPE        /PLCE/PDPROFILE
-* | [--->] IT_WASTEORDER                  TYPE        /PLCE/CL_PD_IMP_WASTE_ORDERS=>TP_WASTEORDER
-* | [--->] IO_MSGLOG                      TYPE REF TO /PLCE/CL_APPLLOG_HELPER(optional)
-* | [<---] ET_SRV_MAPPING                 TYPE        /PLCE/CL_PD_IMP_WASTE_ORDERS=>TP_WDOI_SRV_MAPPING
-* | [<---] ET_SRV_KEY                     TYPE        /PLCE/PPDSRV_KEY
-* | [!CX!] /PLCE/CX_BASEEXCEPTION
-* +--------------------------------------------------------------------------------------</SIGNATURE>
-  method PROCESS_WASTEORDERS.
-    clear:
-      AT_SERVICE_TO_CREATE.
-
-    super->PROCESS_WASTEORDERS(
-      exporting
-        IV_PROFILE     = IV_PROFILE
-        IT_WASTEORDER  = IT_WASTEORDER
-        IO_MSGLOG      = IO_MSGLOG
-      importing
-        ET_SRV_MAPPING = ET_SRV_MAPPING
-        ET_SRV_KEY     = ET_SRV_KEY
-    ).
-  endmethod.
-
-
-* <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Protected Method ZCL_PD_PROC_WASTE_ORDERS->SAVE_SERVICE
-* +-------------------------------------------------------------------------------------------------+
-* | [<---] ET_SERVICE_KEY                 TYPE        /PLCE/PPDSRV_KEY
-* | [<---] ET_SRV_MAPPING                 TYPE        /PLCE/CL_PD_IMP_WASTE_ORDERS=>TP_WDOI_SRV_MAPPING
-* | [!CX!] /PLCE/CX_BASEEXCEPTION
-* +--------------------------------------------------------------------------------------</SIGNATURE>
-  method SAVE_SERVICE.
-    check AT_SERVICE_TO_CREATE is not initial.
-
-    data: LT_SERVICE_TO_CREATE         type table for create /PLCE/R_PDSERVICE,
-          LT_SERVICE_TASK_TO_CREATE    type table for create /PLCE/R_PDSERVICE\_SERVICETASK,
-          LT_SERVICE_UNIVERSAL         type table for create /PLCE/R_PDSERVICE\_EXTUNIVERSAL,
-          LT_SERVICE_WASTE             type table for create /PLCE/R_PDSERVICE\_EXTWASTE,
-          LT_SERVICE_CUSTOM            type table for create /PLCE/R_PDSERVICE\_EXTCUSTOM,
-          LT_SERVICE_TASK_TO_CREATE_UN type table for create /PLCE/R_PDSERVICETASK\_EXTUNIVERSAL,
-          LT_SERVICE_TASK_TO_CREATE_WA type table for create /PLCE/R_PDSERVICETASK\_EXTWASTE,
-          LT_SERVICE_NOTES_TO_CREATE   type table for create /PLCE/R_PDSERVICE\_Notes,
-          LT_SERVICE_ATTAS_TO_CREATE   type table for create /PLCE/R_PDSERVICE\_Attachments,
-          LV_SERVICETASKCID            type ABP_BEHV_CID,
-          LINDEX                       type N length 8.
-
-    loop at AT_SERVICE_TO_CREATE reference into data(LR_SERVICE_TO_CREATE).
-      insert value #( %CID = LR_SERVICE_TO_CREATE->CID %DATA = LR_SERVICE_TO_CREATE->SERVICE ) into table LT_SERVICE_TO_CREATE.
-
-      if LR_SERVICE_TO_CREATE->EXTUNIVERSAL is not initial.
-        insert value #( %CID_REF = LR_SERVICE_TO_CREATE->CID ) into table LT_SERVICE_UNIVERSAL assigning field-symbol(<LS_SERVICE_UNIVERSAL>).
-        insert value #( %CID = |{ LR_SERVICE_TO_CREATE->CID }_EXTUN| %DATA = LR_SERVICE_TO_CREATE->EXTUNIVERSAL ) into table <LS_SERVICE_UNIVERSAL>-%TARGET.
-      endif.
-      if LR_SERVICE_TO_CREATE->EXTWASTE is not initial.
-        insert value #( %CID_REF = LR_SERVICE_TO_CREATE->CID ) into table LT_SERVICE_WASTE assigning field-symbol(<LS_SERVICE_WASTE>).
-        insert value #( %CID = |{ LR_SERVICE_TO_CREATE->CID }_EXTWA| %DATA = LR_SERVICE_TO_CREATE->EXTWASTE ) into table <LS_SERVICE_WASTE>-%TARGET.
-      endif.
-
-      if LR_SERVICE_TO_CREATE->EXTCUSTOM is not initial.
-        insert value #( %CID_REF = LR_SERVICE_TO_CREATE->CID ) into table LT_SERVICE_CUSTOM assigning field-symbol(<LS_SERVICE_CUSTOM>).
-        insert value #( %CID = |{ LR_SERVICE_TO_CREATE->CID }_EXTCUSTOM| %DATA = LR_SERVICE_TO_CREATE->EXTCUSTOM  ) into table <LS_SERVICE_CUSTOM>-%TARGET.
-      endif.
-
-*      insert value #( %CID = LR_SERVICE_TO_CREATE->CID %DATA = LR_SERVICE_TO_CREATE->SERVICE ) into table LT_SERVICE_TO_CREATE.
-
-      if LINES( LR_SERVICE_TO_CREATE->T_SERVICE_TASK ) > 0.
-        insert value #( %CID_REF = LR_SERVICE_TO_CREATE->CID ) into table LT_SERVICE_TASK_TO_CREATE assigning field-symbol(<LS_SERVICE_TASK_TO_CREATE>).
-        loop at LR_SERVICE_TO_CREATE->T_SERVICE_TASK reference into data(LR_SERVICE_TASK).
-          concatenate LR_SERVICE_TO_CREATE->CID '_' LR_SERVICE_TASK->SERVICETASK-SEQUENCENUMBER into LV_SERVICETASKCID.
-          insert value #( %CID = LV_SERVICETASKCID %DATA = LR_SERVICE_TASK->SERVICETASK ) into table <LS_SERVICE_TASK_TO_CREATE>-%TARGET.
-
-          if LR_SERVICE_TASK->EXTUNIVERSAL is not initial.
-            insert value #( %CID_REF = LV_SERVICETASKCID ) into table LT_SERVICE_TASK_TO_CREATE_UN assigning field-symbol(<LS_SERVICETASK_UNIVERSAL>).
-            insert value #( %CID = |{ LV_SERVICETASKCID }_EXTUN| %DATA = LR_SERVICE_TASK->EXTUNIVERSAL ) into table <LS_SERVICETASK_UNIVERSAL>-%TARGET.
-          endif.
-          if LR_SERVICE_TO_CREATE->EXTWASTE is not initial.
-            insert value #( %CID_REF = LV_SERVICETASKCID ) into table LT_SERVICE_TASK_TO_CREATE_WA assigning field-symbol(<LS_SERVICETASK_WASTE>).
-            insert value #( %CID = |{ LV_SERVICETASKCID }_EXTWA| %DATA = LR_SERVICE_TASK->EXTWASTE ) into table <LS_SERVICETASK_WASTE>-%TARGET.
           endif.
 
-        endloop.
-      endif.
-      if LINES( LR_SERVICE_TO_CREATE->T_SERVICE_NOTES ) > 0.
-        insert value #( %CID_REF = LR_SERVICE_TO_CREATE->CID ) into table LT_SERVICE_NOTES_TO_CREATE assigning field-symbol(<LS_SERVICE_NOTES_TO_CREATE>).
-        loop at LR_SERVICE_TO_CREATE->T_SERVICE_NOTES reference into data(LR_SERVICE_NOTE).
-          LINDEX = LINDEX + 1.
-          concatenate LR_SERVICE_TO_CREATE->CID '_NOTE' LINDEX into LV_SERVICETASKCID.
-          insert value #( %CID = LV_SERVICETASKCID %DATA = LR_SERVICE_NOTE->SERVICE_NOTE ) into table <LS_SERVICE_NOTES_TO_CREATE>-%TARGET.
-        endloop.
-      endif.
-      if LINES( LR_SERVICE_TO_CREATE->ATTACHMENTS ) > 0.
-        insert value #( %CID_REF = LR_SERVICE_TO_CREATE->CID ) into table LT_SERVICE_ATTAS_TO_CREATE assigning field-symbol(<LS_SERVICE_ATTAS_TO_CREATE>).
-        loop at LR_SERVICE_TO_CREATE->ATTACHMENTS reference into data(LR_SERVICE_ATTAREF).
-          LINDEX = LINDEX + 1.
-          concatenate LR_SERVICE_TO_CREATE->CID '_ATTA' LINDEX into LV_SERVICETASKCID.
-          insert value #( %CID = LV_SERVICETASKCID %DATA = LR_SERVICE_ATTAREF->ATTACHMENT ) into table <LS_SERVICE_ATTAS_TO_CREATE>-%TARGET.
-        endloop.
-      endif.
-    endloop.
+        else.
+          if LV_EXT is initial.
+            raise exception type /PLCP/CX_EEWA_BASE
+              message id '/PLCP/MC_WA'
+              type 'E'
+              number 032.
+          else.
+            raise exception type /PLCP/CX_EEWA_BASE
+              message id '/PLCP/MC_WA'
+              type 'E'
+              number 033 ##NUMBER_OK.
+          endif.
 
-    modify entities of /PLCE/R_PDSERVICE
-      entity SERVICE
-        create set fields with LT_SERVICE_TO_CREATE  ##SETFIELDS_OK
-        create by \_SERVICETASK set fields with LT_SERVICE_TASK_TO_CREATE
-*        create by \_ServiceTask ExtUniversal set fields with LT_SERVICE_TASK_TO_CREATE
-        create by \_EXTUNIVERSAL set fields with LT_SERVICE_UNIVERSAL
-        create by \_EXTWASTE set fields with LT_SERVICE_WASTE
-        create by \_ExtCustom set fields with LT_SERVICE_CUSTOM
-        create by \_Notes set fields with LT_SERVICE_NOTES_TO_CREATE
-        create by \_Attachments set fields with LT_SERVICE_ATTAS_TO_CREATE
-      entity SERVICETASK
-        create by \_EXTUNIVERSAL set fields with LT_SERVICE_TASK_TO_CREATE_UN
-        create by \_EXTWASTE set fields with LT_SERVICE_TASK_TO_CREATE_WA
-      mapped data(MAPPED_CREATE)
-      failed data(FAILED_CREATE)
-      reported data(REPORTED_CREATE).
-
-
-    loop at FAILED_CREATE-SERVICE assigning field-symbol(<FAILED_CREATE_SRVC>).
-      FO_MSGLOG->/PLCE/IF_PROTOCOL~REPORT_MESSAGE(
-        exporting
-          IV_SEVERITY   = FO_MSGLOG->/PLCE/IF_PROTOCOL~C_SEVERITY-ERROR
-          IV_ID         = '/PLCE/MC_PD_MSG'
-          IV_NUMBER     = '104'
-          IV_VARIABLE_1 = conv #( text-005 )
-          IV_VARIABLE_2 = conv #( <FAILED_CREATE_SRVC>-SERVICEUUID )
-      ).
-    endloop.
-
-    commit entities
-      response of /PLCE/R_PDSERVICE
-        failed data(FAILED_COMMIT_SRVC)
-        reported data(REPORTED_COMMIT_SRVC).
-
-    if FAILED_COMMIT_SRVC is not initial or sy-subrc is not initial.
-      loop at FAILED_COMMIT_SRVC-SERVICE assigning field-symbol(<FAILED_COMMIT_SRVC>).
-        FO_MSGLOG->/PLCE/IF_PROTOCOL~REPORT_MESSAGE(
-          exporting
-            IV_SEVERITY   = FO_MSGLOG->/PLCE/IF_PROTOCOL~C_SEVERITY-ERROR
-            IV_ID         = '/PLCE/MC_PD_MSG'
-            IV_NUMBER     = '106'
-            IV_VARIABLE_1 = conv #( text-005 )
-            IV_VARIABLE_2 = conv #( <FAILED_COMMIT_SRVC>-SERVICEUUID )
-        ).
-      endloop.
-      rollback entities.                               "#EC CI_ROLLBACK
-*      clear ET_SERVICE_KEY.
-    else.
-      if ET_SERVICE_KEY is requested or ET_SRV_MAPPING is requested.
-
-        ET_SERVICE_KEY = corresponding #( MAPPED_CREATE-SERVICE ).
-        loop at MAPPED_CREATE-SERVICE assigning field-symbol(<MAPPED_CREATE_SRVC>).
-          ET_SERVICE_KEY = value #( base ET_SERVICE_KEY ( SERVICE_UUID = <MAPPED_CREATE_SRVC>-%KEY-SERVICEUUID ) ).
-        endloop.
-
-      endif.
-
-      if ET_SRV_MAPPING is requested.
-
-        read entities of /PLCE/R_PDSERVICE
-          entity SERVICE
-          fields ( SERVICEUUID REFERENCEINTERNALID )
-*          with value #( for LLINE in MAPPED_CREATE-SERVICE ( %KEY-SERVICEUUID = LLINE-%KEY-SERVICEUUID ) )
-          with corresponding #( MAPPED_CREATE-SERVICE )
-          result data(LRS).
-
-        ET_SRV_MAPPING = corresponding #( LRS mapping POBJNR = ReferenceInternalId SERVICE_UUID = ServiceUUID ).
-
-      endif.
-    endif.
-  endmethod.
-
-
-* <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Static Public Method ZCL_PD_PROC_WASTE_ORDERS=>ZZ_CHANGE_SERVICE_TYPE
-* +-------------------------------------------------------------------------------------------------+
-* | [--->] PAR_KEY                        TYPE        /PLCE/SPDSRV_KEY
-* | [--->] PAR_SVTPTO                     TYPE        /PLCE/PDSERVICE_TYPE
-* | [--->] PAR_LOG                        TYPE REF TO /PLCE/CL_APPLLOG_HELPER(optional)
-* | [--->] PAR_COMMIT                     TYPE        KENNZX(optional)
-* | [--->] PAR_SIMULATE                   TYPE        KENNZX(optional)
-* | [!CX!] /PLCE/CX_BASEEXCEPTION
-* +--------------------------------------------------------------------------------------</SIGNATURE>
-method ZZ_CHANGE_SERVICE_TYPE.
-  data:
-    LDATA type ZZ_TY_DATA.
-
-  try.
-      LDATA = ZZ_FILL_SERVICE_TASK(
-        exporting
-          PAR_KEY    = PAR_KEY
-          PAR_SVTPTO = PAR_SVTPTO
-          PAR_LOG    = PAR_LOG ).
-
-* -------------------------------------------------------------------
-      modify entities of /PLCE/R_PDService
-        entity SERVICE
-          update from corresponding #( LDATA-SRV_UPD )
-          create by \_SERVICETASK set fields with LDATA-TSKS_CREA
-        entity SERVICETASK
-          delete from corresponding #( LDATA-TSKS_DELE )
-          create by \_EXTWASTE set fields with LDATA-TSKS_CREA_WA
-        entity EXTTASKUNIVERSAL
-          delete from corresponding #( LDATA-TSKS_DELE_UN )
-        entity EXTTASKWASTE
-          delete from corresponding #( LDATA-TSKS_DELE_WA )
-        mapped   data(LT_SRV_MAP)
-        reported data(LT_SRV_REP)
-        failed   data(LT_SRV_FAI) ##SETFIELDS_OK.
-
-      if LT_SRV_FAI is initial.
-        if PAR_SIMULATE is initial.
-          commit entities
-            response of /PLCE/R_PDSERVICE
-              failed   data(SRV_COMMIT_FAI)
-              reported data(SRV_COMMIT_REP).
         endif.
       endif.
 
-      /PLCE/CL_BASE_MISC=>CHECK_RESPONSE(
-        exporting
-          IS_RESPONSE = LT_SRV_REP
-          IR_LOG      = PAR_LOG  ).               " APPLOG
+    endloop.
 
-    catch /PLCE/CX_BASEEXCEPTION into data(LEX_PD).
-      PAR_LOG->ADD_EXCEPTION( IV_SEVERITY = 'W' IRO_EXCEPTION = LEX_PD ).
-*    catch CX_SADL_SHORTDUMP into data(LEX_SADL).
-*      data(LX_ROOT_CAUSE) = new CX_SADL_CONTRACT_VIOLATION( ).
-*      CL_ABAP_UNIT_ASSERT=>ASSERT_EQUALS( ACT = LEX_SADL->PREVIOUS
-*                                          EXP = LX_ROOT_CAUSE ).
+    ATTACHMENTRESULTS = LT_LOCAL_ATT_RESULT.
+
+    if LINES( LT_DBATTACHMENTS ) is not initial.
+      insert /PLCP/TWRATTA from table LT_DBATTACHMENTS.
+    endif.
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_PLCP_TA_WA_ORDER_RSLT->BOOK_ORDER_ITEMS
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] PAR_SEQUENCE_ONLY              TYPE        KENNZX (default =SPACE)
+* | [!CX!] CX_EEWA_BASE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+method BOOK_ORDER_ITEMS.
+  try.
+    ZCL_WR_EEWA_BO_WDORDERITEM=>SV_DISABLE_STATUS_LOG = ABAP_TRUE.
+    BOOK_ORDER_ITEMS_SPEC( PAR_SEQUENCE_ONLY = PAR_SEQUENCE_ONLY ).
+    cleanup.
+      ZCL_WR_EEWA_BO_WDORDERITEM=>SV_DISABLE_STATUS_LOG = ABAP_FALSE.
   endtry.
-
+  ZCL_WR_EEWA_BO_WDORDERITEM=>SV_DISABLE_STATUS_LOG = ABAP_FALSE.
 endmethod.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Static Public Method ZCL_PD_PROC_WASTE_ORDERS=>ZZ_FILL_SERVICE_TASK
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->BOOK_ORDER_ITEMS_SPEC
 * +-------------------------------------------------------------------------------------------------+
-* | [--->] PAR_KEY                        TYPE        /PLCE/SPDSRV_KEY
-* | [--->] PAR_SVTPTO                     TYPE        /PLCE/PDSERVICE_TYPE
-* | [--->] PAR_LOG                        TYPE REF TO /PLCE/CL_APPLLOG_HELPER(optional)
-* | [<-()] PAR_RESULT                     TYPE        ZZ_TY_DATA
-* | [!CX!] /PLCE/CX_BASEEXCEPTION
+* | [--->] PAR_SEQUENCE_ONLY              TYPE        KENNZX (default =SPACE)
+* | [!CX!] CX_EEWA_BASE
 * +--------------------------------------------------------------------------------------</SIGNATURE>
-method ZZ_FILL_SERVICE_TASK.
-  data:
-    LINDEX   type SYINDEX,
-    LSRVKEYS type /PLCE/PPDSRV_KEY,
-    LSEQNR   type /PLCE/SEQUENCE_NUMBER,
-    LEX_PD   type ref to /PLCE/CX_BASEEXCEPTION,
-    LPROC    type ref to ZCL_PD_PROC_WASTE_ORDERS.
+METHOD BOOK_ORDER_ITEMS_SPEC.
+* &1 Detailname
+* &2 Dataref
+* &3 Where clause
+  DEFINE BO_LOOP_DETAIL_REF_WHERE.
+    IF LLPDPATH&1 IS NOT INITIAL.
+      LOOP AT <LLPDITEMS&1> REFERENCE INTO LLPDREF&1 WHERE (&3).
+        ASSIGN (LLPDPATH&1) TO <LLPDITEM&1>.
+        GET REFERENCE OF <LLPDITEM&1> INTO &2.
+  END-OF-DEFINITION.
 
-  data:
-    LDATA         type ZZ_TY_DATA,
-    LACTION      type /PLCE/PDACTION,
-    LWDO         type /PLCE/SWR_WASTEORDERITEM_IMP,
-    LWDOS        type /PLCE/PWR_WASTEORDERITEM_IMP,
-    LTSKS_CREA_X type /PLCE/CL_PD_PROC_WASTE_ORDERS=>TP_MODIFY_SERVICE_TASK_EXT ##NEEDED,
-    LTSKS_WDOI   type standard table of /Plce/R_PDServicetask
-                  with non-unique sorted key SEC_KEY components ServiceUUID SequenceNumber.
+  DATA:
+    LITEMKEYS_ACT       TYPE STANDARD TABLE OF TITEMORDERKEY,
+    LITEMKEYREF         TYPE REF TO TITEMORDERKEY,
+    LORDERNRS           TYPE STANDARD TABLE OF EORDERNR,
+    LBO                 TYPE REF TO cl_eewa_BO_WDORDER,
+    LITEMREF            TYPE REF TO EWASWDORDERITEMDET,
+    LSERVICECAT         TYPE SERVICE_CAT,
+    LBO_ITEM            TYPE REF TO ZCL_WR_EEWA_BO_WDORDERITEM,
+    LT_ITEM_KEY_CONFIRM TYPE STANDARD TABLE OF EWA_ORDER_OBJECT_IKEY.
 
-  try.
-      LPROC = new #( ).
-      LSRVKEYS = value #( ( PAR_KEY ) ).
 
-* -------------------------------------------------------------------
-      read entities of /PLCE/R_PDSERVICE
-      entity SERVICE
-        all fields "with corresponding #( LSRVKEYS mapping from entity )
-          with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-          result data(LSRV)
-        by \_EXTUNIVERSAL all fields
-          with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-          result data(LSRV_UN)
-        by \_EXTWASTE all fields
-          with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-          result data(LSRV_WA)
-        by \_ExtCustom all fields
-          with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-          result data(LSRV_CT)
-        by \_SERVICETASK all fields
-          with value #( for LLINE in LSRVKEYS ( %KEY-SERVICEUUID = LLINE-SERVICE_UUID ) )
-          result data(LRSTSK).
+  IF LINES( ORDERITEMRESULTS ) IS NOT INITIAL.
 
-      read entities of /PLCE/R_PDSERVICE
-        entity SERVICETASK
-          by \_EXTWASTE all fields with corresponding #( LRSTSK )
-          result data(LRSTSK_WA)
-          by \_EXTUNIVERSAL all fields with corresponding #( LRSTSK )
-          result data(LRSTSK_UN).
+**** Get Current keys.
+**** Determine Items to move
+**** Move Items
+**** Fill Result data
 
-      PAR_RESULT-SRV_UPD    = corresponding #( LSRV ).
-      PAR_RESULT-SRV_UPD_UN = corresponding #( LSRV_UN ).
-      PAR_RESULT-SRV_UPD_WA = corresponding #( LSRV_WA ).
-      PAR_RESULT-SRV_UPD_CUST = corresponding #( LSRV_CT ).
+*** Move items
+    PREPARE_ORDER_ITEMS( ).
 
-* -------------------------------------------------------------------
-      create data LPROC->AD_SERVICE.
-      create data LPROC->AD_SERVICE->SERVICE.
-      if LINE_EXISTS( LSRV[ 1 ] ).
-        LPROC->AD_SERVICE->SERVICE->* = corresponding #(  LSRV[ 1 ] ).
-        LPROC->SET_PROFILE( LSRV[ 1 ]-PROFILE ).
-        LWDO-POBJNR = LSRV[ 1 ]-REFERENCEINTERNALID. "POBJNR.
-        LWDOS = value #( ( LWDO ) ).
-        LPROC->SET_DATA( LWDOS ) .
+*** D&D is done. Targets exists.
+*      clear LITEMKEYS_ACT.
 
-        select single TMPL~ACTION from /PLCE/CPDSTMPL as TMPL "/PLCE/R_PDServiceTemplate
-          inner join /PLCE/CPDACTION as ACT on TMPL~ACTION = ACT~ACTION "Z Action
-          where PROFILE      eq @LPROC->FV_PROFILE
-            and SERVICE_TYPE eq @PAR_SVTPTO
-          into @LACTION.
-        data(LST_TEMPLS)      = LPROC->READ_SERVICE_TEMPLATES( exporting IV_ACTION = LACTION ).
-        data(LSTT_TEMPLS_OLD) = LPROC->READ_SERVICE_TASK_TEMPLATES( LPROC->AD_SERVICE->SERVICE->SERVICETYPE ).
-        data(LSTT_TEMPLS_NEW) = LPROC->READ_SERVICE_TASK_TEMPLATES( PAR_SVTPTO ).
-      endif.
+    SELECT * INTO CORRESPONDING FIELDS OF TABLE LITEMKEYS_ACT FROM EWA_ORDER_OBJECT
+      INNER JOIN EWA_ORDER_HEAD ON EWA_ORDER_OBJECT~ORDERNR = EWA_ORDER_HEAD~ORDERNR
+      FOR ALL ENTRIES IN ORDERITEMRESULTS
+      WHERE POBJNR = ORDERITEMRESULTS-POBJNR
+        AND EWA_ORDER_HEAD~ORDER_DATE = ORDERITEMRESULTS-ORDER_DATE
+        AND /PLCP/PD_TOUR_ID = ORDERITEMRESULTS-/PLCP/PD_TOUR_ID
+        AND ROUTE = ORDERITEMRESULTS-ROUTE.
+**   todo Status
 
-      loop at PAR_RESULT-SRV_UPD assigning field-symbol(<S_UPD>) .
-        <S_UPD>-ServiceType = PAR_SVTPTO.
-        <S_UPD>-%CONTROL-ServiceType = IF_ABAP_BEHV=>MK-ON.
-        <S_UPD>-Action = LACTION.
-        <S_UPD>-%CONTROL-Action      = IF_ABAP_BEHV=>MK-ON.
-      endloop.
+    LORDERNRS = VALUE #( FOR L IN LITEMKEYS_ACT ( L-ORDERNR ) ).
 
-* -------------------------------------------------------------------
-      if 1 = 2.  "Renew service completly
-        loop at LST_TEMPLS assigning field-symbol(<SERVICETMPL>)
-          where SemanticTemplateName <> 'ST_SERVICE_NOTE'.
-          LPROC->FILL_SERVICE_DATA(
+    SORT LORDERNRS.
+    DELETE ADJACENT DUPLICATES FROM LORDERNRS.
+
+    LOOP AT LORDERNRS REFERENCE INTO DATA(LORDERNRREF).
+      TRY.
+
+          IF LBO IS INITIAL OR LBO->DATAREF->ORDERNR <> LORDERNRREF->*.
+            LBO ?= GET_ORDER_BO( PAR_KEY = LORDERNRREF->* PAR_LOCK = 'X' ).
+            LBO->RELOAD_DATA( ).
+          ENDIF.
+
+
+          BO_DATA_LOOP_DETAIL_VAR LBO ITEM.
+
+          TRY.
+              LOOP AT LITEMKEYS_ACT REFERENCE INTO LITEMKEYREF WHERE ORDERNR = LBO->DATAREF->ORDERNR.
+
+                BO_LOOP_DETAIL_REF_WHERE ITEM LITEMREF 'POBJNR = LITEMKEYREF->POBJNR'.
+                LBO_ITEM ?= LBO->GETDETAILBO(
+                  EXPORTING
+                    PAR_NAME        = 'ITEM'
+                    PAR_DETAILINDEX = LITEMREF->DETAIL_INDEX
+                ).
+                ZZ_UPD_WDOI_FROM_SERVICE( IO_BO_WDOI = LBO_ITEM ). "#36113 - WP-3.1.11 P2C2-26
+                FWDOIDEFAULTS = VALUE #( BASE FWDOIDEFAULTS ( CORRESPONDING #( LITEMREF->* ) ) ).
+
+                LOOP AT ORDERITEMRESULTS REFERENCE INTO DATA(LRESULTREF)
+                   WHERE POBJNR = LITEMKEYREF->POBJNR
+                     AND ( /PLCP/PD_SERVICE_UUID = LITEMREF->/PLCP/PD_SERVICE_UUID ).
+
+                  ZZ_UPDATE_ELOCSD_NEW( ID_SERV_RESULT = LRESULTREF ).
+
+                  IF PAR_SEQUENCE_ONLY IS INITIAL.
+**** Move results
+                    LSERVICECAT = CL_EEWA_BO_SERVICETYPE=>CL_GET_SERVICE_CAT( PAR_SERVICE_TYPE = LITEMREF->SERVICE_TYPE ).
+
+                    CASE LSERVICECAT.
+                      WHEN CL_EEWA_BO_SERVICETYPE=>CSC_TRANSPORT.
+
+                        LITEMREF->BEHTYP_RM = LRESULTREF->BEH_TYPE_NEW.
+                        LITEMREF->BEH_ANZAHL_RM = LRESULTREF->BEH_ANZAHL_NEW.
+                        LITEMREF->/PLCP/TIDNR_RM = LRESULTREF->TIDNR_NEW.
+                        IF LRESULTREF->TIDNR_NEW IS NOT INITIAL.
+                          SELECT SINGLE SERNR FROM EQUI AS EQ INNER JOIN EQUZ AS EZ ON EZ~EQUNR = EQ~EQUNR
+                              WHERE EQ~MATNR = @LITEMREF->BEHTYP_RM
+                                AND ( EZ~DATBI <= @LITEMREF->ORDER_DATE AND EZ~DATAB >= @LITEMREF->ORDER_DATE )
+                                INTO @LITEMREF->SERNR_RM_NEW. "REMSERNR
+                        ENDIF.
+** SERNR
+
+                      WHEN CL_EEWA_BO_SERVICETYPE=>CSC_SWITCH.
+
+                        LITEMREF->BEHTYP_RM = LRESULTREF->BEH_TYPE_NEW.
+                        LITEMREF->BEH_ANZAHL_RM = LRESULTREF->BEH_ANZAHL_NEW.
+                        LITEMREF->/PLCP/TIDNR_NEW_RM = LRESULTREF->TIDNR_NEW.
+                        LITEMREF->/PLCP/TIDNR_RM = LRESULTREF->TIDNR.
+
+                        IF LRESULTREF->TIDNR_NEW IS NOT INITIAL.
+                          SELECT SINGLE SERNR FROM EQUI AS EQ INNER JOIN EQUZ AS EZ ON EZ~EQUNR = EQ~EQUNR
+                              WHERE EQ~MATNR = @LITEMREF->BEHTYP_RM
+                                AND ( EZ~DATBI <= @LITEMREF->ORDER_DATE AND EZ~DATAB >= @LITEMREF->ORDER_DATE )
+                                INTO @LITEMREF->SERNR_RM_NEW.
+                        ENDIF.
+
+                      WHEN OTHERS.
+
+                        LITEMREF->BEHTYP_RM = LRESULTREF->BEH_TYPE.
+                        LITEMREF->BEH_ANZAHL_RM = LRESULTREF->BEH_ANZAHL.
+                        LITEMREF->BEH_TYPE_NEW = LRESULTREF->BEH_TYPE_NEW.
+                        IF LRESULTREF->BEH_ANZAHL_NEW IS NOT INITIAL.
+                          LITEMREF->BEH_ANZAHL_RM = LRESULTREF->BEH_ANZAHL_NEW.
+                        ENDIF.
+                        IF LRESULTREF->TIDNR_NEW IS NOT INITIAL.
+                          LITEMREF->/PLCP/TIDNR_NEW_RM = LRESULTREF->TIDNR_NEW.
+                          SELECT SINGLE SERNR FROM EQUI AS EQ INNER JOIN EQUZ AS EZ ON EZ~EQUNR = EQ~EQUNR
+                            WHERE EQ~MATNR = @LITEMREF->BEH_TYPE_NEW
+                              AND ( EZ~DATBI <= @LITEMREF->ORDER_DATE AND EZ~DATAB >= @LITEMREF->ORDER_DATE )
+                              INTO @LITEMREF->SERNR_RM_NEW.
+                        ENDIF.
+                        IF LRESULTREF->TIDNR IS NOT INITIAL.
+                          LITEMREF->/PLCP/TIDNR_RM = LRESULTREF->TIDNR.
+                        ENDIF.
+
+                    ENDCASE.
+
+*                    LITEMREF->WASTE = LRESULTREF->WASTE_TYPE.
+                    LITEMREF->WASTE_TYPE = LRESULTREF->WASTE_TYPE.
+                    LITEMREF->WASTE = LRESULTREF->WASTE_TYPE.
+                    LITEMREF->WASTE_WEIGHT = LRESULTREF->WASTE_WEIGHT.
+                    LITEMREF->WEIGHT_UNIT = LRESULTREF->WEIGHT_UNIT.
+
+***** todo SERNR NEW based on TIDNR!
+
+                    LOOP AT LRESULTREF->CONFNOTES REFERENCE INTO DATA(LCONFNOTEREF).
+                      IF LITEMREF->CONFTYPE1 IS INITIAL.
+                        LITEMREF->CONFTYPE1 = LCONFNOTEREF->CONFTYPE.
+                        LITEMREF->TEXT = LITEMREF->TEXT && ` ` && LCONFNOTEREF->CONFNOTE_COMMENT.
+                      ELSEIF LITEMREF->CONFTYPE2 IS INITIAL.
+                        LITEMREF->CONFTYPE2 = LCONFNOTEREF->CONFTYPE.
+                        LITEMREF->TEXT = LITEMREF->TEXT && ` ` && LCONFNOTEREF->CONFNOTE_COMMENT.
+                      ELSEIF LITEMREF->CONFTYPE3 IS INITIAL.
+                        LITEMREF->CONFTYPE3 = LCONFNOTEREF->CONFTYPE.
+                        LITEMREF->TEXT = LITEMREF->TEXT && ` ` && LCONFNOTEREF->CONFNOTE_COMMENT.
+                      ENDIF.
+                    ENDLOOP.
+
+                    ZZ_IMPORT_INFO_CONFNOTES(
+                      IO_BO   = LBO_ITEM
+                      IT_CONFNOTES = LRESULTREF->ZZ_CONFNOTES_INFO ).
+
+                    CONVERT TIME STAMP LRESULTREF->TIMESTAMP TIME ZONE SY-ZONLO
+                      INTO TIME LITEMREF->ACTUAL_TIME.
+
+                  ENDIF.
+
+**** Fields which has to be updated always
+                  LITEMREF->/PLCP/PD_SERVICE_UUID = LRESULTREF->/PLCP/PD_SERVICE_UUID.
+                  LITEMREF->ROUTE_SEQUENCE = LRESULTREF->ROUTE_SEQUENCE.
+
+                  DO_ADDITIONAL_SERVICES(
+                    EXPORTING
+                      PAR_BO_ORDERHEAD = LBO
+                      PAR_ITEMREF = LITEMREF
+                      PAR_ADDITIONAL_SERVICES = LRESULTREF->ADDITIONAL_SERVICES
+                    ).
+
+                ENDLOOP.
+                IF SY-SUBRC IS INITIAL.
+                  LBO->ITEM_CHANGED( PAR_DETAILINDEX = LITEMREF->DETAIL_INDEX ).
+                ENDIF.
+**#36097 WP-3.1.11 P2C2-25 Auto.confirmation /*
+                IF PAR_SEQUENCE_ONLY IS INITIAL.
+                  INSERT LBO_ITEM->DATAREF->KEY INTO TABLE LT_ITEM_KEY_CONFIRM.
+*                  ZZ_CONFIRM_WDOI( IO_BO_WDOI = LBO_ITEM ).
+                ENDIF.
+* */
+                BO_ENDLOOP_DETAIL.
+
+              ENDLOOP.
+
+              TA_BO_SAVE LBO.
+
+            CLEANUP.
+              TA_BO_UNLOCK LBO.
+          ENDTRY.
+
+          TA_BO_UNLOCK LBO.
+
+          SORT LT_ITEM_KEY_CONFIRM.
+          DELETE ADJACENT DUPLICATES FROM LT_ITEM_KEY_CONFIRM.
+
+          LOOP AT LT_ITEM_KEY_CONFIRM INTO DATA(LS_ITEM_KEY).
+            LBO_ITEM ?= GETBO(
+              EXPORTING
+                PAR_OBJTYPE   = CL_EEWA_BO_WDORDERITEM=>COT_WDORDERITEM
+                PAR_KEY       = LS_ITEM_KEY
+                PAR_LOCK      = 'X'              " PAR_LOCK
+            ).
+            TRY.
+                ZZ_CONFIRM_WDOI( IO_BO_WDOI = LBO_ITEM ).
+                SAVE_BO( LBO_ITEM ).
+              CLEANUP.
+                LBO_ITEM->UNLOCK_FOR_EDIT( ).
+            ENDTRY.
+            LBO_ITEM->UNLOCK_FOR_EDIT( ).
+          ENDLOOP.
+
+        CATCH CX_EEWA_BASE INTO EXCEPTION.
+          CALLBACK_REPORT(
+            PAR_KIND      = EXCEPTION->MSGTYPE
+            PAR_EXCEPTION = EXCEPTION
+          ).
+      ENDTRY.
+
+    ENDLOOP.
+
+    HANDLE_CHANGED_ITEM_DATA( ).
+
+  ENDIF.
+
+ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->CALL_METHOD
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] PAR_PARAMS                     TYPE        ABAP_PARMBIND_TAB(optional)
+* | [--->] PAR_NAME                       TYPE        CSEQUENCE
+* | [!CX!] CX_EEWA_BASE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+method CALL_METHOD.
+  TA_CALL_METHOD.
+endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method ZCL_PLCP_TA_WA_ORDER_RSLT=>CLASS_CONSTRUCTOR
+* +-------------------------------------------------------------------------------------------------+
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method CLASS_CONSTRUCTOR.
+    DATA:
+          LV_CONFRESET type /PLCE/CPDCNFNT-ZZ_CONF_RESET.
+
+    LV_CONFRESET = 'X'.
+
+    select CONFIRMATION_NOTE
+      into table GT_CONFNOTE_TA
+      from /PLCE/CPDCNFNT
+      where ZZ_CONF_RESET = LV_CONFRESET.
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->EXECUTE_DATA_UPLOAD
+* +-------------------------------------------------------------------------------------------------+
+* | [!CX!] CX_EEWA_BASE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method EXECUTE_DATA_UPLOAD.
+    data:
+      LORDERNRS   type standard table of EORDERNR,
+      LORDERDATAS type standard table of EWA_ORDER_HEAD,
+      LEXPORTDATA type ISU_WA_ORDERDOWN_S_EROUTE,
+      LLOGHANDLE  type BALLOGHNDL,
+      LLOG        type ref to CL_EEWA_IMPL_BO_CALLBACK_MLOG.
+
+
+    LORDERNRS = value #( for L in FCHANGED_DATAS ( L-ORDERNR ) ).
+
+    if LINES( LORDERNRS ) is not initial.
+
+      sort LORDERNRS.
+      delete adjacent duplicates from LORDERNRS.
+      sort FCHANGED_DATAS by KEY.
+
+      DATA_BO_RANGE X.
+      SET_BO_RANGE_KEYS X __KEYS LORDERNRS.
+
+      CL_EEWA_OR_WDORDER=>CL_READ(
+        exporting
+          PAR_OBJTYPE = CL_EEWA_BO_WDORDER=>COT_WDORDER
+          PAR_RANGES  = LRANGEXS
+        importing
+          PAR_TABLE   = LORDERDATAS
+      ).
+
+      if LINES( LORDERDATAS ) is not initial.
+
+        loop at LORDERDATAS reference into data(LORDERDATARF).
+          insert initial line into table LEXPORTDATA-T_EORDER reference into data(LORDEREXPORTREF).
+          LORDEREXPORTREF->WA_EORDER = LORDERDATARF->*.
+          loop at FCHANGED_DATAS reference into data(LITEMDATARF) where ORDERNR = LORDERDATARF->ORDERNR.
+            insert initial line into table LORDEREXPORTREF->T_ORDER_OBJ reference into data(LITMEEXPORTREF).
+            LITMEEXPORTREF->WA_ORDER_OBJ = corresponding #( LITEMDATARF->* ).
+          endloop.
+        endloop.
+
+        if LEXPORTDATA is not initial.
+****      Log handle
+          if FCALLBACK is not initial and FCALLBACK is instance of CL_EEWA_IMPL_BO_CALLBACK_MLOG.
+            LLOG ?= FCALLBACK.
+            LLOGHANDLE = LLOG->MSGLOG->HANDLE.
+          endif.
+
+          new ZCL_WR_PD_WA_WDOI_PDSERVICE( LLOGHANDLE )->CREATE_BY_PRINTDATA(
             exporting
-              IS_SERVICE_TEMPLATE = <SERVICETMPL> ).
-        endloop.
-      endif.
-
-      loop at LRSTSK assigning field-symbol(<TASK>).
-        if LINE_EXISTS( LSTT_TEMPLS_OLD[ SqncNr = <TASK>-SequenceNumber TaskType = <TASK>-TaskType ] ).
-          PAR_RESULT-TSKS_DELE    = value #( base PAR_RESULT-TSKS_DELE ( corresponding #( <TASK> ) ) ).
-          if LRSTSK_UN is not initial.
-            PAR_RESULT-TSKS_DELE_UN = value #( base PAR_RESULT-TSKS_DELE_UN ( corresponding #( <TASK> ) ) ).
-          endif.
-          if LRSTSK_WA is not initial.
-            PAR_RESULT-TSKS_DELE_WA = value #( base PAR_RESULT-TSKS_DELE_WA ( corresponding #( <TASK> ) ) ).
-          endif.
-        else.
-          LTSKS_WDOI = value #( base LTSKS_WDOI ( corresponding #( <TASK> ) ) ).
-        endif.
-      endloop.
-
-      select * from /PLCE/R_MDFuncLocMDCat
-        into table @data(FUNCLOCCATS). "#EC CI_ALL_FIELDS_NEEDED "#EC CI_NOWHERE
-
-      data(LWDOI_TASK_CNT) = LINES( LTSKS_WDOI ) .
-      if LWDOI_TASK_CNT > 0.
-        read table LTSKS_WDOI index 1 reference into data(TASK_WDOI_MIN).
-        if LWDOI_TASK_CNT > 1.
-          LINDEX = LWDOI_TASK_CNT.
-          read table LTSKS_WDOI index LINDEX reference into data(TASK_WDOI_MAX).
+              IS_PRINT_DATA = LEXPORTDATA
+          ).
         endif.
       endif.
+    endif.
+  endmethod.
 
-      if 1 = 2. "Errors
-        loop at LSTT_TEMPLS_NEW assigning field-symbol(<TASKTEMLATE_X>)
-*        where TaskType <> 'ADDITIONAL_SERVICE'.
-          where IsServiceTaskOptional is initial.
 
-          append initial line to LTSKS_CREA_X assigning field-symbol(<TASK_CREA_X>).
-          create data LPROC->FR_SERVICE_TASK.
-          LPROC->FR_SERVICE_TASK->SERVICETASK  = ref #( <TASK_CREA_X>-SERVICETASK ).
-          LPROC->FR_SERVICE_TASK->EXTUNIVERSAL = ref #( <TASK_CREA_X>-EXTUNIVERSAL ).
-          LPROC->FR_SERVICE_TASK->EXTWASTE     = ref #( <TASK_CREA_X>-EXTWASTE ).
-          LPROC->FILL_SERVICE_TASK_DATA( <TASKTEMLATE_X> ).
-        endloop.
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->MOVE_ITEM_DETAILS
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] PAR_SOURCE                     TYPE REF TO CL_EEWA_BO_WDORDERITEM
+* | [--->] PAR_TARGET                     TYPE REF TO CL_EEWA_BO_WDORDERITEM
+* | [!CX!] CX_EEWA_BASE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method MOVE_ITEM_DETAILS.
+    data:
+          LO_BO_WDOI_TARGET type ref to ZCL_WR_EEWA_BO_WDORDERITEM,
+          LO_BO_WDOI_SOURCE type ref to ZCL_WR_EEWA_BO_WDORDERITEM.
+
+    ASSIGNCAST LO_BO_WDOI_TARGET PAR_TARGET.
+    ASSIGNCAST LO_BO_WDOI_SOURCE PAR_SOURCE.
+
+    if LO_BO_WDOI_SOURCE is not initial.
+      "attention! this is not standard...see redefinition!
+      LO_BO_WDOI_SOURCE->REQUIRE_DETAILS(
+        PAR_DETAILS   = '*'
+        PAR_RELATIONS = '*'
+      ).
+      "MJ: we cant use required here otherwise the same detail entries based on POBJNR-Key will be loaded
+      "    this will cause double entries
+      LO_BO_WDOI_TARGET->INIT_DATA(
+        PAR_DETAILS   = '*'
+        PAR_RELATIONS = '*'
+      ).
+      SUPER->MOVE_ITEM_DETAILS(
+        PAR_SOURCE = PAR_SOURCE
+        PAR_TARGET = PAR_TARGET
+      ).
+      if LO_BO_WDOI_TARGET is bound.
+        LO_BO_WDOI_TARGET->ZZ_BOOK_MOVED_FROM( IO_SOURCE = PAR_SOURCE ).
+      endif.
+    endif.
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->PREPARE_RESULT_DATA_ITEM
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] PAR_DATAREF                    TYPE REF TO /PLCE/SWR_SERVICE_RSLT
+* | [--->] PAR_HEADREF                    TYPE REF TO /PLCP/SWA_WDO_RSLT
+* | [<---] PAR_ITEMREF                    TYPE REF TO /PLCP/SWA_WDOI_RSLT
+* | [!CX!] CX_EEWA_BASE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD PREPARE_RESULT_DATA_ITEM.
+
+    SUPER->PREPARE_RESULT_DATA_ITEM(
+      EXPORTING
+        PAR_DATAREF = PAR_DATAREF
+        PAR_HEADREF = PAR_HEADREF
+      IMPORTING
+        PAR_ITEMREF = PAR_ITEMREF
+    ).
+
+    PAR_ITEMREF->WASTE_WEIGHT = PAR_DATAREF->RESULT-AMOUNT.
+    PAR_ITEMREF->WEIGHT_UNIT = PAR_DATAREF->RESULT-AMOUNTUNIT.
+
+    select single SRV_RESULT~zzlongitude, SRV_RESULT~zzlatitude
+      from /PLCE/R_PDMTourServiceResultCS as SRV_RESULT
+      where ServiceUUID = @PAR_DATAREF->SERVICEUUID
+      into (@PAR_ITEMREF->ZZLONGITUDE,@PAR_ITEMREF->ZZLATITUDE).
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->PREPARE_RESULT_DATA_ITEM_ATTA
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] PAR_DATAREF                    TYPE REF TO /PLCE/PWR_SERVICE_ATTA_RSLT
+* | [--->] PAR_HEADREF                    TYPE REF TO /PLCP/SWA_WDO_RSLT
+* | [--->] PAR_ITEMREF                    TYPE REF TO /PLCP/SWA_WDOI_RSLT
+* | [!CX!] CX_EEWA_BASE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method PREPARE_RESULT_DATA_ITEM_ATTA.
+    data:
+      LS_SERV_ATT_DATA type /PLCE/TPDSRVATTM,
+      LV_SOURCE_PERNR	 type ZWR_DGOS_ATTA_SOURCE_PERNR,
+      LV_ID_NUMBER     type BU_ID_NUMBER.
+
+    loop at PAR_DATAREF->* reference into data(LSRVATTACHMENTREF).
+      clear:
+        LS_SERV_ATT_DATA,
+        LV_SOURCE_PERNR.
+
+      insert initial line into table ATTACHMENTRESULTS reference into data(LSRVATTAREF).
+
+      select single *
+        into LS_SERV_ATT_DATA
+        from /PLCE/TPDSRVATTM
+        where ATTACHMENT_UUID = LSRVATTACHMENTREF->ATTACHMENTUUID.
+
+      if SY-SUBRC is not initial. "Attachment list was filled up by RA-Attachments
+        select single DOCS~*, CONFNOTE~CONFIRMATION_NOTE
+          into @DATA(LS_DOC_ATTA)
+          from /PLCE/TPDMDOCRES as DOCS
+          left outer join /PLCE/TPDMCONFNT as CONFNOTE on CONFNOTE~UUID = DOCS~CONFIRMATION_UUID
+          where DOCS~UUID = @LSRVATTACHMENTREF->ATTACHMENTUUID.
+
+        if SY-SUBRC is initial.
+          LSRVATTAREF->ZZ_COMMENTS = LS_DOC_ATTA-DOCS-COMMENTS.
+          LSRVATTAREF->ZZ_CREATED_BY = LS_DOC_ATTA-DOCS-CREATED_BY.
+          LSRVATTAREF->ZZ_TIMESTAMP = LS_DOC_ATTA-DOCS-TIMESTAMP.
+          LSRVATTAREF->ZZ_ATTA_SOURCE = ZCL_WR_MISC_GOS=>GV_ATTA_SOURCE-SOURCE_RA.
+          LSRVATTAREF->ZZ_ATTA_SOURCE_CONFNOTE = LS_DOC_ATTA-CONFIRMATION_NOTE.
+
+          select single IDNUMBER
+            into LV_ID_NUMBER
+            from BUT0ID
+              inner join /PLCE/TMDPLRSSRC as PD_RES on PD_RES~PARTNER = BUT0ID~PARTNER
+              where PD_RES~RESOURCE_ID = LS_DOC_ATTA-DOCS-RESOURCE_ID and
+                    BUT0ID~TYPE = ZCL_WR_ORD_MISC=>GV_IDTYPE_EMPLOYEE.
+          if SY-SUBRC is initial.
+            LV_SOURCE_PERNR = LV_ID_NUMBER.
+          endif.
+        endif.
+      else.
+        LSRVATTAREF->ZZ_COMMENTS = LS_SERV_ATT_DATA-COMMENTS.
+        LSRVATTAREF->ZZ_CREATED_BY = LS_SERV_ATT_DATA-CREATED_BY.
+        LSRVATTAREF->ZZ_TIMESTAMP = LS_SERV_ATT_DATA-CREATED_AT.
+        LSRVATTAREF->ZZ_ATTA_SOURCE = ZCL_WR_MISC_GOS=>GV_ATTA_SOURCE-SOURCE_D.
       endif.
 
-      loop at LSTT_TEMPLS_NEW assigning field-symbol(<TASKTEMLATE>)
-        where IsServiceTaskOptional is initial.
+      LSRVATTAREF->/PLCP/SWA_WDOH_KEY = PAR_HEADREF->/PLCP/SWA_WDOH_KEY.
+      LSRVATTAREF->POBJNR = PAR_ITEMREF->POBJNR.
+      LSRVATTAREF->SERVICEUUID = LSRVATTACHMENTREF->SERVICEUUID.
+      LSRVATTAREF->DATA = ref #( LSRVATTACHMENTREF->/PLCE/SWR_ATTACHMENT_DATA ).
+    endloop.
+  endmethod.
 
-        append initial line to PAR_RESULT-TSKS_CREA assigning field-symbol(<TASK_CREA>).
-        insert initial line into table <TASK_CREA>-%TARGET assigning field-symbol(<TARGET>).
-        <TARGET> = corresponding #( <TASKTEMLATE> mapping SequenceNumber = SqncNr ).
 
-        if LWDOI_TASK_CNT is not initial and
-           <TARGET>-SequenceNumber >= TASK_WDOI_MIN->SequenceNumber and
-           <TARGET>-SequenceNumber <= TASK_WDOI_MAX->SequenceNumber.
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->PREPARE_RESULT_DATA_ITEM_CN
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] PAR_DATAREF                    TYPE REF TO /PLCE/PWR_CONFNOTE_RSLT
+* | [--->] PAR_HEADREF                    TYPE REF TO /PLCP/SWA_WDO_RSLT
+* | [--->] PAR_ITEMREF                    TYPE REF TO /PLCP/SWA_WDOI_RSLT
+* | [!CX!] CX_EEWA_BASE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method PREPARE_RESULT_DATA_ITEM_CN.
+    data:
+*          LS_DETAIL_DATA type /PLCE/TPDMCONFNT,
+      LV_SOURCE_PERNR	type ZWR_DGOS_ATTA_SOURCE_PERNR,
+      LV_ID_NUMBER    type BU_ID_NUMBER.
 
-          if LSEQNR is initial.
-            LSEQNR = TASK_WDOI_MAX->SequenceNumber + 10.
-          else.
-            LSEQNR += 10.
-          endif.
-          <TARGET>-SequenceNumber   = LSEQNR.
+    loop at PAR_DATAREF->* reference into data(LSRVCONFNOTEREF).
+      clear:
+       LV_SOURCE_PERNR.
+
+      select single CONF~*, CONF_CONF~ZZ_CONF_RESET
+        into @data(LS_DETAIL_DATA)
+        from /PLCE/TPDMCONFNT as CONF
+          inner join /PLCE/CPDCNFNT as CONF_CONF on CONF_CONF~CONFIRMATION_NOTE = CONF~CONFIRMATION_NOTE
+        where TOUR_UUID = @LSRVCONFNOTEREF->TOURUUID and
+              SERVICE_UUID = @LSRVCONFNOTEREF->SERVICEUUID and
+              TIMESTAMP = @LSRVCONFNOTEREF->TIMESTAMP.
+      if SY-SUBRC is initial.
+        select single IDNUMBER
+           into LV_ID_NUMBER
+           from BUT0ID
+             inner join /PLCE/TMDPLRSSRC as PD_RES on PD_RES~PARTNER = BUT0ID~PARTNER
+             where PD_RES~RESOURCE_ID = LS_DETAIL_DATA-CONF-RESOURCE_ID and
+                   BUT0ID~TYPE = ZCL_WR_ORD_MISC=>GV_IDTYPE_EMPLOYEE.
+        if SY-SUBRC is initial.
+          LV_SOURCE_PERNR = LV_ID_NUMBER.
         endif.
+      endif.
 
-        case <TARGET>-FUNCTIONALLOCATIONCATEGORY.
-          when /PLCE/IF_MD_CONSTANTS=>C_FUNCLOC_MDCATEGORIES-CUSTOMERLOCATION.
-*           "filled already
-          when /PLCE/IF_MD_CONSTANTS=>C_FUNCLOC_MDCATEGORIES-MATERIALDEPOT or
-               /PLCE/IF_MD_CONSTANTS=>C_FUNCLOC_MDCATEGORIES-TRANSPORTPACKAGINGDEPOT.
-            data(FLC) = value #( FUNCLOCCATS[ FUNCLOCMDCATEGORY = <TARGET>-FUNCTIONALLOCATIONCATEGORY ] optional ).
-            if SY-SUBRC is initial.
-              <TARGET>-DURATION     = FLC-STAYDURATION.
-              <TARGET>-DURATIONUNIT = FLC-STAYDURATIONUNIT.
-            endif.
-          when others.
-        endcase.
+      if LS_DETAIL_DATA-ZZ_CONF_RESET = ABAP_FALSE.
+        if LSRVCONFNOTEREF->EXTERNALID is not initial.
+          insert initial line into table PAR_ITEMREF->CONFNOTES reference into data(LITEMCONFNOTEREF).
+          LITEMCONFNOTEREF->CONFTYPE = LSRVCONFNOTEREF->EXTERNALID.
+          LITEMCONFNOTEREF->CONFNOTE_COMMENT = LS_DETAIL_DATA-CONF-COMMENTS.
+        else. "Log
+          PAR_HEADREF->INVALID_RESULT = 'X'.
+        endif.
+      elseif LSRVCONFNOTEREF->/PLCE/SWR_ATTACHMENT_DATA-ATTACHMENT is initial.
+        "all confirmation notes of type INFO
+        if LSRVCONFNOTEREF->EXTERNALID is not initial.
+          insert initial line into table PAR_ITEMREF->ZZ_CONFNOTES_INFO reference into data(LS_INFO_CONFNOTES).
+          LS_INFO_CONFNOTES->CONFTYPE = LSRVCONFNOTEREF->EXTERNALID.
+          LS_INFO_CONFNOTES->CONFNOTE_COMMENT        = LS_DETAIL_DATA-CONF-COMMENTS.
+          LS_INFO_CONFNOTES->ZZ_CREATED_BY           = LS_DETAIL_DATA-CONF-CREATED_BY.
+          LS_INFO_CONFNOTES->ZZ_TIMESTAMP            = LSRVCONFNOTEREF->TIMESTAMP.
+          LS_INFO_CONFNOTES->ZZ_ATTA_SOURCE          = ZCL_WR_MISC_GOS=>GV_ATTA_SOURCE-SOURCE_RA.
+          LS_INFO_CONFNOTES->ZZ_ATTA_SOURCE_PERNR    = LV_SOURCE_PERNR.
+          LS_INFO_CONFNOTES->ZZ_ATTA_SOURCE_CONFNOTE = LSRVCONFNOTEREF->CONFIRMATIONNOTE.
+        endif.
+      endif.
 
-        <TARGET>-%CID = LPROC->GET_NEXT_CID( ).
-*        <TARGET>-ServiceUUID = LPROC->FR_SERVICE->SERVICE->ServiceUUID. "must be empty for create
-        <TASK_CREA>-ServiceUUID = LPROC->AD_SERVICE->SERVICE->ServiceUUID.
+      "direct attached attachment to confirmation note
+      if LSRVCONFNOTEREF->/PLCE/SWR_ATTACHMENT_DATA-ATTACHMENT is not initial.
+        insert initial line into table ATTACHMENTRESULTS reference into data(LCONFSRVATTAREF).
+        LCONFSRVATTAREF->/PLCP/SWA_WDOH_KEY = PAR_ITEMREF->/PLCP/SWA_WDOH_KEY.
+        LCONFSRVATTAREF->TOURUUID = LSRVCONFNOTEREF->TOURUUID.
+        LCONFSRVATTAREF->SERVICEUUID = LSRVCONFNOTEREF->SERVICEUUID.
+        LCONFSRVATTAREF->POBJNR = PAR_ITEMREF->POBJNR.
+        if LSRVCONFNOTEREF->/PLCE/SWR_ATTACHMENT_DATA is not initial.
+          LCONFSRVATTAREF->DATA = ref #( LSRVCONFNOTEREF->/PLCE/SWR_ATTACHMENT_DATA ).
+        endif.
+        LCONFSRVATTAREF->ZZ_COMMENTS = LS_DETAIL_DATA-CONF-COMMENTS.
+        LCONFSRVATTAREF->ZZ_CREATED_BY = LS_DETAIL_DATA-CONF-CREATED_BY.
+        LCONFSRVATTAREF->ZZ_TIMESTAMP = LSRVCONFNOTEREF->TIMESTAMP.
+        LCONFSRVATTAREF->ZZ_ATTA_SOURCE = ZCL_WR_MISC_GOS=>GV_ATTA_SOURCE-SOURCE_RA.
+        LCONFSRVATTAREF->ZZ_ATTA_SOURCE_PERNR = LV_SOURCE_PERNR.
+        LCONFSRVATTAREF->ZZ_ATTA_SOURCE_CONFNOTE = LSRVCONFNOTEREF->CONFIRMATIONNOTE.
+      endif.
+    endloop.
+  endmethod.
 
-        /PLCE/CL_BASE_MISC=>SET_MODIFY_CONTROL_FIELDS( IR_STRUCT = ref #( <TARGET> ) ).
-*        <TARGET>-%CONTROL-ServiceUUID = IF_ABAP_BEHV=>MK-OFF.
-      endloop.
 
-*LDATA-SRV_UPD
-*LDATA-TSKS_CREA
-*LDATA-TSKS_CREA_WA
-*LDATA-TSKS_DELE
-*LDATA-TSKS_DELE_UN
-*LDATA-TSKS_DELE_WA
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->ZZ_CONFIRM_WDOI
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IO_BO_WDOI                     TYPE REF TO ZCL_WR_EEWA_BO_WDORDERITEM
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+METHOD zz_confirm_wdoi.
+*#36097 WP-3.1.11 P2C2-25 DEV Automatic confirmation in EWAWDOC
+  DATA:
+    ltourid      TYPE /plce/pdtour_id,
+    lservice     TYPE /plce/swr_service_rslt,
+    lresultdatas TYPE /plce/pwr_tour_rslt ##NEEDED.
 
-    catch /PLCE/CX_BASEEXCEPTION into LEX_PD.
-      PAR_LOG->ADD_EXCEPTION( IV_SEVERITY = 'W' IRO_EXCEPTION = LEX_PD ).
-*    catch CX_SADL_SHORTDUMP into data(LEX_SADL).
-*      data(LX_ROOT_CAUSE) = new CX_SADL_CONTRACT_VIOLATION( ).
-*      CL_ABAP_UNIT_ASSERT=>ASSERT_EQUALS( ACT = LEX_SADL->PREVIOUS
-*                                          EXP = LX_ROOT_CAUSE ).
-  endtry.
+  CHECK io_bo_wdoi->dataref->/plcp/pd_service_uuid IS NOT INITIAL.
 
+  IF line_exists( orderitemresults[ pobjnr = io_bo_wdoi->dataref->pobjnr ] ).
+    ltourid = orderitemresults[ pobjnr = io_bo_wdoi->dataref->pobjnr ]-/plcp/pd_tour_id.
+  ENDIF.
+
+  IF ltourid IS NOT INITIAL.
+    zcl_wr_eewa_bo_wdorderitem=>zzv_auto_confirm = abap_true.
+    TRY.
+        io_bo_wdoi->check_book_confirm_pos( ).
+        io_bo_wdoi->book_confirm_pos( ).
+      CATCH cx_eewa_base INTO DATA(lex).
+        "Wird IMMER ausgeführt – auch bei Exception
+        zcl_wr_eewa_bo_wdorderitem=>zzv_auto_confirm = abap_false.
+        RAISE EXCEPTION lex.
+    ENDTRY.
+     "WICHTIG: auch im Erfolgsfall zurücksetzen
+    zcl_wr_eewa_bo_wdorderitem=>zzv_auto_confirm = abap_false.
+  ENDIF.
+ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->ZZ_IMPORT_INFO_CONFNOTES
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IT_CONFNOTES                   TYPE        /PLCP/PWA_CONFNOTE_RSLT
+* | [--->] IO_BO                          TYPE REF TO CL_EEWA_BO_BASE
+* | [!CX!] CX_EEWA_BASE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method ZZ_IMPORT_INFO_CONFNOTES.
+    DATA:
+          LS_DATA type ZWR_GOS_CREATE_INFO.
+
+    loop at IT_CONFNOTES reference into DATA(LD_CONFNOTE).
+      LS_DATA-BOR_OBJECT-TYPEID = IO_BO->GET_BOR_OBJTYPE( ).
+      LS_DATA-BOR_OBJECT-INSTID = IO_BO->GET_GOS_BOR_OBJKEY( ).
+      LS_DATA-DESCRIPTION = LD_CONFNOTE->CONFNOTE_COMMENT.
+
+      LS_DATA-SOURCE_DATA-ATTA_SOURCE_TSTAMP = LD_CONFNOTE->ZZ_TIMESTAMP.
+      LS_DATA-SOURCE_DATA-ATTA_SOURCE_USER = LD_CONFNOTE->ZZ_CREATED_BY.
+      LS_DATA-SOURCE_DATA-ATTA_SOURCE = LD_CONFNOTE->ZZ_ATTA_SOURCE.
+      LS_DATA-SOURCE_DATA-ATTA_SOURCE_PERNR = LD_CONFNOTE->ZZ_ATTA_SOURCE_PERNR.
+
+      LS_DATA-FILE_DATA-FILENAME = |{ LD_CONFNOTE->ZZ_ATTA_SOURCE_CONFNOTE };{ LD_CONFNOTE->ZZ_TIMESTAMP }|.
+
+      LS_DATA-TITLE = LS_DATA-FILE_DATA-FILENAME.
+      if LS_DATA-TITLE is initial.
+        LS_DATA-TITLE = 'EXT_NOTE'.
+      endif.
+
+      call function 'Z_WR_CREATE_NOTE'
+        exporting
+          IS_DATA                 = LS_DATA
+       EXCEPTIONS
+         ATTACHMENT_FAILED       = 1
+         OTHERS                  = 2.
+      if SY-SUBRC <> 0.
+        CL_EEWA_MISC=>RAISE_SYMSG( ).
+      endif.
+    endloop.
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->ZZ_UPDATE_ELOCSD_NEW
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] ID_SERV_RESULT                 TYPE REF TO /PLCP/SWA_WDOI_RSLT
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method ZZ_UPDATE_ELOCSD_NEW.
+    data:
+      LT_CONTASSIGN     type ISUWA_EWAELOCSDNEW,
+      LT_CONTASSIGN_NEW type ISUWA_EWAELOCSDNEW,
+      LV_UPD_MODE	      type DAMODUS value 'U'.
+
+
+    select CONTASSGN~*
+        into table @LT_CONTASSIGN
+        from EWA_ORDER_OBJECT as EAP
+        inner join EWAOBJ as SERV on SERV~OBJNR = EAP~SERVFREQNR
+        inner join EWAELOCSD_NEW as CONTASSGN on CONTASSGN~VBELN = EAP~SDAUFNR and
+                                                 CONTASSGN~POSNR = EAP~SDPOSNR and
+                                                 CONTASSGN~EQUNR = SERV~EQUNR and
+                                                 CONTASSGN~IBASE = SERV~IBASE
+        where POBJNR = @ID_SERV_RESULT->POBJNR and
+              CONTASSGN~AB   <= EAP~ORDER_DATE and
+              CONTASSGN~BIS  >= EAP~ORDER_DATE.
+
+    if sy-subrc is initial and ID_SERV_RESULT->ZZLATITUDE is not initial.
+      LT_CONTASSIGN_NEW = LT_CONTASSIGN.
+      read table LT_CONTASSIGN_NEW reference into data(LR_CONTASSIGN_NEW) index 1.
+      LR_CONTASSIGN_NEW->ZZLONGITUDE = ID_SERV_RESULT->ZZLONGITUDE.
+      LR_CONTASSIGN_NEW->ZZLATITUDE = ID_SERV_RESULT->ZZLATITUDE.
+
+      CL_EEWA_RCI_ELOC=>DB_EWAELOCSDNEW_UPDATE(
+        exporting
+          IT_EWAELOCSDNEW   = LT_CONTASSIGN_NEW
+          IT_O_EWAELOCSDNEW = LT_CONTASSIGN
+        changing
+          C_UPD_MODE        = LV_UPD_MODE
+        exceptions
+          UPDATE_ERROR      = 1
+          GENERAL_FAULT     = 2
+          others            = 4
+      ).
+    endif.
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_PLCP_TA_WA_ORDER_RSLT->ZZ_UPD_WDOI_FROM_SERVICE
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IO_BO_WDOI                     TYPE REF TO ZCL_WR_EEWA_BO_WDORDERITEM
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+method ZZ_UPD_WDOI_FROM_SERVICE.
+*#36113 WP-3.1.11: P2C2-26 DEV Change of service Types in the process
+  data:
+    LTOURID      type /PLCE/PDTOUR_ID,
+    LSERVICE     type /PLCE/SWR_SERVICE_RSLT,
+    LRESULTDATAS type /PLCE/PWR_TOUR_RSLT,
+    LV_ACTION    type /PLCE/PDACTION,
+    LV_SERVICE_TYPE type SERVICE_TYPE ##NEEDED.
+
+  check IO_BO_WDOI->DATAREF->/PLCP/PD_SERVICE_UUID is not initial.
+
+  if LINE_EXISTS( ORDERITEMRESULTS[ POBJNR = IO_BO_WDOI->DATAREF->POBJNR ] ).
+    LTOURID = ORDERITEMRESULTS[ POBJNR = IO_BO_WDOI->DATAREF->POBJNR ]-/PLCP/PD_TOUR_ID.
+  endif.
+
+  if LTOURID is not initial and
+     LINE_EXISTS( RESULTDATAS[ TOURID = LTOURID ] ) and
+     LINE_EXISTS( RESULTDATAS[ TOURID = LTOURID ]-SERVICES[ SERVICEUUID = IO_BO_WDOI->DATAREF->/PLCP/PD_SERVICE_UUID ] ).
+
+    LSERVICE = RESULTDATAS[ TOURID = LTOURID ]-SERVICES[ SERVICEUUID = IO_BO_WDOI->DATAREF->/PLCP/PD_SERVICE_UUID ].
+
+    LV_SERVICE_TYPE = LSERVICE-ACTION.
+  else.
+    select single ACTION "#EC CI_SEL_NESTED
+      from /PLCE/TPDSRV
+      where SERVICE_UUID = @IO_BO_WDOI->DATAREF->/PLCP/PD_SERVICE_UUID
+      into @data(LACTION).
+    if SY-SUBRC is initial.
+      LV_SERVICE_TYPE = LACTION.
+    endif.
+  endif.
+
+  if LV_SERVICE_TYPE is not initial and IO_BO_WDOI->DATAREF->SERVICE_TYPE <> LV_SERVICE_TYPE.
+    try.
+        IO_BO_WDOI->ZZ_BOOK_CHANGE_STYPE( IV_SERVICE_TYPE = LV_SERVICE_TYPE ).
+      catch CX_EEWA_BASE.
+    endtry.
+  endif.
 endmethod.
 ENDCLASS.
