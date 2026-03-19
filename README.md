@@ -1,24 +1,46 @@
 CLASS zcl_wr_waste_order_api DEFINITION
   PUBLIC
+  INHERITING FROM /plcp/cl_ta_wa_order_rslt " <-- Inherit to access GETBO & SAVE_BO
   FINAL
   CREATE PUBLIC .
 
   PUBLIC SECTION.
-    " Reusable method for Negative Confirmation / Storno
+    " Static wrapper for easy calling from RAP / Interaction Center
     CLASS-METHODS cancel_waste_order_item
       IMPORTING
-        iv_pobjnr      TYPE pobjnr " From Service-ReferenceInternalId
-        iv_reason_code TYPE string " Popup: definiertegrund
-        iv_reason_text TYPE string " Popup: stornogrund
+        iv_pobjnr      TYPE pobjnr
+        iv_reason_code TYPE string
+        iv_reason_text TYPE string
       RAISING
-        cx_eewa_base. " Propagates IS-U BO exceptions to the caller
+        cx_eewa_base.
+
+  PRIVATE SECTION.
+    " Instance method to actually execute the logic using inherited methods
+    METHODS execute_cancel
+      IMPORTING
+        iv_pobjnr      TYPE pobjnr
+        iv_reason_code TYPE string
+        iv_reason_text TYPE string
+      RAISING
+        cx_eewa_base.
 ENDCLASS.
 
 CLASS zcl_wr_waste_order_api IMPLEMENTATION.
 
   METHOD cancel_waste_order_item.
+    " 1. Instantiate this class to access the inherited instance methods
+    DATA(lo_api) = NEW zcl_wr_waste_order_api( ).
+    
+    " 2. Call the instance method
+    lo_api->execute_cancel(
+      iv_pobjnr      = iv_pobjnr
+      iv_reason_code = iv_reason_code
+      iv_reason_text = iv_reason_text
+    ).
+  ENDMETHOD.
+
+  METHOD execute_cancel.
     DATA: ls_item_key TYPE ewa_order_object_ikey,
-          lo_bo_base  TYPE REF TO cl_eewa_bo_base,
           lo_bo_item  TYPE REF TO zcl_wr_eewa_bo_wdorderitem.
 
     " 1. Find the Order Item keys based on POBJNR
@@ -29,22 +51,13 @@ CLASS zcl_wr_waste_order_api IMPLEMENTATION.
 
     CHECK sy-subrc = 0.
 
-    " 2. Instantiate the IS-U Waste Order Item BO directly (Option 2)
-    cl_eewa_bo_base=>get_instance(
-      EXPORTING
+    " 2. Instantiate the IS-U Waste Order Item BO using inherited GETBO
+    lo_bo_item ?= getbo(
         par_objtype = cl_eewa_bo_wdorderitem=>cot_wdorderitem
         par_key     = ls_item_key
-      IMPORTING
-        par_ref     = lo_bo_base 
-    ).
+        par_lock    = 'X' ).
 
-    " Cast to your custom BO class to access your specific methods
-    lo_bo_item ?= lo_bo_base.
-
-    " 3. Lock the Business Object for editing
-    lo_bo_item->enqueue( ).
-
-    " 4. Apply the Storno Updates to the BO Data Reference
+    " 3. Apply the Storno Updates to the BO Data Reference
     lo_bo_item->dataref->conftype1 = iv_reason_code.
     
     " Append the text without overwriting existing comments
@@ -57,7 +70,7 @@ CLASS zcl_wr_waste_order_api IMPLEMENTATION.
     " Notify the BO framework that the item data has been modified
     lo_bo_item->item_changed( par_detailindex = lo_bo_item->dataref->detail_index ).
 
-    " 5. Perform the Negative Confirmation
+    " 4. Perform the Negative Confirmation
     " Temporarily enable your custom auto-confirm flag
     zcl_wr_eewa_bo_wdorderitem=>zzv_auto_confirm = abap_true.
     
@@ -65,10 +78,8 @@ CLASS zcl_wr_waste_order_api IMPLEMENTATION.
         lo_bo_item->check_book_confirm_pos( ).
         lo_bo_item->book_confirm_pos( ).
         
-        " 6. Save and Unlock
-        lo_bo_item->save( ).
-        
-        " Use unlock_for_edit() as seen in your custom code (or dequeue() if standard)
+        " 5. Save using the inherited SAVE_BO and unlock
+        save_bo( lo_bo_item ).
         lo_bo_item->unlock_for_edit( ). 
         
       CATCH cx_eewa_base INTO DATA(lex).
