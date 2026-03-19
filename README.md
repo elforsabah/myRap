@@ -1,101 +1,64 @@
-CLASS zcl_wr_waste_order_api DEFINITION
-  PUBLIC
-  INHERITING FROM /plcp/cl_ta_wa_order_rslt
-  FINAL
-  CREATE PUBLIC .
-
-  PUBLIC SECTION.
-    " 1. Define a structure and static table to hold requests in memory
-    TYPES: BEGIN OF ty_cancel_req,
-             pobjnr      TYPE pobjnr,
-             reason_code TYPE string,
-             reason_text TYPE string,
-           END OF ty_cancel_req.
-           
-    CLASS-DATA: gt_cancel_requests TYPE TABLE OF ty_cancel_req.
-
-    " 2. Called from your RAP Action (Interaction Phase) - NO DB UPDATES HERE!
-    CLASS-METHODS register_cancel_request
-      IMPORTING
-        iv_pobjnr      TYPE pobjnr
-        iv_reason_code TYPE string
-        iv_reason_text TYPE string.
-
-    " 3. Called from the RAP Saver Class (Save Phase) - DB UPDATES ALLOWED!
-    CLASS-METHODS execute_deferred_cancels.
-
-  PRIVATE SECTION.
-    METHODS execute_cancel
-      IMPORTING
-        is_req TYPE ty_cancel_req
-      RAISING
-        cx_eewa_base.
+CLASS lsc_pdservice_ext DEFINITION INHERITING FROM cl_abap_behavior_saver.
+  PROTECTED SECTION.
+    METHODS save_modified REDEFINITION.
 ENDCLASS.
 
-CLASS zcl_wr_waste_order_api IMPLEMENTATION.
-
-  METHOD register_cancel_request.
-    " Store the request in memory for later. This avoids the RAP Dump!
-    APPEND VALUE #( pobjnr      = iv_pobjnr
-                    reason_code = iv_reason_code
-                    reason_text = iv_reason_text ) TO gt_cancel_requests.
-  ENDMETHOD.
-
-  METHOD execute_deferred_cancels.
-    " Loop through all buffered requests and process them now that we are in the Save Phase
-    DATA(lo_api) = NEW zcl_wr_waste_order_api( ).
+CLASS lsc_pdservice_ext IMPLEMENTATION.
+  METHOD save_modified.
+    " This method is called by the RAP framework during the COMMIT phase.
+    " It is now legally safe to write to external database tables!
     
-    LOOP AT gt_cancel_requests INTO DATA(ls_req).
-      TRY.
-          lo_api->execute_cancel( ls_req ).
-        CATCH cx_eewa_base.
-          " In the Save phase, we can't easily send messages back to the UI, 
-          " so we catch and ignore/log the error to prevent crashes.
-      ENDTRY.
+    zcl_wr_waste_order_api=>execute_deferred_cancels( ).
+    
+  ENDMETHOD.
+ENDCLASS.
+
+
+METHOD terminateService.
+    DATA: assigned_services TYPE TABLE FOR ACTION IMPORT /PLCE/R_PDTour\\ServiceAssignment~UnAssign,
+          lt_service_update TYPE TABLE FOR UPDATE /PLCE/R_PDService,
+          lt_history_create TYPE TABLE FOR CREATE /PLCE/R_PDService\_StatusHistory.
+
+    READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+      ENTITY Service FIELDS ( ServiceUUID ReferenceInternalId ServiceStatus ServiceId )
+      WITH CORRESPONDING #( keys ) RESULT DATA(lt_services).
+
+    " ... [Keep your existing Tour Unassign logic here] ...
+
+    LOOP AT lt_services ASSIGNING FIELD-SYMBOL(<ls_service>).
+      DATA(ls_param) = keys[ %tky = <ls_service>-%tky ]-%param.
+
+      " 1. Register the cancellation in memory (NO DB UPDATE YET)
+      zcl_wr_waste_order_api=>register_cancel_request(
+        iv_pobjnr      = <ls_service>-ReferenceInternalId
+        iv_reason_code = ls_param-definiertegrund
+        iv_reason_text = ls_param-stornogrund
+      ).
+
+      " 2. Prepare bulk RAP updates
+      APPEND VALUE #( %tky = <ls_service>-%tky
+                      ServiceStatus = 'CANC' ) TO lt_service_update.
+
+      APPEND VALUE #( %tky = <ls_service>-%tky
+                      %target = VALUE #( ( %cid = |HIST_{ sy-tabix }| 
+                                           ServiceStatus = 'CANC' ) ) ) TO lt_history_create.
+      
+      APPEND NEW /plce/cx_pd_exception( 
+                   severity = if_abap_behv_message=>severity-success
+                   textid   = /plce/cx_pd_exception=>service_assigned 
+                   serviceid = <ls_service>-ServiceId ) TO reported-%other.
     ENDLOOP.
-    
-    CLEAR gt_cancel_requests. " Empty the buffer after saving
+
+    " 3. Execute RAP Updates
+    IF lt_service_update IS NOT INITIAL.
+      MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY Service UPDATE FIELDS ( ServiceStatus ) WITH lt_service_update
+        CREATE BY \_StatusHistory SET FIELDS WITH lt_history_create.
+    ENDIF.
+
+    " 4. Return results
+    READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+      ENTITY Service ALL FIELDS WITH CORRESPONDING #( keys ) RESULT DATA(lt_service_result).
+
+    result = VALUE #( FOR srv IN lt_service_result ( %tky = srv-%tky %param = srv ) ).
   ENDMETHOD.
-
-  METHOD execute_cancel.
-    DATA: ls_item_key TYPE ewa_order_object_ikey,
-          lo_bo_item  TYPE REF TO zcl_wr_eewa_bo_wdorderitem.
-
-    SELECT SINGLE ordernr, order_laufnr FROM ewa_order_object INTO @ls_item_key WHERE pobjnr = @is_req-pobjnr.
-    CHECK sy-subrc = 0.
-
-    lo_bo_item ?= getbo( par_objtype = cl_eewa_bo_wdorderitem=>cot_wdorderitem
-                         par_key     = ls_item_key
-                         par_lock    = 'X' ).
-
-    lo_bo_item->dataref->conftype1 = is_req-reason_code.
-    
-    IF lo_bo_item->dataref->text IS INITIAL.
-      lo_bo_item->dataref->text = is_req-reason_text.
-    ELSE.
-      lo_bo_item->dataref->text = lo_bo_item->dataref->text && ` ` && is_req-reason_text.
-    ENDIF.
-
-    " Provide the minimum required data for a Storno
-    IF lo_bo_item->dataref->actual_date IS INITIAL.
-      lo_bo_item->dataref->actual_date = sy-datum.
-    ENDIF.
-    IF lo_bo_item->dataref->actual_time IS INITIAL.
-      lo_bo_item->dataref->actual_time = sy-uzeit.
-    ENDIF.
-    lo_bo_item->dataref->beh_anzahl_rm = 0. 
-
-    lo_bo_item->item_changed( par_detailindex = lo_bo_item->dataref->detail_index ).
-
-    TRY.
-        lo_bo_item->check_book_confirm_pos( ).
-        lo_bo_item->book_confirm_pos( ).
-        save_bo( lo_bo_item ). " <-- This is now safe because it runs in the Save Phase!
-        lo_bo_item->unlock_for_edit( ). 
-      CATCH cx_eewa_base INTO DATA(lex).
-        lo_bo_item->unlock_for_edit( ).
-        RAISE EXCEPTION lex.
-    ENDTRY.
-  ENDMETHOD.
-
-ENDCLASS.
