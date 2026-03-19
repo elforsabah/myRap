@@ -1,4 +1,3 @@
-<img width="999" height="733" alt="image" src="https://github.com/user-attachments/assets/2cc06dc3-9c51-4b38-9dd8-c8c9f140e841" />
 CLASS lhc_service DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
@@ -312,75 +311,98 @@ CLASS lhc_service IMPLEMENTATION.
 
   ENDMETHOD.
 
-
 METHOD terminateService.
     DATA: assigned_services TYPE TABLE FOR ACTION IMPORT /PLCE/R_PDTour\\ServiceAssignment~UnAssign,
           lt_service_update TYPE TABLE FOR UPDATE /PLCE/R_PDService,
           lt_history_create TYPE TABLE FOR CREATE /PLCE/R_PDService\_StatusHistory.
 
+    " 1. Read the service to get POBJNR (ReferenceInternalId)
     READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-      ENTITY Service FIELDS ( ServiceUUID ReferenceInternalId ServiceStatus ServiceId )
-      WITH CORRESPONDING #( keys ) RESULT DATA(lt_services).
+      ENTITY Service
+      FIELDS ( ServiceUUID ReferenceInternalId ServiceStatus ServiceId )
+      WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_services).
 
-    " ... [Keep your existing Tour Unassign logic here] ...
+    " 2. Unassign from Tour (if it is currently planned)
+    SELECT asgmt~ServiceUUID, asgmt~TourUUID
+      FROM /PLCE/R_PDTourServiceAsgmt AS asgmt
+      INNER JOIN @keys AS keys ON asgmt~ServiceUUID = keys~ServiceUUID
+      INTO CORRESPONDING FIELDS OF TABLE @assigned_services.
 
-    LOOP AT lt_services ASSIGNING FIELD-SYMBOL(<ls_service>).
-      DATA(ls_param) = keys[ %tky = <ls_service>-%tky ]-%param.
+    IF assigned_services IS NOT INITIAL.
+      MODIFY ENTITIES OF /PLCE/R_PDTour
+        ENTITY ServiceAssignment
+          EXECUTE UnAssign FROM assigned_services
+        FAILED DATA(srvc_unassign_failed)
+        REPORTED DATA(srvc_unassign_reported).
 
-      " 1. Register the cancellation in memory (NO DB UPDATE YET)
-      zcl_wr_waste_order_api=>register_cancel_request(
-        iv_pobjnr      = <ls_service>-ReferenceInternalId
-        iv_reason_predefined = ls_param-definiertegrund
-        iv_reason_text = ls_param-stornogrund
-      ).
-
-      " 2. Prepare bulk RAP updates
-      APPEND VALUE #( %tky = <ls_service>-%tky
-                      ServiceStatus = 'CANC' ) TO lt_service_update.
-
-      APPEND VALUE #( %tky = <ls_service>-%tky
-                      %target = VALUE #( ( %cid = |HIST_{ sy-tabix }| 
-                                           ServiceStatus = 'CANC' ) ) ) TO lt_history_create.
-      
-      APPEND NEW /plce/cx_pd_exception( 
-                   severity = if_abap_behv_message=>severity-success
-                   textid   = /plce/cx_pd_exception=>service_assigned 
-                   serviceid = <ls_service>-ServiceId ) TO reported-%other.
-    ENDLOOP.
-
-    " 3. Execute RAP Updates
-    IF lt_service_update IS NOT INITIAL.
-      MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-        ENTITY Service UPDATE FIELDS ( ServiceStatus ) WITH lt_service_update
-        CREATE BY \_StatusHistory SET FIELDS WITH lt_history_create.
+      " Pass any unassignment messages to the UI
+      /plce/cl_base_misc=>check_response(
+        EXPORTING is_response = srvc_unassign_reported
+        CHANGING  ct_messages = reported-%other ).
     ENDIF.
 
-    " 4. Return results
+    " 3. Process the Storno for each selected service
+    LOOP AT lt_services ASSIGNING FIELD-SYMBOL(<ls_service>).
+      " Extract the input from your UI Popup
+      DATA(ls_param) = keys[ %tky = <ls_service>-%tky ]-%param.
+
+      TRY.
+          " Call Reusable Waste Order Logic
+          zcl_wr_waste_order_api=>cancel_waste_order_item(
+            iv_pobjnr      = <ls_service>-ReferenceInternalId
+            iv_reason_predefined = ls_param-definiertegrund
+            iv_reason_text = ls_param-stornogrund
+          ).
+
+          " Add to Bulk Update tables instead of modifying inside the loop
+          " NOTE: Replace 'CANC' with your actual constant for Cancelled/Storno
+          APPEND VALUE #( %tky = <ls_service>-%tky
+                          ServiceStatus = 'CANC' ) TO lt_service_update.
+
+          APPEND VALUE #( %tky = <ls_service>-%tky
+                          %target = VALUE #( ( %cid = |HIST_{ sy-tabix }|
+                                               ServiceStatus = 'CANC' ) ) ) TO lt_history_create.
+
+          " Success Message
+          APPEND NEW /plce/cx_pd_exception(
+                       severity = if_abap_behv_message=>severity-success
+                       textid   = /plce/cx_pd_exception=>service_assigned
+                       serviceid = <ls_service>-ServiceId ) TO reported-%other.
+
+        CATCH cx_eewa_base INTO DATA(lo_eewa_ex).
+          " Safely map the legacy IS-U Exception to a RAP Message
+          APPEND VALUE #( %tky = <ls_service>-%tky ) TO failed-service.
+
+          APPEND VALUE #( %tky = <ls_service>-%tky
+                          %msg = new_message_with_text(
+                                   severity = if_abap_behv_message=>severity-error
+                                   text     = lo_eewa_ex->get_text( ) )
+                        ) TO reported-service.
+      ENDTRY.
+    ENDLOOP.
+
+    " 4. Bulk Modify Entities (Performance Optimization)
+    IF lt_service_update IS NOT INITIAL.
+      MODIFY ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
+        ENTITY Service
+          UPDATE FIELDS ( ServiceStatus )
+          WITH lt_service_update
+          CREATE BY \_StatusHistory
+          SET FIELDS WITH lt_history_create.
+    ENDIF.
+
+    " 5. Return the updated data to the UI
     READ ENTITIES OF /PLCE/R_PDService IN LOCAL MODE
-      ENTITY Service ALL FIELDS WITH CORRESPONDING #( keys ) RESULT DATA(lt_service_result).
+      ENTITY Service
+      ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_service_result).
 
     result = VALUE #( FOR srv IN lt_service_result ( %tky = srv-%tky %param = srv ) ).
+
   ENDMETHOD.
-
-
 
   METHOD precheck_terminateservice.
   ENDMETHOD.
 
-ENDCLASS.
-
-
-CLASS lsc_pdservice_ext DEFINITION INHERITING FROM cl_abap_behavior_saver.
-  PROTECTED SECTION.
-    METHODS save_modified REDEFINITION.
-ENDCLASS.
-
-CLASS lsc_pdservice_ext IMPLEMENTATION.
-  METHOD save_modified.
-    " This method is called by the RAP framework during the COMMIT phase.
-    " It is now legally safe to write to external database tables!
-    
-    zcl_wr_waste_order_api=>execute_deferred_cancels( ).
-    
-  ENDMETHOD.
 ENDCLASS.
