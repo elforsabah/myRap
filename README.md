@@ -1,2 +1,7 @@
-
-<img width="485" height="173" alt="image" src="https://github.com/user-attachments/assets/60d2f0fd-f385-4f60-94c1-ef5187ca78de" />
+" C. SUCCESS MESSAGE 009: "Auftrag &1 wurde erfolgreich storniert"
+        APPEND VALUE #( %tky = <ls_service>-%tky
+                        %msg = new_message( id       = 'Z_MSG_SVR_TOUR_EXT' 
+                                            number   = '009'
+                                            severity = if_abap_behv_message=>severity-information
+                                            v1       = |{ <ls_service>-serviceid ALPHA = OUT }| ) " <-- Removes leading zeros
+                      ) TO reported-service.
