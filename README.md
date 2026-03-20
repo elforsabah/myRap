@@ -1,1 +1,5 @@
-<img width="752" height="432" alt="image" src="https://github.com/user-attachments/assets/6e0bd37a-b7a3-4e7d-bb16-a580fe66ea10" />
+IF sy-subrc = 0.
+          " Map the flat database fields into the RAP %key structure
+          APPEND VALUE #( %key-TourUUID    = ls_unassign-touruuid
+                          %key-ServiceUUID = ls_unassign-serviceuuid ) TO lt_unassign_keys.
+        ENDIF.
