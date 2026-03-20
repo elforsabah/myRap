@@ -1,1 +1,9 @@
-<img width="837" height="397" alt="image" src="https://github.com/user-attachments/assets/f9aa9f08-579a-4ebf-9ada-0082e3075644" />
+" -------------------------------------------------------------------------
+        " CUSTOM SUCCESS MESSAGE 009: "Auftrag &1 wurde erfolgreich storniert"
+        " -------------------------------------------------------------------------
+        APPEND VALUE #( %tky = <ls_service>-%tky
+                        %msg = new_message( id       = 'Z_MSG_CL_SERVICE_EXT' " <-- Verify your message class name
+                                            number   = '009'
+                                            severity = if_abap_behv_message=>severity-success
+                                            v1       = <ls_service>-ServiceId ) " <-- Replaces &1
+                      ) TO reported-service.
