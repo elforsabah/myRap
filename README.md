@@ -1,22 +1,20 @@
-extend behavior for Service
-{
-  action ( precheck, features : global ) assignworkarea
-    parameter ZAE_D_WORKAREA_AB result [0..*] $self;
+METHOD getdefaultsforterminateservice.
 
-  action ( precheck, features : global ) adjusttime
-    parameter ZAE_D_adjusttime_AB result [0..*] $self;
+  DATA lv_text TYPE tewaconftypet-vtext.
 
-  action ( precheck, features : global ) terminateservice
-    parameter ZAE_D_TERMINATE_SERVICE result [0..*] $self;
+  SELECT SINGLE vtext
+    FROM tewaconftypet
+    WHERE spras    = @sy-langu
+      AND conftype = 'PLSTORNO'
+    INTO @lv_text.
 
-  function GetDefaultsForTerminateservice
-    result [1] ZAE_D_TERMINATE_SERVICE;
+  result = VALUE #(
+    FOR key IN keys
+    (
+      %tky                    = key-%tky
+      %param-definiertegrund  = 'PLSTORNO'
+      %param-grundtext        = lv_text
+    )
+  ).
 
-  determination Setfachbereich on modify { create; update; }
-
-  side effects {
-    action adjusttime affects $self, entity _ExtCustom;
-    action assignworkarea affects $self;
-    action terminateservice affects $self;
-  }
-}
+ENDMETHOD.
