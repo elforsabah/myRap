@@ -45,3 +45,8 @@ define abstract entity ZAE_D_TERMINATE_SERVICE
 }
 
 
+<img width="218" height="88" alt="image" src="https://github.com/user-attachments/assets/8e5ff8b9-e7e0-4080-9174-cfd9748628ee" />
+
+
+
+
