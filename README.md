@@ -1,27 +1,3 @@
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Value Help für Storno'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-@ObjectModel.resultSet.sizeCategory: #XS
-define view entity ZAE_D_TERMINATE_SERVICE_VH as select from tewaconftypet
-{
-  @ObjectModel.text.element: [ 'Vtext' ]
-  @UI.textArrangement: #TEXT_ONLY  /* <-- Moves the text arrangement to the key */
-  key conftype as Conftype,
-
-  @UI.hidden: true                 /* <-- UNCOMMENT THIS: Hide the 'DE' column! */
-  key spras as Spras,
-
-  @Semantics.text: true
-  vtext as Vtext
-} where spras = $session.system_language and conftype = 'PLSTORNO'
-
-
-
 @EndUserText.label: 'Abstract View für Arbeitbereich'
 define abstract entity ZAE_D_TERMINATE_SERVICE
 {
@@ -36,17 +12,16 @@ define abstract entity ZAE_D_TERMINATE_SERVICE
       useForValidation: true
     }
   ]
+  @Consumption.defaultValue: 'PLSTORNO'  /* <-- 1. Sets the default key automatically */
+  @ObjectModel.readOnly: true            /* <-- 2. Locks the field so it cannot be changed */
   definiertegrund: abap.char( 8 );
+
+  @UI.hidden: true
+  GrundText : abap.char( 255 );          /* Secretly holds the text for Fiori to display */
 
   @EndUserText.label: 'Grund für Storno (Bemerkung)'
   @UI.multiLineText: true
   @ObjectModel.mandatory: true
   stornogrund : abap.string( 0 ); 
+  
 }
-
-
-<img width="218" height="88" alt="image" src="https://github.com/user-attachments/assets/8e5ff8b9-e7e0-4080-9174-cfd9748628ee" />
-
-
-
-
