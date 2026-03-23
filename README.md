@@ -4,4 +4,4 @@ extend behavior for Service
     parameter ZAE_D_TERMINATE_SERVICE
     result [0..*] $self
     { default function GetDefaultsForTerminateService; }
-}
+}  
