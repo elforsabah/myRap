@@ -477,3 +477,4 @@ define view entity ZAE_D_TERMINATE_SERVICE_VH as select from tewaconftypet
   vtext as Vtext
 } where spras = $session.system_language 
 
+ff
