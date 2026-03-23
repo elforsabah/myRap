@@ -24,3 +24,5 @@ define abstract entity ZAE_D_TERMINATE_SERVICE
   @ObjectModel.mandatory: true
   stornogrund : abap.string( 0 ); 
 }
+
+<img width="522" height="413" alt="image" src="https://github.com/user-attachments/assets/cd357794-8763-4328-b395-f2f3c5b9b1cf" />
