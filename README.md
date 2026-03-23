@@ -1,2 +1,21 @@
-<img width="453" height="423" alt="image" src="https://github.com/user-attachments/assets/18d98daa-27ef-4a74-a133-4c6fdee0fc92" />
+@EndUserText.label: 'Abstract View für Arbeitbereich'
+define abstract entity ZAE_D_TERMINATE_SERVICE
+{
+  @EndUserText.label: 'Grund: STORNO DURCH DISPO'
+  @Consumption.valueHelpDefinition: [
+    {
+      entity            : { name: 'ZAE_D_TERMINATE_SERVICE_VH', element: 'Conftype' },
+      additionalBinding : [
+        { localElement: 'stornogrund', element: 'Bemerkung', usage: #RESULT }
+      ],
+      useForValidation  : true
+    }
+  ]
+  definiertegrund : abap.char(20);
+
+  @EndUserText.label: 'Bemerkung'
+  @UI.multiLineText: true
+  @ObjectModel.mandatory: true
+  stornogrund : abap.string(0);
+}
 
