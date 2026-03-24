@@ -6,7 +6,6 @@
     sizeCategory: #S,
     dataClass: #MIXED
 }
-@ObjectModel.resultSet.sizeCategory: #XS
 define view entity ZAE_D_TERMINATE_SERVICE_VH as select from zwr_pd_storno_gr
 {
 
