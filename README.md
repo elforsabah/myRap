@@ -1,1 +1,1 @@
-12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678<img width="1014" height="19" alt="image" src="https://github.com/user-attachments/assets/b76f76fe-3acd-4fe4-ae72-6f9147de248f" />
+<img width="1276" height="86" alt="image" src="https://github.com/user-attachments/assets/53ffa44e-f132-4d20-a2eb-59f564bd448c" />
