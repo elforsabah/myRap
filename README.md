@@ -37,4 +37,5 @@ define view entity ZAE_D_TERMINATE_SERVICE_VH as select from zwr_pd_storno_gr
 }
 
 
-<img width="466" height="294" alt="image" src="https://github.com/user-attachments/assets/e7cf86b2-05a9-4c87-9d98-b77aecfa5dda" />
+<img width="681" height="281" alt="image" src="https://github.com/user-attachments/assets/8722ee98-1dfc-4784-ac7c-edaa1051f28a" />
+
