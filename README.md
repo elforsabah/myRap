@@ -1,186 +1,82 @@
+extend view entity /PLCE/R_PDTourExtCustom with {
+   /plce/tpdtourcst.zz_remaining_duration,
+   /plce/tpdtourcst.zz_bms_status
+}
+
+
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Tour - Service Assignment'
+@EndUserText.label: 'PD Service Extension (WR)'
 @ObjectModel.usageType:{
-  serviceQuality: #D,
+  serviceQuality: #C,
   sizeCategory: #XL,
   dataClass: #TRANSACTIONAL
 }
-define view entity /PLCE/R_PDTourServiceAsgmt
-  as select from /plce/tpdtassrvc
-  association        to parent /PLCE/R_PDTour        as _Tour                      on  _Tour.TourUUID = $projection.TourUUID
-  association [1]    to /PLCE/R_PDService            as _Service                   on  _Service.ServiceUUID = $projection.ServiceUUID
-  association [1..1] to /PLCE/R_PDTourServiceAsgmt_L as _Lookup                    on  _Lookup.TourUUID    = $projection.TourUUID
-                                                                                   and _Lookup.ServiceUUID = $projection.ServiceUUID
-  association [0..*] to /PLCE/R_PDTourTaskAssignment as _ServiceTasksAssignments   on  _ServiceTasksAssignments.TourUUID    = $projection.TourUUID
-                                                                                   and _ServiceTasksAssignments.TaskScope   = 'S'
-                                                                                   and _ServiceTasksAssignments.ServiceUUID = $projection.ServiceUUID
-  //and _ServiceTasksAssignments.Removed is initial
-  /*+[hideWarning] { "IDS" : [ "CARDINALITY_CHECK" ]  } */
-  association [0..1] to /PLCE/R_PDTourTaskAssignment as _LeadServiceTaskAssignment on  _LeadServiceTaskAssignment.TourUUID        = $projection.TourUUID
-                                                                                   and _LeadServiceTaskAssignment.TaskScope       = 'S'
-                                                                                   and _LeadServiceTaskAssignment.ServiceUUID     = $projection.ServiceUUID
-                                                                                   and _LeadServiceTaskAssignment.ServiceTaskUUID = $projection.LeadServiceTaskUUID
-  //and _LeadServiceTaskAssignment.TourTaskUUID = $projection.emptyUUID
+define view entity /PLCE/R_PDServiceExtWR
+  as select from /plce/tpdsrvwr
+  association        to parent /PLCE/R_PDService     as _Service                 on $projection.ServiceUUID = _Service.ServiceUUID
+  association [0..1] to /PLCE/R_MDMaterial           as _Material                on _Material.Material = $projection.Material
+  association [0..1] to /PLCE/R_MDTransptPackaggT    as _ContainerTypeAtLocation on _ContainerTypeAtLocation.TransportPackagingType = $projection.ContainerTypeAtLocation
+  association [0..1] to /PLCE/R_MDTransptPackaggT    as _ContainerTypeNew        on _ContainerTypeNew.TransportPackagingType = $projection.ContainerTypeNew
+  association [0..1] to /PLCE/R_PDFunctionalLocation as _PlantLocation           on _PlantLocation.FunctionalLocation = $projection.PlantLocation
+  association [0..1] to /PLCE/R_PDFunctionalLocation as _ContainerSourceLocation on _ContainerSourceLocation.FunctionalLocation = $projection.ContainerSourceLocation
+  association [0..1] to /PLCE/R_PDFunctionalLocation as _ContainerFinalLocation  on _ContainerFinalLocation.FunctionalLocation = $projection.ContainerSourceLocation
 
-
+  association [0..*] to /PLCE/P_PDServiceFrequencyT  as _ServiceFrequencyText    on _ServiceFrequencyText.ServiceFrequency = $projection.ServiceFrequency
 
 {
-  key tour_uuid                               as TourUUID,
-  key service_uuid                            as ServiceUUID,
-      lead_service_task_uuid                  as LeadServiceTaskUUID,
-      _LeadServiceTaskAssignment.TourSequence as TourSequence,
-      @EndUserText.label: 'Removed'
-      removed                                 as Removed,
-      _Service.ServiceStatus                  as ServiceStatus,
-      @Semantics.user.createdBy: true
-      @EndUserText.label: 'Created By'
-      created_by                              as CreatedBy,
-      @Semantics.systemDateTime.createdAt: true
-      @EndUserText.label: 'Created At'
-      created_at                              as CreatedAt,
-      @Semantics.user.lastChangedBy: true
-      @EndUserText.label: 'Last Changed By'
-      last_changed_by                         as LastChangedBy,
-      @Semantics.systemDateTime.lastChangedAt: true
-      @EndUserText.label: 'Last Changed At'
-      last_changed_at                         as LastChangedAt,
-      @Semantics.systemDateTime.localInstanceLastChangedAt: true
-      @EndUserText.label: 'Local Last Changed At'
-      local_last_changed_at                   as LocalLastChangedAt,
-      /* Associations */
-      _Tour,
-      _Lookup,
+  key service_uuid                               as ServiceUUID,
+      @EndUserText.label: 'Material'
+      material                                   as Material,
+      @EndUserText.label: 'Material Weight'
+      material_weight                            as MaterialWeight,
+      material_weight_unit                       as MaterialWeightUnit,
+      @EndUserText.label: 'Material Plant'
+      plant_location                             as PlantLocation,
+      @EndUserText.label: 'Container Source Location'
+      container_source_location                  as ContainerSourceLocation,
+      @EndUserText.label: 'Container Final Destination'
+      container_final_location                   as ContainerFinalLocation,
+
+      @EndUserText.label: 'Container Type (at Location)'
+      containertype_atloc                        as ContainerTypeAtLocation,
+      @EndUserText.label: 'Container Count (at Location)'
+      container_atloc_count                      as ContainerAtLocationCount,
+      @EndUserText.label: 'Container ID (at Location)'
+      container_atloc_tidnr                      as ContainerAtLocationTidnr,
+
+      @EndUserText.label: 'Container Type (New)'
+      containertype_new                          as ContainerTypeNew,
+      @EndUserText.label: 'Container Count (New)'
+      container_new_count                        as ContainerNewCount,
+      @EndUserText.label: 'Container ID (New)'
+      container_new_tidnr                        as ContainerNewTidnr,
+      @EndUserText.label: 'EWC Code'
+      ewc_code                                   as EwcCode,
+      service_freq                               as ServiceFrequency,
+
       _Service,
-      _ServiceTasksAssignments,
-      _LeadServiceTaskAssignment
+      _Material,
+      _ContainerTypeAtLocation,
+      _ContainerTypeNew,
+      _PlantLocation,
+      _ContainerSourceLocation,
+      _ContainerFinalLocation,
+      _ServiceFrequencyText
 }
 
 
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Planning and Dispatching Service'
-@ObjectModel.semanticKey: ['ServiceId']
+@EndUserText.label: 'PD Service Extension Custom'
+@AbapCatalog.extensibility: { extensible: true } 
 @ObjectModel.usageType:{
-  serviceQuality: #D,
-  sizeCategory: #XL,
+  serviceQuality: #A,
+  sizeCategory: #L,
   dataClass: #TRANSACTIONAL
 }
-define root view entity /PLCE/R_PDService
-  as select from /plce/tpdsrv
-
-  //base compositions
-  composition [0..*] of /PLCE/R_PDServiceTask          as _ServiceTask
-  composition [0..*] of /PLCE/R_PDServiceAttachment    as _Attachments
-  composition [0..*] of /PLCE/R_PDServiceNote          as _Notes
-  composition [0..*] of /PLCE/R_PDServiceStatusHistory as _StatusHistory
-
-  //extensions
-  composition [0..1] of /PLCE/R_PDServiceExtUNI        as _ExtUniversal
-  composition [0..1] of /PLCE/R_PDServiceExtWR         as _ExtWaste
-  composition [0..1] of /PLCE/R_PDServiceExtCustom     as _ExtCustom
-  //associations
-  association [1..1] to /PLCE/R_PDProfile              as _Profile            on $projection.Profile = _Profile.Profile
-  association [1..1] to /PLCE/R_PDAction               as _Action             on $projection.Action = _Action.Action
-  association [1..1] to /PLCE/R_PDServiceType          as _ServiceType        on $projection.ServiceType = _ServiceType.ServiceType
-  association [1]    to /PLCE/R_PDService_L            as _ServiceLookup      on $projection.ServiceUUID = _ServiceLookup.ServiceUUID
-  association [0..*] to /PLCE/P_PDPlanningStatusT      as _PlanningStatusText on $projection.PlanningStatus = _PlanningStatusText.Value
-  association [0..*] to /PLCE/P_PDServiceWindowT       as _ServiceWindowText  on $projection.ServiceWindow = _ServiceWindowText.Value
-  association [1]    to /PLCE/R_PDServiceStatistic     as _Statistic          on $projection.ServiceUUID = _Statistic.ServiceUUID 
-  association [0..1] to /PLCE/R_PDFunctionalLocation   as _FunctionalLocation on $projection.FunctionalLocation = _FunctionalLocation.FunctionalLocation
-
-  association [0..*] to /PLCE/P_PDWorkAreaService      as _WorkAreaServices   on $projection.ServiceUUID = _WorkAreaServices.ServiceUUID
-  association [0..*] to /PLCE/P_PDTourAssignment       as _TourAssignments    on $projection.ServiceUUID = _TourAssignments.ServiceUUID
-
-  association [0..*] to /PLCE/R_PDMTourServiceResult   as _ServiceResults     on $projection.ServiceUUID = _ServiceResults.ServiceUUID
-  association [0..*] to /PLCE/P_PDServiceStatusT       as _ServiceStatusText  on _ServiceStatusText.Value = $projection.ServiceStatus
+define view entity /PLCE/R_PDServiceExtCustom
+  as select from /plce/tpdsrvcst
+  association to parent /PLCE/R_PDService as _Service on $projection.ServiceUUID = _Service.ServiceUUID
 {
-      @Semantics.uuid: true
-  key service_uuid          as ServiceUUID,
-      @EndUserText.label: 'Service Id'
-      service_id            as ServiceId,
-      @ObjectModel.foreignKey.association: '_Profile'
-      @EndUserText.label: 'Profile'
-      profile               as Profile,
-      @ObjectModel.foreignKey.association: '_Action'
-      @EndUserText.label: 'Action'
-      action                as Action,
-      @ObjectModel.foreignKey.association: '_ServiceType'
-      @EndUserText.label: 'Service Type'
-      service_type          as ServiceType,
-
-      service_status        as ServiceStatus,
-
-      @EndUserText.label: 'Order'
-      reference_id          as ReferenceId,
-      reference_int_id      as ReferenceInternalId,
-
-      @EndUserText.label: 'Service Priority'
-      service_priority      as ServicePriority,
-      @EndUserText.label: 'Planning Status'
-      planning_status       as PlanningStatus,
-
-      @EndUserText.label: 'Requested Date'
-      requested_date        as RequestedDate,
-      @EndUserText.label: 'Earliest Date'
-      earliest_date         as EarliestDate,
-      @EndUserText.label: 'Latest Date'
-      latest_date           as LatestDate,
-
-      @EndUserText.label: 'Customer'
-      customer_info         as CustomerInfo,
-      @EndUserText.label: 'Additional Information'
-      additional_text       as AdditionalText,
-      //note                         as Note, //todo raus
-      @ObjectModel.foreignKey.association: '_FunctionalLocation'
-      functional_location   as FunctionalLocation,
-      //TODO: Do we need a field for the PDCategory of a FunctionalLocation here as well?
-      
-      @EndUserText.label: 'Service Window'
-      service_window as ServiceWindow, 
-      @EndUserText.label: 'Service Window Start Time'
-      service_window_start as ServiceWindowStartTime,
-      @EndUserText.label: 'Service Window End Time'
-      service_window_end as ServiceWindowEndTime,
-//      concat_with_space( service_window, concat_with_space( service_window_start, service_window_end, 1 ), 1) as ServiceWindowFull,
-
-//      service_freq          as ServiceFrequency,
-
-      @Semantics.user.createdBy: true
-      @EndUserText.label: 'Created By'
-      created_by            as CreatedBy,
-      @Semantics.systemDateTime.createdAt: true
-      @EndUserText.label: 'Created At'
-      created_at            as CreatedAt,
-      @Semantics.user.lastChangedBy: true
-      @EndUserText.label: 'Last Changed By'
-      last_changed_by       as LastChangedBy,
-      @Semantics.systemDateTime.lastChangedAt: true
-      @EndUserText.label: 'Last Changed At'
-      last_changed_at       as LastChangedAt,
-      @Semantics.systemDateTime.localInstanceLastChangedAt: true
-      @EndUserText.label: 'Local Last Changed At'
-      local_last_changed_at as LocalLastChangedAt,
-
-
-      //Association
-      _ServiceTask,
-      _Attachments,
-      _Profile,
-      _Action,
-      _ServiceType,
-      _FunctionalLocation,
-      _ServiceLookup,
-      _PlanningStatusText,
-      _Statistic,
-      _WorkAreaServices,
-      _TourAssignments,
-      _ServiceResults,
-      _ServiceStatusText,
-      _ServiceWindowText,
-      _Notes,
-      _StatusHistory,
-
-      _ExtUniversal,
-      _ExtWaste,
-      _ExtCustom
-
+  key service_uuid as ServiceUUID,
+      _Service
 }
