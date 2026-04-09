@@ -1,12 +1,1 @@
-@EndUserText.label: 'Tour Template → BMS Kolonne Mapping'
-@AbapCatalog.enhancement.category: #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory: #TRANSPARENT
-@AbapCatalog.deliveryClass: #C
-@AbapCatalog.dataMaintenance: #ALLOWED
-define table ztour_bms_kolonne {
-
-  key mandt         : mandt not null;
-  key tour_template : /plce/pdtour_template not null;
-  bms_team          : text40;
-
-}
+<img width="889" height="714" alt="image" src="https://github.com/user-attachments/assets/e174706c-1c79-470f-977e-369e0cad4dd2" />
