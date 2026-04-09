@@ -1,27 +1,12 @@
-"Wir übermitteln aus P&D heraus fertig geplante Touren mit den darauf geplanten Services an das BMS-System"
-Steps 1 and 2 implement exactly this. Step 1 reads only the tours the dispatcher has selected in the P&D planning cockpit — these are the "fertig geplante Touren". Step 2 then reads all service assignments sitting on those tours, sorted by their sequence number so the driver receives them in the correct execution order. Assignments marked as Removed are deleted immediately so only active, planned services travel to BMS. The dispatcher does not manually collect or prepare anything — the system gathers everything automatically the moment the button is pressed.
+@EndUserText.label: 'Tour Template → BMS Kolonne Mapping'
+@AbapCatalog.enhancement.category: #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory: #TRANSPARENT
+@AbapCatalog.deliveryClass: #C
+@AbapCatalog.dataMaintenance: #ALLOWED
+define table ztour_bms_kolonne {
 
-"Dazu wird ein neuer Funktionsaufruf im Planungscockpit benötigt — Tour an BMS freigeben"
-The entire method is that function call. It is bound to the RAP action touranBMSfreigeben on the Tour entity, which is what the button "Tour an BMS freigeben" triggers in the Fiori planning cockpit. The method receives the keys of whichever tours the dispatcher selected, so it works correctly whether one tour or multiple tours are selected at the same time. Importantly, it does not use any of the PROLOGA standard functions such as createTourWithTemplate, tour release, or sequence transfer — it only uses READ ENTITIES to read data and MODIFY ENTITIES to write the status back. This keeps the PROLOGA mobile solution fully decoupled for future parallel use, exactly as the requirement states.
+  key mandt         : mandt not null;
+  key tour_template : /plce/pdtour_template not null;
+  bms_team          : text40;
 
-"Mit dieser Funktion soll ein Webservice im BMS-System aufgerufen und die Daten als JSON-Payload übergeben werden"
-Steps 7 and 8 fulfil this. In Step 7, /UI2/CL_JSON=>SERIALIZE with pretty_mode-camel_case converts the ABAP structure into camelCase JSON that matches the BMS Swagger schema exactly — orderNumber, placeOfDelivery, executionTimeFrameStart, containers, positions and so on. The one field where ABAP's 30-character limit conflicts with the required JSON key name (collectiveConsignmentNoteNumber) is fixed with a REPLACE ALL OCCURRENCES immediately after serialization, before anything is sent. In Step 8, an HTTP client POSTs the JSON to the confirmed BMS endpoint /api/container/create-order-halle with the Content-Type: application/json-patch+json header that the Swagger documentation requires.
-
-"Eine erste Beispiel-JSON ist im Anhang — Zum ersten Verständnis der Felder liegt auch eine Dokumentation der alten Schnittstelle vor"
-Steps 3, 4, and 5 implement the field mapping between SAP data sources and the BMS JSON payload, following the old interface documentation precisely. Step 3 reads the PROLOGA service base table /plce/tpdsrv directly — using a SELECT rather than READ ENTITIES because the method lives in the Tour behavior handler and cannot call READ ENTITIES on a foreign root entity. Step 4 joins to EWA_ORDER_OBJECT via POBJNR = reference_internal_id, which is the same object number the old AWI-BMS interface used. This single join provides the order number (SMAUFNR), container data (BEH_TYPE_NEW, BEH_ANZAHL), carrier (TRANSPORTER), recycler (DISPOSER), waste article (/WATP/AVVCODE), document number (/WATP/NOTENR), notes (ORDERTXT), planned time and duration, and the express flag (ORDER_TYPE). Step 5 then fetches all required business partner addresses in a single bulk join across BUT000, BUT020, and ADRC for the customer, goods recipient, carrier, and recycler.
-The specific field mapping rules from the old interface documentation are all implemented in Step 6:
-The field swap rule is applied in Step 6i — garbageKey receives the material/article number from /WATP/AVVCODE and garbageName receives the article description from MAKT, deliberately swapping the AVV waste code so drivers see the more meaningful article description on their tablet.
-The LEISTUNGSZEIT derivation in Step 6e produces the exact text patterns documented in the old interface — "14:00 bis 20:00", "ab 16:00", "bis 20:00", or "15:00" — derived from the PROLOGA time window fields with a fallback to PLANNED_TIME from EWA if the PROLOGA window is empty.
-The signatureRequired logic in Step 6f scans both the EWA ORDERTXT and the PROLOGA additional_text for the substring UTERSCHR in uppercase, exactly as described in the old interface specification.
-The notes enrichment in Step 6g appends AUFTRAG ZU KVV for Interseroh contracts identified by customer number or order number content, appends the order number as Bestellnummer, appends EXPRESSAUFTRAG for express orders, and appends the disposal certificate number as Entsorgungsnachweis — all exactly as the old interface documentation specifies.
-The movement type mapping in Step 6b translates the confirmed PROLOGA action keys from /PLCE/CPDACTIONT — 01 Stellen to S, 02 Holen to H, 03 Tauschen to T, 04 Ersetzen to T, 05 Umleeren to T — into the BMS movementType values documented in the interface.
-The Kolonne mapping in Step 6a reads ZTOUR_BMS_KOLONNE to translate the PROLOGA tour template to the BMS team name, implementing the 1:1 mapping between SAP standard tour number and BMS Kolonnenbezeichnung described in the interface doc.
-
-"Wenn das Paket nicht ankommt bekommt der Disponent im SAP sofort eine verständliche Fehlermeldung"
-Three layers of error handling cover every failure scenario. If no EWA order can be found for a service, the dispatcher gets message 012 with the order number. If an unknown action key is encountered, message 013 warns the dispatcher. If the HTTP client cannot be created due to a network or configuration problem, a plain text error message is reported immediately. If the BMS returns a non-201 status, message 011 carries both the HTTP status code and the full BMS response body so the dispatcher sees the actual BMS error text. In every case the method continues processing remaining services and tours rather than aborting entirely.
-
-"Die Erfolgsmeldung — Spalte BMS-Status — grüner Haken oder rotes Kreuz"
-Step 10 writes 'SENT' or 'ERROR' back to ZzBmsStatus on the tour extension (/PLCE/R_PDTourExtCustom) using MODIFY ENTITIES. The flag lv_tour_has_error is set to abap_true by any failure anywhere in the service loop for that tour, so if even one service out of five fails the whole tour is marked ERROR. The BMS-Status column in the Fiori cockpit reads ZzBmsStatus directly and renders the green tick or red cross accordingly, giving the dispatcher immediate visual feedback without having to open any detail view.
-
-"Die Standardfunktionen für den Einsatz der PROLOGA-Mobil-Lösung können wir vorerst ausblenden — da in der Zukunft ein paralleler Einsatz der PROLOGA-Lösung möglich bleiben soll"
-The method contains no calls to PROLOGA standard actions. It uses only READ ENTITIES OF /PLCE/R_PDTour to navigate the tour's own composition tree, plain SELECT statements on base tables, and MODIFY ENTITIES to write back the status field. The PROLOGA tour release, recall, auto-sort, and sequence transfer functions are completely untouched, meaning a future parallel deployment of the PROLOGA mobile solution remains fully possible alongside this BMS interface.
+}
