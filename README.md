@@ -1,7 +1,6 @@
 CLASS zcl_wr_service_extend_calc DEFINITION
   PUBLIC
   CREATE PUBLIC .
-
   PUBLIC SECTION.
     INTERFACES if_sadl_exit .
     INTERFACES if_sadl_exit_calc_element_read .
@@ -12,12 +11,15 @@ ENDCLASS.
 CLASS zcl_wr_service_extend_calc IMPLEMENTATION.
 
   METHOD if_sadl_exit_calc_element_read~calculate.
+
     FIELD-SYMBOLS: <ls_original>            TYPE any,
                    <ls_calculated>          TYPE any,
                    <lv_refid>               TYPE any,
                    <lv_service_criticality> TYPE int1,
                    <lv_time_adj>            TYPE any,
-                   <lv_time_disp>           TYPE any.
+                   <lv_time_disp>           TYPE any,
+                   <lv_main_position>       TYPE any,
+                   <lv_main_pos_crit>       TYPE int1.
 
     DATA: lv_reactiontime TYPE zwr_d_ewmd_reactiontime,
           lv_time_num     TYPE i,
@@ -26,6 +28,7 @@ CLASS zcl_wr_service_extend_calc IMPLEMENTATION.
     CLEAR ct_calculated_data.
 
     LOOP AT it_original_data ASSIGNING <ls_original>.
+
       " Prepare the calculated row
       APPEND INITIAL LINE TO ct_calculated_data ASSIGNING <ls_calculated>.
       MOVE-CORRESPONDING <ls_original> TO <ls_calculated>.
@@ -35,8 +38,8 @@ CLASS zcl_wr_service_extend_calc IMPLEMENTATION.
       " =======================================================================
       ASSIGN COMPONENT 'REFERENCEID' OF STRUCTURE <ls_original> TO <lv_refid>.
       IF sy-subrc = 0 AND <lv_refid> IS NOT INITIAL.
-
         CLEAR lv_reactiontime.
+
         " Fetch via compliant CDS
         SELECT SINGLE reaction_time  " aliased field for ZZPOINT_ORIGIN_WDOI
           FROM zi_wr_ewa_order_object
@@ -78,20 +81,44 @@ CLASS zcl_wr_service_extend_calc IMPLEMENTATION.
         <lv_time_disp> = lv_time_str.
       ENDIF.
 
-
-
-     
+      " =======================================================================
+      " LOGIC 3: Main Position Criticality (Green for Grouped Services)
+      " =======================================================================
+      " If zz_main_position is filled, the service belongs to a group
+      " and should be highlighted in green (criticality 3)
+      " =======================================================================
+      ASSIGN COMPONENT 'ZZ_MAIN_POSITION' OF STRUCTURE <ls_original> TO <lv_main_position>.
+      IF sy-subrc = 0.
+        ASSIGN COMPONENT 'ZZ_MAIN_POS_CRITICALITY' OF STRUCTURE <ls_calculated> TO <lv_main_pos_crit>.
+        IF sy-subrc = 0.
+          " Check if main position is filled
+          IF <lv_main_position> IS NOT INITIAL.
+            " Service belongs to a group -> Green (Success)
+            <lv_main_pos_crit> = 3.
+          ELSE.
+            " Service does not belong to a group -> Neutral
+            <lv_main_pos_crit> = 0.
+          ENDIF.
+        ENDIF.
+      ENDIF.
 
     ENDLOOP.
+
   ENDMETHOD.
 
   METHOD if_sadl_exit_calc_element_read~get_calculation_info.
+
     " Request fields needed for calculations (Case-sensitive standard CDS names)
-    " Field needed for LOGIC 1 (Criticality)
+
+    " Field needed for LOGIC 1 (Service Criticality)
     APPEND 'REFERENCEID' TO et_requested_orig_elements.
 
     " Field needed for LOGIC 2 (Time Adjustment Display)
     APPEND 'ZZ_TIMEADJUSTMENT' TO et_requested_orig_elements.
 
+    " Field needed for LOGIC 3 (Main Position Criticality)
+    APPEND 'ZZ_MAIN_POSITION' TO et_requested_orig_elements.
+
   ENDMETHOD.
+
 ENDCLASS.
