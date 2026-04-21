@@ -1,6 +1,16 @@
-Darstellung und Bearbeitung in der Disposition:
-
-In der Disposition muss eine Spalte für das neue Z-Feld eingefügt werden, in dem die Nummer der Hauptposition enthalten ist. Diese muss auch angezeigt werden können. Die Services können über eine eingespeicherte Sicht nach dieser Nummer gruppiert dargestellt werden (Standardoption).
-
-Da diese Sicht nicht zwangsläufig immer ausgewählt sein muss, soll auch farblich grün hervorgehoben werden, wenn ein Service weitere zusammengehörige Services hat. Ist für einen Service hinterlegt, dass er zu einer Gruppe gehört (unabhängig ob kaufmännisch oder informativ), soll dieser Service in der Farbe „grün“ hervorgehoben werden. Diese Färbung dient als Kennzeichen die gruppierte Sicht auszuwählen. Damit ist sichergestellt, dass die Aufträge zusammen dargestellt werden. Der Disponent kann so sehen, welche Aufträge gemeinsam disponiert werden sollen. Die Entscheidungshoheit bleibt aber bei der Disposition, wann welcher Auftrag gefahren wird.
-
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Helper CDS for EWA-ORDER_ObJECT'
+@Metadata.ignorePropagatedAnnotations: true
+define root view entity ZI_WR_EWA_ORDER_OBJECT as select distinct from ewa_order_object as _EWA_ORDER_OBJECT
+association [0..1] to /PLCE/R_PDService  as _ServiceCore on _ServiceCore.ReferenceInternalId = $projection.EWAWasteDsplOrdItmObjectNumber
+{
+    key ordernr as Ordernr,
+    key order_laufnr as OrderLaufnr,
+    key /plcp/pd_service_uuid as PdServiceUuid,
+    pobjnr as EWAWasteDsplOrdItmObjectNumber,
+    wdplantnr as Entsorgunganlage,
+    zz_pobjnr_main as Main_position,
+    zz_order_date  as late_date,
+    _ServiceCore.ReferenceId as Referenceid,
+     zz_reactiontime as Reaction_Time
+}
