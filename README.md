@@ -1,20 +1,5 @@
-" =======================================================================
-"  Main Position Criticality (Green for Grouped Services)
-" =======================================================================
-ASSIGN COMPONENT 'ZZ_MAIN_POSITION' OF STRUCTURE <ls_calculated> TO <lv_main_position>.
-IF sy-subrc = 0.
-  " Fill display field with converted number
-  <lv_main_position> = ZCL_WR_EEWA_WDOC_MISC=>CL_CONVERT_OBJNR_OUT(
-                         PAR_POBJNR = ls_wr_ewa_order_object-Main_position ).
-ENDIF.
+<img width="956" height="979" alt="image" src="https://github.com/user-attachments/assets/34a4ba30-8af1-4db2-bf12-f410b8baf7c0" />
 
-ASSIGN COMPONENT 'ZZ_MAIN_POS_CRITICALITY' OF STRUCTURE <ls_calculated> TO <lv_main_pos_crit>.
-IF sy-subrc = 0.
-  IF ls_wr_ewa_order_object-Main_position IS NOT INITIAL.
-    " Belongs to a group (main or sub) -> Green
-    <lv_main_pos_crit> = 3.
-  ELSE.
-    " No group -> Neutral
-    <lv_main_pos_crit> = 0.
-  ENDIF.
-ENDIF.
+
+<img width="709" height="817" alt="image" src="https://github.com/user-attachments/assets/4c5c62e7-5852-4c00-b632-8e3093c4e9db" />
+<img width="308" height="284" alt="image" src="https://github.com/user-attachments/assets/0a6734fc-5ce2-4cae-a00a-f8f8be990a85" />
