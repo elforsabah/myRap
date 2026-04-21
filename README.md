@@ -1,2 +1,3 @@
-<lv_main_position> = ZCL_WR_EEWA_WDOC_MISC=>CL_CONVERT_OBJNR_OUT( 
-                       PAR_POBJNR = ls_wr_ewa_order_object-Main_position ).
+APPEND 'REFERENCEID' TO et_requested_orig_elements.
+APPEND 'ZZ_TIMEADJUSTMENT' TO et_requested_orig_elements.
+APPEND 'ZZ_MAIN_POSITION' TO et_requested_orig_elements. " <-- add this
