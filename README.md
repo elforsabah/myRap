@@ -1,21 +1,17 @@
-  METHOD precheck_anlageaendern.
+METHOD precheck_anlageaendern.
 
     LOOP AT keys INTO DATA(ls_key).
 
-      " ---------------------------------------------------------------------
-      " 1. Read Service and Order Data
-      " ---------------------------------------------------------------------
+      " 1. Read THIS specific service (not all services at once)
       READ ENTITIES OF /plce/r_pdservice IN LOCAL MODE
         ENTITY service
         FIELDS ( referenceinternalid referenceid serviceuuid )
         WITH VALUE #( ( serviceuuid = ls_key-serviceuuid ) )
         RESULT DATA(lt_services).
 
-      IF lt_services IS INITIAL.
-        CONTINUE.
-      ENDIF.
-
-      DATA(ls_service) = lt_services[ 1 ].
+      CHECK lt_services IS NOT INITIAL.
+      
+      DATA(ls_service) = lt_services[ 1 ].  " Now this is correct - we read only ONE service
 
       " Get order details from backend view
       SELECT SINGLE *
@@ -27,12 +23,8 @@
         CONTINUE.
       ENDIF.
 
-      " ---------------------------------------------------------------------
-      " 2. Check for Fixed Disposal Contract (Fester Entsorgungsvertrag)
-      " ---------------------------------------------------------------------
-      " If a fixed contract is assigned, changing the facility is not allowed
+      " 2. Check for Fixed Disposal Contract
       IF ls_order-entsorgunganlage IS NOT INITIAL.
-        " Check if this is a contractually fixed assignment
         SELECT SINGLE zz_framework_agreem
           FROM ewa_el_wdplant
           WHERE wdplantnr = @ls_order-entsorgunganlage
@@ -53,9 +45,7 @@
         ENDIF.
       ENDIF.
 
-      " ---------------------------------------------------------------------
       " 3. Validate Selected Facility
-      " ---------------------------------------------------------------------
       IF ls_key-%param-anlage IS INITIAL.
         APPEND VALUE #( %tky = ls_key-%tky
                         %fail-cause = if_abap_behv=>cause-unspecific ) TO failed-service.
@@ -69,7 +59,6 @@
         CONTINUE.
       ENDIF.
 
-      " Get facility details
       SELECT SINGLE wdplantnr, zz_available_dispo, zz_framework_agreem
         FROM ewa_el_wdplant
         WHERE wdplantnr = @ls_key-%param-anlage
@@ -89,7 +78,6 @@
         CONTINUE.
       ENDIF.
 
-      " Check if facility is available for Dispo
       IF ls_plant-zz_available_dispo IS INITIAL OR ls_plant-zz_available_dispo <> 'X'.
         APPEND VALUE #( %tky = ls_key-%tky
                         %fail-cause = if_abap_behv=>cause-unspecific ) TO failed-service.
@@ -104,25 +92,19 @@
         CONTINUE.
       ENDIF.
 
-      " ---------------------------------------------------------------------
-      " 4. AVV-Code Validation (Abfallschlüssel)
-      " ---------------------------------------------------------------------
-      " Check if AVV assignments exist for this facility
+      " 4. AVV-Code Validation
       SELECT COUNT(*)
         FROM /watp/twdplanavv
         WHERE wdplantnr = @ls_key-%param-anlage
         INTO @DATA(lv_avv_count).
 
       IF lv_avv_count > 0.
-        " AVV assignments exist - must validate the order's AVV code
-        " Get AVV code from order
         SELECT SINGLE avvcode
           FROM ewa_order_object
           WHERE pobjnr = @ls_service-referenceinternalid
           INTO @DATA(lv_order_avvcode).
 
         IF sy-subrc = 0 AND lv_order_avvcode IS NOT INITIAL.
-          " Check if this AVV code is allowed for the selected facility
           SELECT SINGLE avvcode
             FROM /watp/twdplanavv
             WHERE wdplantnr = @ls_key-%param-anlage
@@ -144,41 +126,32 @@
           ENDIF.
         ENDIF.
       ENDIF.
-      " If no AVV assignments exist (lv_avv_count = 0), all waste types are allowed
+      
+      " Clear variables for next iteration
+      CLEAR: ls_service, ls_order, lv_existing_contract, ls_plant, 
+             lv_avv_count, lv_order_avvcode, lv_found_avv, lt_services.
 
     ENDLOOP.
 
-  ENDMETHOD.
+ENDMETHOD.
 
 
-" ============================================================================
-" METHOD anlageaendern
-" ============================================================================
-" Updates the disposal facility (Entsorgungsanlage) for a service order
-" ============================================================================
-
-  METHOD anlageaendern.
+METHOD anlageaendern.
 
     LOOP AT keys INTO DATA(ls_key).
 
-      " ---------------------------------------------------------------------
-      " Step 1: Read the service to get basic info
-      " ---------------------------------------------------------------------
+      " Read THIS specific service (not all at once)
       READ ENTITIES OF /plce/r_pdservice IN LOCAL MODE
         ENTITY service
         FIELDS ( serviceuuid referenceinternalid referenceid )
         WITH VALUE #( ( serviceuuid = ls_key-serviceuuid ) )
         RESULT DATA(lt_services).
 
-      IF lt_services IS INITIAL.
-        CONTINUE.
-      ENDIF.
+      CHECK lt_services IS NOT INITIAL.
+      
+      DATA(ls_service) = lt_services[ 1 ].  " Now this is correct
 
-      DATA(ls_service) = lt_services[ 1 ].
-
-      " ---------------------------------------------------------------------
-      " Step 2: Check if ExtCustom exists; create if missing
-      " ---------------------------------------------------------------------
+      " Check if ExtCustom exists for THIS service
       READ ENTITIES OF /plce/r_pdservice IN LOCAL MODE
         ENTITY extcustom
         FIELDS ( serviceuuid )
@@ -186,7 +159,6 @@
         RESULT DATA(lt_extcustom).
 
       IF lt_extcustom IS INITIAL.
-        " Create ExtCustom record if it doesn't exist
         DATA: lv_cid        TYPE string VALUE '$abap_cid_anlage_',
               lt_ext_create TYPE TABLE FOR CREATE /plce/r_pdservice\_extcustom.
 
@@ -202,7 +174,6 @@
           FAILED DATA(lfailed_create)
           REPORTED DATA(lreported_create).
 
-        " Handle creation errors if any
         IF lfailed_create IS NOT INITIAL.
           APPEND LINES OF lfailed_create-extcustom TO failed-extcustom.
           APPEND LINES OF lreported_create-extcustom TO reported-extcustom.
@@ -211,9 +182,7 @@
         CLEAR: lt_ext_create, lmapped_create, lfailed_create, lreported_create.
       ENDIF.
 
-      " ---------------------------------------------------------------------
-      " Step 3: Update the disposal facility field (zz_ent_anlage)
-      " ---------------------------------------------------------------------
+      " Update THIS service's disposal facility
       MODIFY ENTITIES OF /plce/r_pdservice IN LOCAL MODE
         ENTITY extcustom
         UPDATE FIELDS ( zz_ent_anlage )
@@ -222,14 +191,11 @@
         FAILED DATA(lt_failed_update)
         REPORTED DATA(lt_reported_update).
 
-      " Aggregate errors if any
       IF lt_failed_update IS NOT INITIAL.
         APPEND LINES OF lt_failed_update-extcustom TO failed-extcustom.
         APPEND LINES OF lt_reported_update-extcustom TO reported-extcustom.
       ELSE.
-        " ---------------------------------------------------------------------
-        " Step 4: Add success message
-        " ---------------------------------------------------------------------
+        " Success message for THIS service
         APPEND VALUE #( %tky = ls_key-%tky
                         %msg = new_message(
                                  id       = 'Z_MSG_SVR_TOUR_EXT'
@@ -240,13 +206,13 @@
                       ) TO reported-service.
       ENDIF.
 
-      CLEAR: lt_failed_update, lt_reported_update.
+      " Clear variables for next iteration
+      CLEAR: lt_failed_update, lt_reported_update, ls_service, 
+             lt_services, lt_extcustom.
 
     ENDLOOP.
 
-    " -------------------------------------------------------------------------
-    " Step 5: Read updated service data and return to UI
-    " -------------------------------------------------------------------------
+    " Now read ALL updated services at once for the result
     READ ENTITIES OF /plce/r_pdservice IN LOCAL MODE
       ENTITY service
       ALL FIELDS WITH CORRESPONDING #( keys )
@@ -255,5 +221,4 @@
     result = VALUE #( FOR srv IN lt_service_result ( %tky   = srv-%tky
                                                       %param = srv ) ).
 
-  ENDMETHOD.
-
+ENDMETHOD.
