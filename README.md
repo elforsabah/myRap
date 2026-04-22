@@ -1,241 +1,113 @@
-METHOD precheck_anlageaendern.
+METHOD if_sadl_exit_calc_element_read~calculate.
+    FIELD-SYMBOLS: <ls_original>            TYPE any,
+                   <ls_calculated>          TYPE any,
+                   <lv_refid>               TYPE any,
+                   <lv_service_criticality> TYPE int1,
+                   <lv_time_adj>            TYPE any,
+                   <lv_entsorgungs>         TYPE any,
+                    <lv_entsorgungs_original>         TYPE any,
+                   <lv_time_disp>           TYPE any,
+                   <lv_main_position>       TYPE any,
+                   <lv_main_pos_crit>       TYPE int1.
 
-    " Read ALL services at once (same pattern as terminateservice)
-    READ ENTITIES OF /plce/r_pdservice IN LOCAL MODE
-      ENTITY service
-      FIELDS ( serviceuuid referenceinternalid referenceid )
-      WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_services).
+    DATA: lv_reactiontime TYPE zwr_d_ewmd_reactiontime,
+          lv_time_num     TYPE i,
+          lv_time_str     TYPE string.
 
-    " Loop through SERVICES (not keys!)
-    LOOP AT lt_services ASSIGNING FIELD-SYMBOL(<ls_service>).
-      
-      " Get the parameter for THIS service
-      DATA(ls_param) = keys[ %tky = <ls_service>-%tky ]-%param.
+*   ct_calculated_data = CORRESPONDING #(  it_original_data ).
+    clear ct_calculated_data.
+    LOOP AT it_original_data ASSIGNING <ls_original>.
+      " Prepare the calculated row
+       APPEND INITIAL LINE TO ct_calculated_data ASSIGNING <ls_calculated>.
+       MOVE-CORRESPONDING <ls_original> TO <ls_calculated>.
 
-      " Get order details from backend view
-      SELECT SINGLE *
-        FROM zi_wr_ewa_order_object
-        WHERE referenceid = @<ls_service>-referenceid
-        INTO @DATA(ls_order).
+      " =======================================================================
+      " Service Criticality
+      " =======================================================================
+      ASSIGN COMPONENT 'REFERENCEID' OF STRUCTURE <ls_original> TO <lv_refid>.
+      IF sy-subrc = 0 AND <lv_refid> IS NOT INITIAL.
 
-      IF sy-subrc <> 0.
-        CONTINUE.
-      ENDIF.
+        CLEAR lv_reactiontime.
+        " Fetch via compliant CDS
+        SELECT SINGLE * "aliased field for ZZPOINT_ORIGIN_WDOI
+          FROM zi_wr_ewa_order_object
+          WHERE referenceid = @<lv_refid> INTO @DATA(ls_wr_ewa_order_object).
+        lv_reactiontime  = ls_wr_ewa_order_object-reaction_time.
 
-      " ---------------------------------------------------------------------
-      " Validation 1: Check for Fixed Disposal Contract
-      " ---------------------------------------------------------------------
-      IF ls_order-entsorgunganlage IS NOT INITIAL.
-        SELECT SINGLE zz_framework_agreem
-          FROM ewa_el_wdplant
-          WHERE wdplantnr = @ls_order-entsorgunganlage
-          INTO @DATA(lv_existing_contract).
+        DATA(lv_entsorgungsanlage) = ls_wr_ewa_order_object-entsorgunganlage.
 
-        IF sy-subrc = 0 AND lv_existing_contract IS NOT INITIAL.
-          APPEND VALUE #( %tky = <ls_service>-%tky
-                          %fail-cause = if_abap_behv=>cause-unspecific ) TO failed-service.
-          APPEND VALUE #( %tky = <ls_service>-%tky
-                          %msg = new_message(
-                                   id       = 'Z_MSG_SVR_TOUR_EXT'
-                                   number   = '010'
-                                   severity = if_abap_behv_message=>severity-error
-                                   v1       = 'Änderung nicht erlaubt'
-                                   v2       = 'Fester Entsorgungsvertrag vorhanden' )
-                        ) TO reported-service.
-          CONTINUE.
-        ENDIF.
-      ENDIF.
+        IF sy-subrc = 0.
+          ASSIGN COMPONENT 'SERVICE_CRITICALITY' OF STRUCTURE <ls_calculated> TO <lv_service_criticality>.
+          IF sy-subrc = 0.
+            " Map to 1 (red/critical if replanned) or 0 (neutral)
+*            <lv_service_criticality> = COND #( WHEN lv_reactiontime IS NOT INITIAL THEN 1 ELSE 0 ).
+             <lv_service_criticality> = COND #( WHEN lv_reactiontime IS NOT INITIAL THEN 1 WHEN ls_wr_ewa_order_object-main_position IS NOT INITIAL THEN 3 ELSE 0 ).
+          ENDIF.
 
-      " ---------------------------------------------------------------------
-      " Validation 2: Check if facility is selected
-      " ---------------------------------------------------------------------
-      IF ls_param-anlage IS INITIAL.
-        APPEND VALUE #( %tky = <ls_service>-%tky
-                        %fail-cause = if_abap_behv=>cause-unspecific ) TO failed-service.
-        APPEND VALUE #( %tky = <ls_service>-%tky
-                        %msg = new_message(
-                                 id       = 'Z_MSG_SVR_TOUR_EXT'
-                                 number   = '011'
-                                 severity = if_abap_behv_message=>severity-error
-                                 v1       = 'Keine Entsorgungsanlage ausgewählt' )
-                      ) TO reported-service.
-        CONTINUE.
-      ENDIF.
-
-      " ---------------------------------------------------------------------
-      " Validation 3: Check facility exists and is available
-      " ---------------------------------------------------------------------
-      SELECT SINGLE wdplantnr, zz_available_dispo, zz_framework_agreem
-        FROM ewa_el_wdplant
-        WHERE wdplantnr = @ls_param-anlage
-        INTO @DATA(ls_plant).
-
-      IF sy-subrc <> 0.
-        APPEND VALUE #( %tky = <ls_service>-%tky
-                        %fail-cause = if_abap_behv=>cause-unspecific ) TO failed-service.
-        APPEND VALUE #( %tky = <ls_service>-%tky
-                        %msg = new_message(
-                                 id       = 'Z_MSG_SVR_TOUR_EXT'
-                                 number   = '012'
-                                 severity = if_abap_behv_message=>severity-error
-                                 v1       = 'Entsorgungsanlage nicht gefunden'
-                                 v2       = CONV #( ls_param-anlage ) )
-                      ) TO reported-service.
-        CONTINUE.
-      ENDIF.
-
-      IF ls_plant-zz_available_dispo IS INITIAL OR ls_plant-zz_available_dispo <> 'X'.
-        APPEND VALUE #( %tky = <ls_service>-%tky
-                        %fail-cause = if_abap_behv=>cause-unspecific ) TO failed-service.
-        APPEND VALUE #( %tky = <ls_service>-%tky
-                        %msg = new_message(
-                                 id       = 'Z_MSG_SVR_TOUR_EXT'
-                                 number   = '013'
-                                 severity = if_abap_behv_message=>severity-error
-                                 v1       = 'Anlage nicht verfügbar für Dispo'
-                                 v2       = CONV #( ls_param-anlage ) )
-                      ) TO reported-service.
-        CONTINUE.
-      ENDIF.
-
-      " ---------------------------------------------------------------------
-      " Validation 4: AVV-Code matching
-      " ---------------------------------------------------------------------
-      SELECT COUNT(*)
-        FROM /watp/twdplanavv
-        WHERE wdplantnr = @ls_param-anlage
-        INTO @DATA(lv_avv_count).
-
-      IF lv_avv_count > 0.
-        " AVV assignments exist - must validate
-        SELECT SINGLE avvcode
-          FROM ewa_order_object
-          WHERE pobjnr = @<ls_service>-referenceinternalid
-          INTO @DATA(lv_order_avvcode).
-
-        IF sy-subrc = 0 AND lv_order_avvcode IS NOT INITIAL.
-          SELECT SINGLE avvcode
-            FROM /watp/twdplanavv
-            WHERE wdplantnr = @ls_param-anlage
-              AND avvcode = @lv_order_avvcode
-            INTO @DATA(lv_found_avv).
-
-          IF sy-subrc <> 0.
-            APPEND VALUE #( %tky = <ls_service>-%tky
-                            %fail-cause = if_abap_behv=>cause-unspecific ) TO failed-service.
-            APPEND VALUE #( %tky = <ls_service>-%tky
-                            %msg = new_message(
-                                     id       = 'Z_MSG_SVR_TOUR_EXT'
-                                     number   = '014'
-                                     severity = if_abap_behv_message=>severity-error
-                                     v1       = 'AVV-Code nicht erlaubt für diese Anlage'
-                                     v2       = CONV #( lv_order_avvcode ) )
-                          ) TO reported-service.
-            CONTINUE.
+          ASSIGN COMPONENT 'ZZ_ENTSORGUNGANLAGE' OF STRUCTURE <ls_calculated> TO <lv_entsorgungs>.
+          IF sy-subrc = 0.
+           ASSIGN COMPONENT 'ENTSORGUNGSANLAGE' OF STRUCTURE <ls_original> TO <lv_entsorgungs_original>.
+            IF <lv_entsorgungs_original> is NOT INITIAL.
+            <lv_entsorgungs> = <lv_entsorgungs_original>.
+            else.
+            <lv_entsorgungs> = ls_wr_ewa_order_object-entsorgunganlage.
+            ENDIF.
           ENDIF.
         ENDIF.
+
+      " =======================================================================
+        "  Main Position Criticality (Green for Grouped Services)
+*
+*        ZZ_POBJNR_MAIN IS INITIAL ->Not grouped at all
+*        POBJNR = ZZ_POBJNR_MAINMain -> position of a group
+*        POBJNR ≠ ZZ_POBJNR_MAIN  -> Sub-position
+*
+        " =======================================================================
+        ASSIGN COMPONENT 'ZZ_MAIN_POSITION' OF STRUCTURE <ls_calculated> TO <lv_main_position>.
+        IF sy-subrc = 0.
+*          " Fill display field with converted number
+          <lv_main_position> = zcl_wr_eewa_wdoc_misc=>cl_convert_objnr_out(
+                                 par_pobjnr = ls_wr_ewa_order_object-main_position ).
+        ENDIF.
+
+        ASSIGN COMPONENT 'ZZ_MAIN_POS_CRITICALITY' OF STRUCTURE <ls_calculated> TO <lv_main_pos_crit>.
+        IF sy-subrc = 0.
+          IF ls_wr_ewa_order_object-main_position IS NOT INITIAL.
+            " Belongs to a group (main or sub) -> Green
+            <lv_main_pos_crit> = 3.
+          ELSE.
+            " No group -> Neutral
+            <lv_main_pos_crit> = 0.
+          ENDIF.
+        ENDIF.
+
+        " =======================================================================
+        " Time Adjustment Formatting (+37 MIN)
+        " =======================================================================
+        ASSIGN COMPONENT 'ZZ_TIMEADJUSTMENT' OF STRUCTURE <ls_original> TO <lv_time_adj>.
+        IF sy-subrc = 0 AND <lv_time_adj> IS NOT INITIAL.
+          lv_time_num = <lv_time_adj>.
+        ELSE.
+          lv_time_num = 0.
+        ENDIF.
+
+        " Format the string based on positive, negative, or zero
+        IF lv_time_num > 0.
+          lv_time_str = |+{ lv_time_num } MIN|.
+        ELSEIF lv_time_num < 0.
+          " Negative sign is automatically included in the variable, so just append ' MIN'
+          lv_time_str = |{ lv_time_num } MIN|.
+        ELSE.
+          lv_time_str = |0 MIN|.
+        ENDIF.
+
+        " Assign the formatted string to the Virtual Display Field
+        ASSIGN COMPONENT 'ZZ_TIMEADJUST_DISPLAY' OF STRUCTURE <ls_calculated> TO <lv_time_disp>.
+        IF sy-subrc = 0.
+          <lv_time_disp> = lv_time_str.
+        ENDIF.
+
+
       ENDIF.
-      " If no AVV assignments (lv_avv_count = 0), all waste types allowed
-
-    ENDLOOP.
-
-ENDMETHOD.
-
-
-METHOD anlageaendern.
-
-    " Declare bulk operation tables (same pattern as terminateservice)
-    DATA: lt_ext_create TYPE TABLE FOR CREATE /plce/r_pdservice\_extcustom,
-          lt_ext_update TYPE TABLE FOR UPDATE /plce/r_pdservice\\extcustom.
-
-    " Read ALL services at once (same pattern as terminateservice)
-    READ ENTITIES OF /plce/r_pdservice IN LOCAL MODE
-      ENTITY service
-      FIELDS ( serviceuuid referenceinternalid referenceid )
-      WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_services).
-
-    " Loop through SERVICES (not keys!) - same pattern as terminateservice
-    LOOP AT lt_services ASSIGNING FIELD-SYMBOL(<ls_service>).
-      
-      " Get the parameter for THIS service
-      DATA(ls_param) = keys[ %tky = <ls_service>-%tky ]-%param.
-
-      " Check if ExtCustom exists for this service
-      READ ENTITIES OF /plce/r_pdservice IN LOCAL MODE
-        ENTITY extcustom
-        FIELDS ( serviceuuid )
-        WITH VALUE #( ( serviceuuid = <ls_service>-serviceuuid ) )
-        RESULT DATA(lt_extcustom).
-
-      IF lt_extcustom IS INITIAL.
-        " ExtCustom doesn't exist - prepare for creation
-        DATA(lv_cid) = |$cid_{ <ls_service>-serviceuuid }$|.
-        
-        APPEND VALUE #( serviceuuid = <ls_service>-serviceuuid
-                        %target = VALUE #( ( %cid = lv_cid ) ) ) 
-          TO lt_ext_create.
-      ENDIF.
-
-      " Prepare the update (will be applied after creation if needed)
-      APPEND VALUE #( %key-serviceuuid = <ls_service>-serviceuuid
-                      zz_ent_anlage = ls_param-anlage ) 
-        TO lt_ext_update.
-
-      CLEAR lt_extcustom.
-
-    ENDLOOP.
-
-    " Bulk create missing ExtCustom records (same pattern as terminateservice)
-    IF lt_ext_create IS NOT INITIAL.
-      MODIFY ENTITIES OF /plce/r_pdservice IN LOCAL MODE
-        ENTITY service
-        CREATE BY \_extcustom
-        AUTO FILL CID SET FIELDS WITH lt_ext_create
-        MAPPED DATA(lmapped)
-        FAILED DATA(lfailed)
-        REPORTED DATA(lreported).
-
-      IF lfailed IS NOT INITIAL.
-        APPEND LINES OF lfailed-extcustom TO failed-extcustom.
-        APPEND LINES OF lreported-extcustom TO reported-extcustom.
-      ENDIF.
-    ENDIF.
-
-    " Bulk update disposal facility (same pattern as terminateservice)
-    IF lt_ext_update IS NOT INITIAL.
-      MODIFY ENTITIES OF /plce/r_pdservice IN LOCAL MODE
-        ENTITY extcustom
-        UPDATE FIELDS ( zz_ent_anlage )
-        WITH lt_ext_update
-        FAILED DATA(lt_failed_update)
-        REPORTED DATA(lt_reported_update).
-
-      IF lt_failed_update IS NOT INITIAL.
-        APPEND LINES OF lt_failed_update-extcustom TO failed-extcustom.
-        APPEND LINES OF lt_reported_update-extcustom TO reported-extcustom.
-      ELSE.
-        " Success - add messages for each service
-        LOOP AT lt_services ASSIGNING <ls_service>.
-          DATA(ls_param_msg) = keys[ %tky = <ls_service>-%tky ]-%param.
-          
-          APPEND VALUE #( %tky = <ls_service>-%tky
-                          %msg = new_message(
-                                   id       = 'Z_MSG_SVR_TOUR_EXT'
-                                   number   = '015'
-                                   severity = if_abap_behv_message=>severity-success
-                                   v1       = 'Entsorgungsanlage erfolgreich geändert'
-                                   v2       = CONV #( ls_param_msg-anlage ) )
-                        ) TO reported-service.
-        ENDLOOP.
-      ENDIF.
-    ENDIF.
-
-    " Return updated data to UI (same pattern as terminateservice)
-    READ ENTITIES OF /plce/r_pdservice IN LOCAL MODE
-      ENTITY service ALL FIELDS WITH CORRESPONDING #( keys ) RESULT DATA(lt_service_result).
-
-    result = VALUE #( FOR srv IN lt_service_result ( %tky = srv-%tky %param = srv ) ).
-
-ENDMETHOD.
+      ENDLOOP.
+    ENDMETHOD.
