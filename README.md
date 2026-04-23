@@ -1,1 +1,4 @@
-<img width="1193" height="688" alt="image" src="https://github.com/user-attachments/assets/9425b602-b93a-438a-a541-799006567300" />
+coalesce( 
+  /PLCE/R_PDService._ExtCustom.wdplantnr,  // ← First choice
+  _OrderObject.entsorgunganlage             // ← Fallback
+) as zz_entsorgunganlage
