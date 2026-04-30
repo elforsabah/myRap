@@ -1,94 +1,217 @@
-METHOD get_bms_bearer_token.
+CLASS ltc_bms_http_test DEFINITION FOR TESTING
+  DURATION LONG
+  RISK LEVEL DANGEROUS.
 
-  CLEAR: ev_token, ev_error.
+  PRIVATE SECTION.
 
-  DATA(lv_auth_json) = |\{ "username": "{ iv_username }", | &&
-                        |"password": "{ iv_password }" \}|.
+    DATA mo_helper TYPE REF TO zcl_wr_pd_tour_helper.
 
-  DATA lo_http TYPE REF TO if_http_client.
+    CONSTANTS:
+      lc_base_url TYPE string
+        VALUE 'http://hws-srv17.hws.vvv.vvv-konzern.net/BmsApiSapTest',
+      lc_username  TYPE string VALUE 'BmsWebApi',
+      lc_password  TYPE string VALUE 'uh}O1Nm#&lV+2LeS'.
 
-  cl_http_client=>create_by_url(
-    EXPORTING url    = iv_base_url && '/api/user/authenticate/user'
-    IMPORTING client = lo_http
-    EXCEPTIONS OTHERS = 4 ).
+    METHODS setup.
+    METHODS test_get_bearer_token      FOR TESTING.
+    METHODS test_post_order_valid      FOR TESTING.
+    METHODS test_post_order_no_token   FOR TESTING.
+    METHODS test_post_order_bad_url    FOR TESTING.
 
-  IF sy-subrc <> 0.
-    ev_error = 'BMS: auth HTTP client creation failed'.
-    RETURN.
-  ENDIF.
+ENDCLASS.
 
-  lo_http->request->set_method( if_http_request=>co_request_method_post ).
-  lo_http->request->set_header_field(
-    name  = 'Content-Type'
-    value = 'application/json' ).
-  lo_http->request->set_cdata( lv_auth_json ).
+CLASS ltc_bms_http_test IMPLEMENTATION.
 
-  lo_http->send(    EXCEPTIONS OTHERS = 4 ).
-  lo_http->receive( EXCEPTIONS OTHERS = 4 ).
+  METHOD setup.
+    CREATE OBJECT mo_helper.
+  ENDMETHOD.
 
-  DATA lv_code TYPE i.
-  lo_http->response->get_status( IMPORTING code = lv_code ).
-  DATA(lv_body) = lo_http->response->get_cdata( ).
-  lo_http->close( ).
+  METHOD test_get_bearer_token.
+    "-------------------------------------------------------------------
+    " Happy path: valid credentials → token returned, no error
+    "-------------------------------------------------------------------
+    DATA lv_token TYPE string.
+    DATA lv_error TYPE string.
 
-  IF lv_code <> 200.
-    ev_error = |BMS auth failed — HTTP { lv_code }: { lv_body }|.
-    RETURN.
-  ENDIF.
+    mo_helper->get_bms_bearer_token(
+      EXPORTING
+        iv_base_url = lc_base_url
+        iv_username = lc_username
+        iv_password = lc_password
+      IMPORTING
+        ev_token    = lv_token
+        ev_error    = lv_error ).
 
-  TYPES: BEGIN OF ty_auth,
-           token TYPE string,
-         END OF ty_auth.
-  DATA ls_auth TYPE ty_auth.
+    cl_abap_unit_assert=>assert_initial(
+      act = lv_error
+      msg = |Auth should succeed but got error: { lv_error }| ).
 
-  /ui2/cl_json=>deserialize(
-    EXPORTING json = lv_body
-    CHANGING  data = ls_auth ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lv_token
+      msg = 'Token must not be empty on success' ).
 
-  IF ls_auth-token IS INITIAL.
-    ev_error = |BMS auth: no token in response. Body: { lv_body }|.
-    RETURN.
-  ENDIF.
+    " Token must start with 'Bearer '
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_token(7) = 'Bearer ' )
+      msg = |Token must start with "Bearer " but got: { lv_token(20) }| ).
 
-  " Token ~373 chars; with 'Bearer ' prefix = 380 chars
-  ev_token = |Bearer { ls_auth-token }|.
+    " Token length should be ~380 chars
+    DATA(lv_len) = strlen( lv_token ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_len > 350 AND lv_len < 420 )
+      msg = |Token length { lv_len } is outside expected range 350-420| ).
 
-ENDMETHOD.
+  ENDMETHOD.
 
-METHOD post_bms_order.
+  METHOD test_post_order_valid.
+    "-------------------------------------------------------------------
+    " Happy path: get a real token then POST a minimal valid order
+    " BMS should return 201 Created
+    "-------------------------------------------------------------------
 
-  CLEAR: ev_http_status, ev_response.
+    " Step 1: get token
+    DATA lv_token TYPE string.
+    DATA lv_error TYPE string.
 
-  DATA lo_http TYPE REF TO if_http_client.
+    mo_helper->get_bms_bearer_token(
+      EXPORTING
+        iv_base_url = lc_base_url
+        iv_username = lc_username
+        iv_password = lc_password
+      IMPORTING
+        ev_token    = lv_token
+        ev_error    = lv_error ).
 
-  cl_http_client=>create_by_url(
-    EXPORTING url    = iv_base_url && '/api/container/create-order-halle'
-    IMPORTING client = lo_http
-    EXCEPTIONS OTHERS = 4 ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lv_error
+      msg = |Auth failed before POST test: { lv_error }| ).
 
-  IF sy-subrc <> 0.
-    ev_http_status = 0.
-    ev_response    = 'BMS: order HTTP client creation failed'.
-    RETURN.
-  ENDIF.
+    " Step 2: build minimal valid JSON matching BMS Swagger schema
+    DATA(lv_json) =
+      `{` &&
+      `"status":"OK",` &&
+      `"orderNumber":"TEST-UNIT-001",` &&
+      `"orderSheet":"",` &&
+      `"orderSheetType":"LS",` &&
+      `"customer":{` &&
+      `  "number":"0000100001",` &&
+      `  "name1":"Testfirma GmbH","name2":"",` &&
+      `  "street":"Teststraße","streetNumber":"1",` &&
+      `  "zipCode":"06112","city":"Halle"` &&
+      `},` &&
+      `"placeOfDelivery":{` &&
+      `  "number":"","name1":"","name2":"",` &&
+      `  "street":"","streetNumber":"","zipCode":"","city":""` &&
+      `},` &&
+      `"location":{` &&
+      `  "number":"","name1":"","name2":"",` &&
+      `  "street":"Standplatz Nord","streetNumber":"",` &&
+      `  "zipCode":"","city":""` &&
+      `},` &&
+      `"estimatedDuration":30,` &&
+      `"plannedDate":"2026-05-01T00:00:00.000Z",` &&
+      `"executionDate":"2026-05-01T00:00:00.000Z",` &&
+      `"executionTimeFrameStart":"",` &&
+      `"executionTimeFrameEnd":"",` &&
+      `"executionTime":"ab 08:00",` &&
+      `"notes":"Testauftrag ABAP Unit Test",` &&
+      `"specialNotes":"",` &&
+      `"producer":{` &&
+      `  "number":"","name1":"","name2":"",` &&
+      `  "street":"","streetNumber":"","zipCode":"","city":""` &&
+      `},` &&
+      `"recycler":{` &&
+      `  "number":"","name1":"","name2":"",` &&
+      `  "street":"","streetNumber":"","zipCode":"","city":""` &&
+      `},` &&
+      `"carrier":{` &&
+      `  "number":"","name1":"","name2":"",` &&
+      `  "street":"","streetNumber":"","zipCode":"","city":""` &&
+      `},` &&
+      `"garbageKey":"MAT-TEST-001",` &&
+      `"garbageName":"Testmaterial",` &&
+      `"collectiveConsignmentNoteNumber":"",` &&
+      `"team":"Kolonne Test",` &&
+      `"contractRelated":false,` &&
+      `"signatureRequired":false,` &&
+      `"positions":[],` &&
+      `"containers":[{` &&
+      `  "quantity":1,` &&
+      `  "movementType":"S",` &&
+      `  "containerTypeName":"Container 10 cbm",` &&
+      `  "containerTypeNumber":"C10",` &&
+      `  "customerOwned":false` &&
+      `}]` &&
+      `}`.
 
-  lo_http->request->set_method( if_http_request=>co_request_method_post ).
-  lo_http->request->set_header_field(
-    name  = 'Content-Type'
-    value = 'application/json-patch+json' ).
-  lo_http->request->set_header_field(
-    name  = 'Authorization'
-    value = iv_bearer_token ).
-  lo_http->request->set_cdata( iv_json ).
+    " Step 3: POST
+    DATA lv_status   TYPE i.
+    DATA lv_response TYPE string.
 
-  lo_http->send(    EXCEPTIONS OTHERS = 4 ).
-  lo_http->receive( EXCEPTIONS OTHERS = 4 ).
+    mo_helper->post_bms_order(
+      EXPORTING
+        iv_base_url     = lc_base_url
+        iv_bearer_token = lv_token
+        iv_json         = lv_json
+      IMPORTING
+        ev_http_status  = lv_status
+        ev_response     = lv_response ).
 
-  DATA lv_code TYPE i.
-  lo_http->response->get_status( IMPORTING code = lv_code ).
-  ev_http_status = lv_code.
-  ev_response    = lo_http->response->get_cdata( ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 201
+      msg = |BMS POST expected 201 but got { lv_status }. | &&
+            |Response: { lv_response }| ).
 
-  lo_http->close( ).
+  ENDMETHOD.
 
-ENDMETHOD.
+  METHOD test_post_order_no_token.
+    "-------------------------------------------------------------------
+    " Negative test: POST without a token → BMS should return 401
+    "-------------------------------------------------------------------
+    DATA lv_status   TYPE i.
+    DATA lv_response TYPE string.
+
+    mo_helper->post_bms_order(
+      EXPORTING
+        iv_base_url     = lc_base_url
+        iv_bearer_token = ''           " deliberately empty
+        iv_json         = '{"status":"OK","orderNumber":"TEST-NO-TOKEN"}'
+      IMPORTING
+        ev_http_status  = lv_status
+        ev_response     = lv_response ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_status = 401 OR lv_status = 403 )
+      msg = |Expected 401/403 without token but got { lv_status }| ).
+
+  ENDMETHOD.
+
+  METHOD test_post_order_bad_url.
+    "-------------------------------------------------------------------
+    " Negative test: unreachable URL → status 0, error message returned
+    "-------------------------------------------------------------------
+    DATA lv_status   TYPE i.
+    DATA lv_response TYPE string.
+
+    mo_helper->post_bms_order(
+      EXPORTING
+        iv_base_url     = 'http://does-not-exist-bms-server.invalid'
+        iv_bearer_token = 'Bearer faketoken'
+        iv_json         = '{}'
+      IMPORTING
+        ev_http_status  = lv_status
+        ev_response     = lv_response ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 0
+      msg = |Expected 0 for unreachable host but got { lv_status }| ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lv_response
+      msg = 'Error message must be populated when host is unreachable' ).
+
+  ENDMETHOD.
+
+ENDCLASS.
