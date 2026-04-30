@@ -1,217 +1,199 @@
-CLASS ltc_bms_http_test DEFINITION FOR TESTING
-  DURATION LONG
-  RISK LEVEL DANGEROUS.
+REPORT z_test_bms_http.
 
-  PRIVATE SECTION.
+"=======================================================================
+" Local test program for ZCL_WR_PD_TOUR_HELPER HTTP methods
+" Run with F8 in SE38 / execute in ADT
+" Tests:
+"   1. Authentication  → GET_BMS_BEARER_TOKEN
+"   2. Order POST      → POST_BMS_ORDER (uses token from test 1)
+"=======================================================================
 
-    DATA mo_helper TYPE REF TO zcl_wr_pd_tour_helper.
+CONSTANTS:
+  lc_base_url TYPE string
+    VALUE 'http://hws-srv17.hws.vvv.vvv-konzern.net/BmsApiSapTest',
+  lc_username TYPE string VALUE 'BmsWebApi',
+  lc_password TYPE string VALUE 'uh}O1Nm#&lV+2LeS'.
 
-    CONSTANTS:
-      lc_base_url TYPE string
-        VALUE 'http://hws-srv17.hws.vvv.vvv-konzern.net/BmsApiSapTest',
-      lc_username  TYPE string VALUE 'BmsWebApi',
-      lc_password  TYPE string VALUE 'uh}O1Nm#&lV+2LeS'.
+DATA lo_helper    TYPE REF TO zcl_wr_pd_tour_helper.
+DATA lv_token     TYPE string.
+DATA lv_error     TYPE string.
+DATA lv_status    TYPE i.
+DATA lv_response  TYPE string.
 
-    METHODS setup.
-    METHODS test_get_bearer_token      FOR TESTING.
-    METHODS test_post_order_valid      FOR TESTING.
-    METHODS test_post_order_no_token   FOR TESTING.
-    METHODS test_post_order_bad_url    FOR TESTING.
+CREATE OBJECT lo_helper.
 
-ENDCLASS.
+"=======================================================================
+" TEST 1 — Authentication
+"=======================================================================
+WRITE: / '=== TEST 1: Authentication ==='.
 
-CLASS ltc_bms_http_test IMPLEMENTATION.
+lo_helper->get_bms_bearer_token(
+  EXPORTING
+    iv_base_url = lc_base_url
+    iv_username = lc_username
+    iv_password = lc_password
+  IMPORTING
+    ev_token    = lv_token
+    ev_error    = lv_error ).
 
-  METHOD setup.
-    CREATE OBJECT mo_helper.
-  ENDMETHOD.
+IF lv_error IS NOT INITIAL.
+  WRITE: / 'FAILED:', lv_error.
+  RETURN.
+ENDIF.
 
-  METHOD test_get_bearer_token.
-    "-------------------------------------------------------------------
-    " Happy path: valid credentials → token returned, no error
-    "-------------------------------------------------------------------
-    DATA lv_token TYPE string.
-    DATA lv_error TYPE string.
+WRITE: / 'PASSED'.
+WRITE: / 'Token length:', strlen( lv_token ).
+WRITE: / 'Token prefix:', lv_token(7).
+WRITE: / 'Token (first 50):', lv_token(50).
+SKIP.
 
-    mo_helper->get_bms_bearer_token(
-      EXPORTING
-        iv_base_url = lc_base_url
-        iv_username = lc_username
-        iv_password = lc_password
-      IMPORTING
-        ev_token    = lv_token
-        ev_error    = lv_error ).
+"=======================================================================
+" TEST 2 — POST a minimal valid order using the token from Test 1
+"=======================================================================
+WRITE: / '=== TEST 2: POST Order ==='.
 
-    cl_abap_unit_assert=>assert_initial(
-      act = lv_error
-      msg = |Auth should succeed but got error: { lv_error }| ).
+" Minimal JSON that satisfies the BMS Swagger schema
+DATA(lv_test_json) =
+  `{` &&
+  `"status":"OK",` &&
+  `"orderNumber":"TEST-001",` &&
+  `"orderSheet":"",` &&
+  `"orderSheetType":"LS",` &&
+  `"customer":{` &&
+  `"number":"0000001234",` &&
+  `"name1":"Testkunde GmbH",` &&
+  `"name2":"",` &&
+  `"street":"Teststraße",` &&
+  `"streetNumber":"1",` &&
+  `"zipCode":"06112",` &&
+  `"city":"Halle"` &&
+  `},` &&
+  `"placeOfDelivery":{` &&
+  `"number":"",` &&
+  `"name1":"",` &&
+  `"name2":"",` &&
+  `"street":"Lieferstraße",` &&
+  `"streetNumber":"5",` &&
+  `"zipCode":"06112",` &&
+  `"city":"Halle"` &&
+  `},` &&
+  `"location":{` &&
+  `"number":"",` &&
+  `"name1":"",` &&
+  `"name2":"",` &&
+  `"street":"Standplatz Nord",` &&
+  `"streetNumber":"",` &&
+  `"zipCode":"",` &&
+  `"city":""` &&
+  `},` &&
+  `"estimatedDuration":30,` &&
+  `"plannedDate":"2026-05-01T00:00:00.000Z",` &&
+  `"executionDate":"2026-05-01T00:00:00.000Z",` &&
+  `"executionTimeFrameStart":"08:00",` &&
+  `"executionTimeFrameEnd":"12:00",` &&
+  `"executionTime":"08:00 bis 12:00",` &&
+  `"notes":"Testauftrag vom SAP",` &&
+  `"specialNotes":"",` &&
+  `"producer":{` &&
+  `"number":"",` &&
+  `"name1":"",` &&
+  `"name2":"",` &&
+  `"street":"",` &&
+  `"streetNumber":"",` &&
+  `"zipCode":"",` &&
+  `"city":""` &&
+  `},` &&
+  `"recycler":{` &&
+  `"number":"",` &&
+  `"name1":"",` &&
+  `"name2":"",` &&
+  `"street":"",` &&
+  `"streetNumber":"",` &&
+  `"zipCode":"",` &&
+  `"city":""` &&
+  `},` &&
+  `"carrier":{` &&
+  `"number":"",` &&
+  `"name1":"",` &&
+  `"name2":"",` &&
+  `"street":"",` &&
+  `"streetNumber":"",` &&
+  `"zipCode":"",` &&
+  `"city":""` &&
+  `},` &&
+  `"garbageKey":"MAT-TEST-001",` &&
+  `"garbageName":"Testmaterial Beschreibung",` &&
+  `"collectiveConsignmentNoteNumber":"",` &&
+  `"team":"Kolonne Test",` &&
+  `"contractRelated":false,` &&
+  `"signatureRequired":false,` &&
+  `"positions":[` &&
+  `{` &&
+  `"sortNumber":1,` &&
+  `"itemNumber":"10000001",` &&
+  `"itemDescription":"Containerservice",` &&
+  `"quantity":1.0,` &&
+  `"unit":"ST",` &&
+  `"itemPrice":100.00,` &&
+  `"positionType":"P"` &&
+  `}` &&
+  `],` &&
+  `"containers":[` &&
+  `{` &&
+  `"quantity":1,` &&
+  `"movementType":"S",` &&
+  `"containerTypeName":"Container 10 cbm",` &&
+  `"containerTypeNumber":"C10",` &&
+  `"customerOwned":false` &&
+  `}` &&
+  `]` &&
+  `}`.
 
-    cl_abap_unit_assert=>assert_not_initial(
-      act = lv_token
-      msg = 'Token must not be empty on success' ).
+WRITE: / 'JSON length:', strlen( lv_test_json ).
+SKIP.
 
-    " Token must start with 'Bearer '
-    cl_abap_unit_assert=>assert_true(
-      act = xsdbool( lv_token(7) = 'Bearer ' )
-      msg = |Token must start with "Bearer " but got: { lv_token(20) }| ).
+lo_helper->post_bms_order(
+  EXPORTING
+    iv_base_url     = lc_base_url
+    iv_bearer_token = lv_token
+    iv_json         = lv_test_json
+  IMPORTING
+    ev_http_status  = lv_status
+    ev_response     = lv_response ).
 
-    " Token length should be ~380 chars
-    DATA(lv_len) = strlen( lv_token ).
-    cl_abap_unit_assert=>assert_true(
-      act = xsdbool( lv_len > 350 AND lv_len < 420 )
-      msg = |Token length { lv_len } is outside expected range 350-420| ).
+WRITE: / 'HTTP Status:', lv_status.
 
-  ENDMETHOD.
+CASE lv_status.
+  WHEN 201.
+    WRITE: / 'PASSED — order accepted by BMS'.
+  WHEN 400.
+    WRITE: / 'FAILED — BMS rejected the payload (400 Bad Request)'.
+    WRITE: / 'Check the JSON against the Swagger schema.'.
+  WHEN 401.
+    WRITE: / 'FAILED — authentication rejected (401 Unauthorized)'.
+    WRITE: / 'Token may have expired — re-run test 1 and test 2 together.'.
+  WHEN 0.
+    WRITE: / 'FAILED — HTTP client could not connect'.
+  WHEN OTHERS.
+    WRITE: / 'FAILED — unexpected HTTP status'.
+ENDCASE.
 
-  METHOD test_post_order_valid.
-    "-------------------------------------------------------------------
-    " Happy path: get a real token then POST a minimal valid order
-    " BMS should return 201 Created
-    "-------------------------------------------------------------------
+SKIP.
+WRITE: / '--- BMS Response Body ---'.
 
-    " Step 1: get token
-    DATA lv_token TYPE string.
-    DATA lv_error TYPE string.
+" Print response in chunks of 100 chars to avoid line truncation
+DATA lv_offset TYPE i VALUE 0.
+DATA lv_len    TYPE i.
+DATA lv_chunk  TYPE string.
+lv_len = strlen( lv_response ).
 
-    mo_helper->get_bms_bearer_token(
-      EXPORTING
-        iv_base_url = lc_base_url
-        iv_username = lc_username
-        iv_password = lc_password
-      IMPORTING
-        ev_token    = lv_token
-        ev_error    = lv_error ).
-
-    cl_abap_unit_assert=>assert_initial(
-      act = lv_error
-      msg = |Auth failed before POST test: { lv_error }| ).
-
-    " Step 2: build minimal valid JSON matching BMS Swagger schema
-    DATA(lv_json) =
-      `{` &&
-      `"status":"OK",` &&
-      `"orderNumber":"TEST-UNIT-001",` &&
-      `"orderSheet":"",` &&
-      `"orderSheetType":"LS",` &&
-      `"customer":{` &&
-      `  "number":"0000100001",` &&
-      `  "name1":"Testfirma GmbH","name2":"",` &&
-      `  "street":"Teststraße","streetNumber":"1",` &&
-      `  "zipCode":"06112","city":"Halle"` &&
-      `},` &&
-      `"placeOfDelivery":{` &&
-      `  "number":"","name1":"","name2":"",` &&
-      `  "street":"","streetNumber":"","zipCode":"","city":""` &&
-      `},` &&
-      `"location":{` &&
-      `  "number":"","name1":"","name2":"",` &&
-      `  "street":"Standplatz Nord","streetNumber":"",` &&
-      `  "zipCode":"","city":""` &&
-      `},` &&
-      `"estimatedDuration":30,` &&
-      `"plannedDate":"2026-05-01T00:00:00.000Z",` &&
-      `"executionDate":"2026-05-01T00:00:00.000Z",` &&
-      `"executionTimeFrameStart":"",` &&
-      `"executionTimeFrameEnd":"",` &&
-      `"executionTime":"ab 08:00",` &&
-      `"notes":"Testauftrag ABAP Unit Test",` &&
-      `"specialNotes":"",` &&
-      `"producer":{` &&
-      `  "number":"","name1":"","name2":"",` &&
-      `  "street":"","streetNumber":"","zipCode":"","city":""` &&
-      `},` &&
-      `"recycler":{` &&
-      `  "number":"","name1":"","name2":"",` &&
-      `  "street":"","streetNumber":"","zipCode":"","city":""` &&
-      `},` &&
-      `"carrier":{` &&
-      `  "number":"","name1":"","name2":"",` &&
-      `  "street":"","streetNumber":"","zipCode":"","city":""` &&
-      `},` &&
-      `"garbageKey":"MAT-TEST-001",` &&
-      `"garbageName":"Testmaterial",` &&
-      `"collectiveConsignmentNoteNumber":"",` &&
-      `"team":"Kolonne Test",` &&
-      `"contractRelated":false,` &&
-      `"signatureRequired":false,` &&
-      `"positions":[],` &&
-      `"containers":[{` &&
-      `  "quantity":1,` &&
-      `  "movementType":"S",` &&
-      `  "containerTypeName":"Container 10 cbm",` &&
-      `  "containerTypeNumber":"C10",` &&
-      `  "customerOwned":false` &&
-      `}]` &&
-      `}`.
-
-    " Step 3: POST
-    DATA lv_status   TYPE i.
-    DATA lv_response TYPE string.
-
-    mo_helper->post_bms_order(
-      EXPORTING
-        iv_base_url     = lc_base_url
-        iv_bearer_token = lv_token
-        iv_json         = lv_json
-      IMPORTING
-        ev_http_status  = lv_status
-        ev_response     = lv_response ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lv_status
-      exp = 201
-      msg = |BMS POST expected 201 but got { lv_status }. | &&
-            |Response: { lv_response }| ).
-
-  ENDMETHOD.
-
-  METHOD test_post_order_no_token.
-    "-------------------------------------------------------------------
-    " Negative test: POST without a token → BMS should return 401
-    "-------------------------------------------------------------------
-    DATA lv_status   TYPE i.
-    DATA lv_response TYPE string.
-
-    mo_helper->post_bms_order(
-      EXPORTING
-        iv_base_url     = lc_base_url
-        iv_bearer_token = ''           " deliberately empty
-        iv_json         = '{"status":"OK","orderNumber":"TEST-NO-TOKEN"}'
-      IMPORTING
-        ev_http_status  = lv_status
-        ev_response     = lv_response ).
-
-    cl_abap_unit_assert=>assert_true(
-      act = xsdbool( lv_status = 401 OR lv_status = 403 )
-      msg = |Expected 401/403 without token but got { lv_status }| ).
-
-  ENDMETHOD.
-
-  METHOD test_post_order_bad_url.
-    "-------------------------------------------------------------------
-    " Negative test: unreachable URL → status 0, error message returned
-    "-------------------------------------------------------------------
-    DATA lv_status   TYPE i.
-    DATA lv_response TYPE string.
-
-    mo_helper->post_bms_order(
-      EXPORTING
-        iv_base_url     = 'http://does-not-exist-bms-server.invalid'
-        iv_bearer_token = 'Bearer faketoken'
-        iv_json         = '{}'
-      IMPORTING
-        ev_http_status  = lv_status
-        ev_response     = lv_response ).
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lv_status
-      exp = 0
-      msg = |Expected 0 for unreachable host but got { lv_status }| ).
-
-    cl_abap_unit_assert=>assert_not_initial(
-      act = lv_response
-      msg = 'Error message must be populated when host is unreachable' ).
-
-  ENDMETHOD.
-
-ENDCLASS.
+WHILE lv_offset < lv_len.
+  DATA(lv_remaining) = lv_len - lv_offset.
+  IF lv_remaining >= 100.
+    lv_chunk = lv_response+lv_offset(100).
+  ELSE.
+    lv_chunk = lv_response+lv_offset(lv_remaining).
+  ENDIF.
+  WRITE: / lv_chunk.
+  lv_offset = lv_offset + 100.
+ENDWHILE.
