@@ -5,3 +5,6 @@ Die App muss Daten aus verschiedenen SAP-Tabellen zusammensammeln, filtern und a
 Nicht jeder Lagerort im System ist auch ein Behälterlager. Damit die App nur die relevanten Lagerorte anzeigt, brauchen wir eine kleine Tabelle, in der man das pflegen kann – ähnlich wie ein Schalter: "Ja, dieser Lagerort soll in der App erscheinen."
 3. Die Benutzeroberfläche (~3–4 Tage)
 Die eigentliche App, die der Disponent sieht: eine Liste mit Filterleiste. Weil wir uns für eine einfache Listenansicht entschieden haben (statt einer Kreuztabelle), kann hier auf SAP-Standardkomponenten zurückgegriffen werden – das spart Zeit und ist stabiler.
+
+
+Gesamt: ca. 11–14 Tage – also ungefähr 2,5 bis 3 Wochen für einen Entwickler.
