@@ -7,9 +7,8 @@ REPORT z_test_bms_http.
 " Test sequence:
 "   TEST 1 — Authentication        → GET_BMS_BEARER_TOKEN
 "   TEST 0 — Get waste catalogue   → GET /api/container/get-container-service-catalogs
-"   TEST 2 — POST order            → POST_BMS_ORDER
-"
-" Payload based on confirmed working BMS example JSON.
+"   TEST 2 — POST minimal order    → confirmed working minimal payload
+"   TEST 3 — POST full order       → full payload with all fields
 "=======================================================================
 
 CONSTANTS:
@@ -25,6 +24,14 @@ DATA lv_status   TYPE i.
 DATA lv_response TYPE string.
 
 CREATE OBJECT lo_helper.
+
+"=======================================================================
+" HELPER: print response body in 100-char chunks
+"=======================================================================
+DATA lv_pr_offset TYPE i.
+DATA lv_pr_len    TYPE i.
+DATA lv_pr_chunk  TYPE string.
+DATA lv_pr_rem    TYPE i.
 
 "=======================================================================
 " TEST 1 — Authentication
@@ -108,25 +115,21 @@ ELSE.
   SKIP.
   WRITE: / '--- Catalogue Response Body ---'.
 
-  DATA lv_cat_offset TYPE i VALUE 0.
-  DATA lv_cat_len    TYPE i.
-  DATA lv_cat_chunk  TYPE string.
-  DATA lv_cat_rem    TYPE i.
+  lv_pr_offset = 0.
+  lv_pr_len    = strlen( lv_cat_resp ).
 
-  lv_cat_len = strlen( lv_cat_resp ).
-
-  IF lv_cat_len = 0.
+  IF lv_pr_len = 0.
     WRITE: / '(empty response)'.
   ELSE.
-    WHILE lv_cat_offset < lv_cat_len.
-      lv_cat_rem = lv_cat_len - lv_cat_offset.
-      IF lv_cat_rem >= 100.
-        lv_cat_chunk = lv_cat_resp+lv_cat_offset(100).
+    WHILE lv_pr_offset < lv_pr_len.
+      lv_pr_rem = lv_pr_len - lv_pr_offset.
+      IF lv_pr_rem >= 100.
+        lv_pr_chunk = lv_cat_resp+lv_pr_offset(100).
       ELSE.
-        lv_cat_chunk = lv_cat_resp+lv_cat_offset(lv_cat_rem).
+        lv_pr_chunk = lv_cat_resp+lv_pr_offset(lv_pr_rem).
       ENDIF.
-      WRITE: / lv_cat_chunk.
-      lv_cat_offset = lv_cat_offset + 100.
+      WRITE: / lv_pr_chunk.
+      lv_pr_offset = lv_pr_offset + 100.
     ENDWHILE.
   ENDIF.
 
@@ -135,22 +138,16 @@ ENDIF.
 SKIP.
 
 "=======================================================================
-" TEST 2 — POST order using confirmed working BMS payload structure
-"
-" Key findings from working example:
-"   - orderSheet / orderSheetType / placeOfDelivery are optional
-"   - producer / recycler / carrier are optional
-"   - garbageKey / garbageName are optional
-"   - team / contractRelated / signatureRequired are optional
-"   - containers uses containerNumberOld + containerNumberNew
-"   - movementType U = Umleeren
-"   - location needs street/streetNumber/zipCode/city only
+" TEST 2 — POST minimal order
+"           Confirmed working payload — minimal required fields only.
+"           movementType U = Umleeren
+"           No garbageKey / producer / recycler / carrier needed
 "=======================================================================
 WRITE: / '========================================'.
-WRITE: / '=== TEST 2: POST Order               ==='.
+WRITE: / '=== TEST 2: POST Minimal Order       ==='.
 WRITE: / '========================================'.
 
-DATA(lv_test_json) =
+DATA(lv_json_t2) =
   `{` &&
   `"status":"OK",` &&
   `"orderNumber":"12373434",` &&
@@ -191,14 +188,14 @@ DATA(lv_test_json) =
   `}]` &&
   `}`.
 
-WRITE: / 'JSON length:', strlen( lv_test_json ).
+WRITE: / 'JSON length:', strlen( lv_json_t2 ).
 SKIP.
 
 lo_helper->post_bms_order(
   EXPORTING
     iv_base_url     = lc_base_url
     iv_bearer_token = lv_token
-    iv_json         = lv_test_json
+    iv_json         = lv_json_t2
   IMPORTING
     ev_http_status  = lv_status
     ev_response     = lv_response ).
@@ -207,51 +204,199 @@ WRITE: / 'HTTP Status:', lv_status.
 
 CASE lv_status.
   WHEN 201.
-    WRITE: / 'RESULT  : PASSED — order accepted by BMS (201 Created)'.
-    WRITE: / 'NEXT    : End-to-end HTTP flow confirmed.'.
-    WRITE: / '          Update ty_container in touranBMSfreigeben'.
-    WRITE: / '          to include containerNumberOld + containerNumberNew.'.
+    WRITE: / 'RESULT  : PASSED — minimal order accepted (201 Created)'.
   WHEN 400.
-    WRITE: / 'RESULT  : FAILED — BMS rejected the payload (400 Bad Request)'.
-    WRITE: / 'ACTION  : Read response body below for exact field errors.'.
+    WRITE: / 'RESULT  : FAILED — 400 Bad Request'.
+    WRITE: / 'ACTION  : Read response body for field errors.'.
   WHEN 401.
-    WRITE: / 'RESULT  : FAILED — not authorized (401 Unauthorized)'.
-    WRITE: / 'ACTION  : Re-run — token may have expired.'.
-  WHEN 404.
-    WRITE: / 'RESULT  : FAILED — endpoint not found (404)'.
-    WRITE: / 'ACTION  : Check base URL and endpoint path.'.
+    WRITE: / 'RESULT  : FAILED — 401 Unauthorized. Re-run.'.
   WHEN 500.
-    WRITE: / 'RESULT  : FAILED — BMS internal error (500)'.
-    WRITE: / 'ACTION  : Read response body below for BMS error detail.'.
+    WRITE: / 'RESULT  : FAILED — 500 BMS internal error'.
+    WRITE: / 'ACTION  : Read response body for BMS error detail.'.
   WHEN 0.
-    WRITE: / 'RESULT  : FAILED — HTTP client could not connect'.
-    WRITE: / 'ACTION  : Check network connectivity.'.
+    WRITE: / 'RESULT  : FAILED — could not connect'.
   WHEN OTHERS.
-    WRITE: / 'RESULT  : FAILED — unexpected HTTP status'.
+    WRITE: / 'RESULT  : FAILED — HTTP', lv_status.
 ENDCASE.
 
 SKIP.
-WRITE: / '--- BMS Response Body ---'.
+WRITE: / '--- TEST 2 Response Body ---'.
 
-DATA lv_offset    TYPE i VALUE 0.
-DATA lv_len       TYPE i.
-DATA lv_chunk     TYPE string.
-DATA lv_remaining TYPE i.
+lv_pr_offset = 0.
+lv_pr_len    = strlen( lv_response ).
 
-lv_len = strlen( lv_response ).
-
-IF lv_len = 0.
+IF lv_pr_len = 0.
   WRITE: / '(empty response body)'.
 ELSE.
-  WHILE lv_offset < lv_len.
-    lv_remaining = lv_len - lv_offset.
-    IF lv_remaining >= 100.
-      lv_chunk = lv_response+lv_offset(100).
+  WHILE lv_pr_offset < lv_pr_len.
+    lv_pr_rem = lv_pr_len - lv_pr_offset.
+    IF lv_pr_rem >= 100.
+      lv_pr_chunk = lv_response+lv_pr_offset(100).
     ELSE.
-      lv_chunk = lv_response+lv_offset(lv_remaining).
+      lv_pr_chunk = lv_response+lv_pr_offset(lv_pr_rem).
     ENDIF.
-    WRITE: / lv_chunk.
-    lv_offset = lv_offset + 100.
+    WRITE: / lv_pr_chunk.
+    lv_pr_offset = lv_pr_offset + 100.
+  ENDWHILE.
+ENDIF.
+
+SKIP.
+
+"=======================================================================
+" TEST 3 — POST full order
+"           Full payload with all fields populated.
+"           garbageKey 040222 from confirmed working BMS example.
+"           Includes producer / recycler / carrier / team /
+"           collectiveConsignmentNoteNumber / signatureRequired etc.
+"           Special chars in street names replaced with ss / ae / oe / ue
+"           to avoid encoding issues in the HTTP body.
+"=======================================================================
+WRITE: / '========================================'.
+WRITE: / '=== TEST 3: POST Full Order          ==='.
+WRITE: / '========================================'.
+
+DATA(lv_json_t3) =
+  `{` &&
+  `"status":"OK",` &&
+  `"orderNumber":"12345",` &&
+  `"orderSheet":"11111",` &&
+  `"orderSheetType":"LS",` &&
+  `"customer":{` &&
+    `"number":"9595",` &&
+    `"name1":"Mustermann",` &&
+    `"name2":"Max",` &&
+    `"street":"Musterstrasse",` &&
+    `"streetNumber":"1",` &&
+    `"zipCode":"59558",` &&
+    `"city":"Musterstadt"` &&
+  `},` &&
+  `"placeOfDelivery":{` &&
+    `"street":"Musterstrasse",` &&
+    `"streetNumber":"77",` &&
+    `"zipCode":"59558",` &&
+    `"city":"Musterstadt"` &&
+  `},` &&
+  `"location":{` &&
+    `"street":"Musterstrasse",` &&
+    `"streetNumber":"99",` &&
+    `"zipCode":"59558",` &&
+    `"city":"Musterstadt"` &&
+  `},` &&
+  `"estimatedDuration":9,` &&
+  `"plannedDate":"2026-05-11T08:40:05.577Z",` &&
+  `"executionDate":"2026-05-11T08:40:05.577Z",` &&
+  `"executionTimeFrameStart":"08:40:05",` &&
+  `"executionTimeFrameEnd":"09:40:05",` &&
+  `"executionTime":"",` &&
+  `"notes":"Hinweis1",` &&
+  `"specialNotes":"Hinweis2",` &&
+  `"producer":{` &&
+    `"number":"1234",` &&
+    `"name1":"Pro1",` &&
+    `"name2":"",` &&
+    `"street":"ProStrasse",` &&
+    `"streetNumber":"1",` &&
+    `"zipCode":"06258",` &&
+    `"city":"Kollenbey"` &&
+  `},` &&
+  `"recycler":{` &&
+    `"number":"",` &&
+    `"name1":"Re1",` &&
+    `"name2":"",` &&
+    `"street":"Re",` &&
+    `"streetNumber":"1",` &&
+    `"zipCode":"06258",` &&
+    `"city":"Kollenbey"` &&
+  `},` &&
+  `"carrier":{` &&
+    `"number":"2323",` &&
+    `"name1":"Car1",` &&
+    `"name2":"",` &&
+    `"street":"CarStrasse",` &&
+    `"streetNumber":"1",` &&
+    `"zipCode":"06258",` &&
+    `"city":"Kollenbey"` &&
+  `},` &&
+  `"garbageKey":"040222",` &&
+  `"garbageName":"Abfaelle aus verarbeiteten Textilfasern",` &&
+  `"collectiveConsignmentNoteNumber":"1212",` &&
+  `"team":"ARK 4 F",` &&
+  `"contractRelated":true,` &&
+  `"signatureRequired":true,` &&
+  `"positions":[{` &&
+    `"sortNumber":0,` &&
+    `"itemNumber":"20000830",` &&
+    `"itemDescription":"Strassenkehricht",` &&
+    `"quantity":2,` &&
+    `"unit":"unit",` &&
+    `"itemPrice":5,` &&
+    `"positionType":"P"` &&
+  `}],` &&
+  `"containers":[{` &&
+    `"containerNumberOld":"802487",` &&
+    `"containerNumberNew":"802512",` &&
+    `"movementType":"U",` &&
+    `"containerTypeName":"Absetzcontainer 10 cbm",` &&
+    `"containerTypeNumber":"AC 10",` &&
+    `"customerOwned":false` &&
+  `}]` &&
+  `}`.
+
+WRITE: / 'JSON length:', strlen( lv_json_t3 ).
+SKIP.
+
+lo_helper->post_bms_order(
+  EXPORTING
+    iv_base_url     = lc_base_url
+    iv_bearer_token = lv_token
+    iv_json         = lv_json_t3
+  IMPORTING
+    ev_http_status  = lv_status
+    ev_response     = lv_response ).
+
+WRITE: / 'HTTP Status:', lv_status.
+
+CASE lv_status.
+  WHEN 201.
+    WRITE: / 'RESULT  : PASSED — full order accepted (201 Created)'.
+    WRITE: / 'NEXT    : Both payloads confirmed working.'.
+    WRITE: / '          Update ty_container in touranBMSfreigeben'.
+    WRITE: / '          to include containerNumberOld field.'.
+    WRITE: / '          Map EWA SERNR_NEW → containerNumberNew.'.
+    WRITE: / '          Map EWA SERNR    → containerNumberOld.'.
+  WHEN 400.
+    WRITE: / 'RESULT  : FAILED — 400 Bad Request'.
+    WRITE: / 'ACTION  : Read response body for field errors.'.
+  WHEN 401.
+    WRITE: / 'RESULT  : FAILED — 401 Unauthorized. Re-run.'.
+  WHEN 500.
+    WRITE: / 'RESULT  : FAILED — 500 BMS internal error'.
+    WRITE: / 'ACTION  : garbageKey 040222 may not exist in this'.
+    WRITE: / '          BMS environment. Check catalogue from TEST 0.'.
+  WHEN 0.
+    WRITE: / 'RESULT  : FAILED — could not connect'.
+  WHEN OTHERS.
+    WRITE: / 'RESULT  : FAILED — HTTP', lv_status.
+ENDCASE.
+
+SKIP.
+WRITE: / '--- TEST 3 Response Body ---'.
+
+lv_pr_offset = 0.
+lv_pr_len    = strlen( lv_response ).
+
+IF lv_pr_len = 0.
+  WRITE: / '(empty response body)'.
+ELSE.
+  WHILE lv_pr_offset < lv_pr_len.
+    lv_pr_rem = lv_pr_len - lv_pr_offset.
+    IF lv_pr_rem >= 100.
+      lv_pr_chunk = lv_response+lv_pr_offset(100).
+    ELSE.
+      lv_pr_chunk = lv_response+lv_pr_offset(lv_pr_rem).
+    ENDIF.
+    WRITE: / lv_pr_chunk.
+    lv_pr_offset = lv_pr_offset + 100.
   ENDWHILE.
 ENDIF.
 
