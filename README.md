@@ -1,5 +1,1 @@
-" Get order fields using referenceid instead of pobjnr
-SELECT SINGLE zz_tech_fachbe, wdplantnr, zz_pobjnr_main
-  FROM zi_wr_ewa_order_object
-  WHERE referenceid = @<ls_service>-referenceid  " ✅ Use ReferenceId
-  INTO @DATA(ls_order_fields).
+<img width="1119" height="683" alt="image" src="https://github.com/user-attachments/assets/8932e9b2-b0a0-42ad-aeb5-2e0ce0203b05" />
