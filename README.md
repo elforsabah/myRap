@@ -758,3 +758,7 @@ annotate entity /PLCE/C_PDMNLTourWR
 // zz_bms_status;
 }
 
+
+
+(NEU) Ist es möglich, nach dem Update der Entsorgungsanlage noch folgendes einzufügen?
+Falls Service auf einer Tour verplant, dann automatisch Spur neu ermitteln (calculate track).
