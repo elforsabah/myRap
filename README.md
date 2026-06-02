@@ -3,12 +3,13 @@ METHOD anlageaendern.
   " =========================================================================
   " Declare ALL variables at the top
   " =========================================================================
-  DATA: lt_ext_create  TYPE TABLE FOR CREATE /plce/r_pdservice\_extcustom,
-        lt_ext_update  TYPE TABLE FOR UPDATE /plce/r_pdservice\\extcustom,
-        lt_tour_uuids  TYPE TABLE OF /plce/r_pdtour-TourUUID,
-        lt_tour_keys   TYPE TABLE FOR ACTION IMPORT /plce/r_pdtour~generategeoroute,
-        lv_tour_uuid   TYPE /plce/r_pdtour-TourUUID,
-        lv_check_tour  TYPE /plce/r_pdtour-TourUUID.
+  DATA: lt_ext_create    TYPE TABLE FOR CREATE /plce/r_pdservice\_extcustom,
+        lt_ext_update    TYPE TABLE FOR UPDATE /plce/r_pdservice\\extcustom,
+        lt_extwr_update  TYPE TABLE FOR UPDATE /plce/r_pdservice\\extwr,  " ✅ ADDED BACK
+        lt_tour_uuids    TYPE TABLE OF /plce/r_pdtour-TourUUID,
+        lt_tour_keys     TYPE TABLE FOR ACTION IMPORT /plce/r_pdtour~generategeoroute,
+        lv_tour_uuid     TYPE /plce/r_pdtour-TourUUID,
+        lv_check_tour    TYPE /plce/r_pdtour-TourUUID.
 
   " =========================================================================
   " Read ALL services at once
@@ -25,6 +26,27 @@ METHOD anlageaendern.
   LOOP AT lt_services ASSIGNING FIELD-SYMBOL(<ls_service>).
 
     DATA(ls_param) = keys[ %tky = <ls_service>-%tky ]-%param.
+
+    " ✅ ADDED BACK: Get TPLNR from disposal facility
+    IF ls_param-anlage IS NOT INITIAL.
+      SELECT SINGLE wdplantnr, tplnr
+        FROM ewa_el_wdplant
+        WHERE wdplantnr = @ls_param-anlage
+        INTO @DATA(ls_facility).
+
+      IF sy-subrc = 0 AND ls_facility-tplnr IS NOT INITIAL.
+        APPEND VALUE #(
+          %key-serviceuuid = <ls_service>-serviceuuid
+          plantlocation = ls_facility-tplnr
+        ) TO lt_extwr_update.
+      ENDIF.
+    ELSE.
+      " ✅ ADDED BACK: Clear plant_location if facility is cleared
+      APPEND VALUE #(
+        %key-serviceuuid = <ls_service>-serviceuuid
+        plantlocation = ''
+      ) TO lt_extwr_update.
+    ENDIF.
 
     " Check if ExtCustom exists
     READ ENTITIES OF /plce/r_pdservice IN LOCAL MODE
@@ -45,9 +67,21 @@ METHOD anlageaendern.
                     wdplantnr = ls_param-anlage )
       TO lt_ext_update.
 
-    CLEAR lt_extcustom.
+    CLEAR: lt_extcustom, ls_facility.
 
   ENDLOOP.
+
+  " =========================================================================
+  " ✅ ADDED BACK: Bulk update ExtWR plant_location
+  " =========================================================================
+  IF lt_extwr_update IS NOT INITIAL.
+    MODIFY ENTITIES OF /plce/r_pdservice IN LOCAL MODE
+      ENTITY extwr
+      UPDATE FIELDS ( plantlocation )
+      WITH lt_extwr_update
+      FAILED DATA(lt_extwr_failed)
+      REPORTED DATA(lt_extwr_reported).
+  ENDIF.
 
   " =========================================================================
   " Bulk create missing ExtCustom records
@@ -108,8 +142,8 @@ METHOD anlageaendern.
       ENDLOOP.
 
       " ---------------------------------------------------------------------
-      "Recalculate Tour Route (Spur ermitteln) for assigned tours
-      "Using FOR ALL ENTRIES with lt_services directly
+      " Recalculate Tour Route (Spur ermitteln) for assigned tours
+      " Using FOR ALL ENTRIES with lt_services directly
       " ---------------------------------------------------------------------
       IF lt_services IS NOT INITIAL.
 
@@ -174,4 +208,3 @@ METHOD anlageaendern.
   result = VALUE #( FOR srv IN lt_service_result ( %tky = srv-%tky %param = srv ) ).
 
 ENDMETHOD.
-
