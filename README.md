@@ -55,3 +55,24 @@ extend view entity /PLCE/C_PDMNLServiceWR with
    
   _TourForRefresh
 }
+
+
+
+
+extend view entity /PLCE/R_PDServiceExtCustom with
+ association [0..1] to ZI_WR_SERVICE_EXTCUSTOM as _ExtCustomHelper
+    on _ExtCustomHelper.ServiceUUID = $projection.ServiceUUID
+{
+  /plce/tpdsrvcst.zz_tech_fachbe,
+  /plce/tpdsrvcst.zz_discrepancy,
+  /plce/tpdsrvcst.zz_reactiontime,
+  /plce/tpdsrvcst.zz_vehicleinfo,
+  /plce/tpdsrvcst.zz_order_date,
+  /plce/tpdsrvcst.zz_timeadjustment,
+  /plce/tpdsrvcst.zz_pobjnr_main,
+  
+   /plce/tpdsrvcst.wdplantnr,
+   
+  _ExtCustomHelper.wdplantnr as order_wdplantnr
+}
+
