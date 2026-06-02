@@ -1,39 +1,20 @@
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 @EndUserText.label: 'Service Entsorgungsanlage with fallback'
 define view entity ZI_WR_SERVICE_EXTCUSTOM
+  as select from /plce/tpdsrv as _srv
 
-  " ✅ Primary: ExtCustom table
-  as select from /plce/tpdsrvcst as _custom
+  " ✅ LEFT OUTER: ExtCustom might not exist
+  left outer join /plce/tpdsrvcst as _custom
+    on _custom.service_uuid = _srv.service_uuid
 
-  " ✅ Bridge to get pobjnr
-  inner join /plce/tpdsrv as _srv
-    on _srv.service_uuid = _custom.service_uuid
-
-  " ✅ Fallback: Order object at TABLE level (not association!)
+  " ✅ LEFT OUTER: Order object fallback
+  " Use reference_int_id directly from service table - no subquery needed!
   left outer join ewa_order_object as _order
     on  _order.pobjnr    = _srv.reference_int_id
     and _order.wdplantnr <> ''
 {
-  key _custom.service_uuid as ServiceUUID,
+  key _srv.service_uuid as ServiceUUID,
 
-  " ✅ COALESCE works here - both are real table fields!
+  " ✅ COALESCE: ExtCustom first → Order Object fallback
   coalesce( _custom.wdplantnr, _order.wdplantnr ) as wdplantnr
-}
-
-
-extend view entity /PLCE/R_PDServiceExtCustom with
-  association [0..1] to ZI_WR_SERVICE_EXTCUSTOM as _ExtCustomHelper
-    on _ExtCustomHelper.ServiceUUID = $projection.ServiceUUID
-{
-  /plce/tpdsrvcst.zz_tech_fachbe,
-  /plce/tpdsrvcst.zz_discrepancy,
-  /plce/tpdsrvcst.zz_reactiontime,
-  /plce/tpdsrvcst.zz_vehicleinfo,
-  /plce/tpdsrvcst.zz_order_date,
-  /plce/tpdsrvcst.zz_timeadjustment,
-  /plce/tpdsrvcst.zz_pobjnr_main,
-  /plce/tpdsrvcst.wdplantnr,
-
-  " ✅ No COALESCE here - just expose the pre-computed result!
-  _ExtCustomHelper.wdplantnr as order_wdplantnr
 }
