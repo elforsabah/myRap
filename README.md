@@ -1,5 +1,3 @@
-
-
 extend view entity /PLCE/R_PDServiceExtCustom with
  association [0..1] to ZI_WR_SERVICE_EXTCUSTOM as _ExtCustomHelper
     on _ExtCustomHelper.ServiceUUID = $projection.ServiceUUID
@@ -20,3 +18,4 @@ extend view entity /PLCE/R_PDServiceExtCustom with
  
  _ewatr.wdplantnr as order_wdplantnrr
 }
+<img width="1403" height="650" alt="image" src="https://github.com/user-attachments/assets/3e054e68-5dd4-43bd-a0e5-708cb9e46ff9" />
