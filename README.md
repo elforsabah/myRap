@@ -1,8 +1,1 @@
- " ✅ CASE: Custom value wins, fallback to order object
-  @EndUserText.label: 'Entsorgungsanlage'
-  @UI.lineItem: [{ position: 132, importance: #HIGH }]
-  case
-    when /PLCE/R_PDService._ExtCustom.wdplantnr_custom is not initial
-      then /PLCE/R_PDService._ExtCustom.wdplantnr_custom
-    else /PLCE/R_PDService._ExtCustom.wdplantnr_order
-  end as wdplantnr,
+<img width="1013" height="418" alt="image" src="https://github.com/user-attachments/assets/c09e4282-3e90-46d0-8528-ff465208f601" />
