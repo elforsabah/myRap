@@ -1,18 +1,7 @@
-" Step 1: Extend /PLCE/R_PDServiceExtCustom to expose order object wdplantnr
-extend view entity /PLCE/R_PDServiceExtCustom with
-association [0..1] to ZI_WR_EWA_ORDER_OBJECT as _ORDER_OBJECT 
-  on _ORDER_OBJECT.PdServiceUuid = /plce/tpdsrvcst.service_uuid
-{
-  /plce/tpdsrvcst.zz_tech_fachbe,
-  /plce/tpdsrvcst.zz_discrepancy,
-  /plce/tpdsrvcst.zz_reactiontime,
-  /plce/tpdsrvcst.zz_vehicleinfo,
-  /plce/tpdsrvcst.zz_order_date,
-  /plce/tpdsrvcst.zz_timeadjustment,
-  /plce/tpdsrvcst.zz_pobjnr_main,
-  /plce/tpdsrvcst.wdplantnr,
-  
-  " ✅ NEW: Expose order object wdplantnr with different alias
-  @UI.hidden: true
-  _ORDER_OBJECT.Entsorgunganlage as order_wdplantnr
-}
+" Step 2: In /PLCE/C_PDMNLServiceWR extension
+" Use COALESCE: ExtCustom value first, fallback to order object value
+@EndUserText.label: 'Entsorgungsanlage'
+coalesce(
+  /PLCE/R_PDService._ExtCustom.wdplantnr,        " User-changed value
+  /PLCE/R_PDService._ExtCustom.order_wdplantnr    " Order object fallback
+) as wdplantnr,
