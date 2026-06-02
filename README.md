@@ -1,17 +1,19 @@
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Service Entsorgungsanlage with fallback'
-define view entity ZI_WR_SERVICE_EXTCUSTOM
-  as select from /plce/tpdsrv as _srv
-  left outer join /plce/tpdsrvcst as _custom
-    on _custom.service_uuid = _srv.service_uuid
-  left outer join ewa_order_object as _order
-    on  _order.pobjnr    = _srv.reference_int_id
-    and _order.wdplantnr <> ''
+extend view entity /PLCE/R_PDServiceExtCustom with
+  association [0..1] to ZI_WR_SERVICE_EXTCUSTOM as _ExtCustomHelper
+    on _ExtCustomHelper.ServiceUUID = $projection.ServiceUUID
 {
-  key _srv.service_uuid             as ServiceUUID,
+  /plce/tpdsrvcst.zz_tech_fachbe,
+  /plce/tpdsrvcst.zz_discrepancy,
+  /plce/tpdsrvcst.zz_reactiontime,
+  /plce/tpdsrvcst.zz_vehicleinfo,
+  /plce/tpdsrvcst.zz_order_date,
+  /plce/tpdsrvcst.zz_timeadjustment,
+  /plce/tpdsrvcst.zz_pobjnr_main,
+  /plce/tpdsrvcst.wdplantnr,
 
-  " ✅ MAX + GROUP BY = exactly ONE row per ServiceUUID
-  max( _custom.wdplantnr )          as wdplantnr_custom,
-  max( _order.wdplantnr  )          as wdplantnr_order
+  " ✅ Custom value (updated by anlageaendern)
+  _ExtCustomHelper.wdplantnr_custom as wdplantnr_custom,
+
+  " ✅ Order object fallback value
+  _ExtCustomHelper.wdplantnr_order  as wdplantnr_order
 }
-group by _srv.service_uuid
