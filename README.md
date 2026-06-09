@@ -1,9 +1,16 @@
-" After post_bms_order call — log every call for testing
-        zcl_wr_pd_tour_helper=>log_bms_call(
-          iv_tour_uuid    = ls_tour-TourUUID
-          iv_service_uuid = ls_asgmt-ServiceUUID
-          iv_order_number = ls_ewa-smaufnr
-          iv_endpoint     = '/api/container/create-order-halle'
-          iv_http_status  = lv_http_status
-          iv_request      = lv_json
-          iv_response     = lv_response ).
+action stornoBMSService parameter /PLCE/D_BmsStornoParam result [1] $self;
+
+
+METHODS stornoBMSService FOR MODIFY
+  IMPORTING keys FOR ACTION Tour~stornoBMSService RESULT result.
+
+
+  CLASS-METHODS storno_bms_order
+  IMPORTING
+    iv_base_url      TYPE string
+    iv_bearer_token  TYPE string
+    iv_order_number  TYPE string
+    iv_full_json     TYPE string  " pass empty string if minimal storno confirmed
+  EXPORTING
+    ev_http_status   TYPE i
+    ev_response      TYPE string.
