@@ -1,1 +1,6 @@
-<img width="639" height="696" alt="image" src="https://github.com/user-attachments/assets/c21a7959-4e7e-4175-9c8d-89523d34d2cb" />
+DATA ls_srvcst TYPE /plce/tpdsrvcst.
+          CLEAR ls_srvcst.
+          ls_srvcst-mandt         = sy-mandt.
+          ls_srvcst-service_uuid  = ls_asgmt-ServiceUUID.
+          ls_srvcst-zz_bms_status = 'STORNIERT'.
+          INSERT /plce/tpdsrvcst FROM ls_srvcst.
