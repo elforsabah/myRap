@@ -1,24 +1,72 @@
-Stand (nach meinem Verständnis):
+@EndUserText.label: 'BMS API Communication Log'
+@AbapCatalog.enhancement.category: #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory: #TRANSPARENT
+@AbapCatalog.deliveryClass: #A
+@AbapCatalog.dataMaintenance: #DISPLAY_ONLY
+define table zbms_api_log {
+  key mandt         : mandt not null;
+  key log_uuid      : sysuuid_x16 not null;
+  created_at        : timestampl;
+  created_by        : syuname;
+  direction         : char10;        " OUTBOUND / INBOUND
+  tour_uuid         : /plce/pdtour_uuid;
+  service_uuid      : /plce/pdservice_uuid;
+  order_number      : aufnr;
+  endpoint          : string;
+  http_status       : int4;
+  request_payload   : string;
+  response_body     : string;
+}
 
-Authorization (Anmelden + Token empfangen + dann POST mit Token) erfolgreich.
-erste Aufrufe für den Endpunkt /api/container/create-order-halle mit Beispiel-JSON erfolgreich.
-Einbauen der Methoden in Funktion “an BMS freigeben” ist in Arbeit.
- 
 
-Und damit als nächstes offen:
+CLASS-METHODS log_bms_call
+  IMPORTING
+    iv_tour_uuid      TYPE /plce/pdtour_uuid
+    iv_service_uuid   TYPE /plce/pdservice_uuid
+    iv_order_number   TYPE aufnr
+    iv_endpoint       TYPE string
+    iv_http_status    TYPE i
+    iv_request        TYPE string
+    iv_response       TYPE string.
 
-Einbauen der Methoden in Funktion “an BMS freigeben” abschließen
-Können wir dabei temporär für unsere internen Tests die Aufrufe mit Payload und BMS-Response protokollieren? (Z-Tabelle o.ä.)
-Vorbereiten Funktion “BMS Storno”
-Für ganze Tour und auch einzelne Services.
-Auch aus anderen Prozessen im SAP heraus (z.B. Kundenservice / Interaction Center) werden wir technisch eine Methode benötigen, um schon an BMS gesendete Services zu stornieren.
-Wie funktioniert es? → gleicher Endpunkt und im Feld “status” den Wert “STORNIERT” setzen. → Aufruf für jeden Service einzeln!
-(Ich kläre, ob “status”=STORNIERT" und die “orderNumber” für das Storno im BMS ausreicht oder ob wir dabei nochmal alle Daten senden müssen.)
-Vorbereiten/Einbauen Anzeige “BMS-Status” in P&D-Planungscockpit.
-In Tour-Liste für die ganze Tour.
-In Service-Liste für jeden Service.
-Hintergrund: Wir übergeben an den BMS-Endpunkt mit jedem Aufruf/JSON nur genau 1 Service. Das heißt bei “Tour an BMS freigeben” wird der Endpunkt für jeden verplanten Service der Tour einzeln nacheinander aufgerufen. Wir müssen uns für jeden einzelnen Service also den Status speichern, ob dieser an BMS freigegeben ist. Es kann passieren, dass manche Services einer Tour erfolgreich übermittelt werden (=freigegeben), aber andere einen Fehler verursachen und damit noch nicht freigegeben sind.
-Eine genaue Status-Folge für die Services wird aktuell mit BMS abgestimmt.
-(ungefähr so: initial/leer → freigegeben → begonnen → beendet)
-Auf Tour-Ebene können wir im SAP den Status von den zugehörigen Services ableiten.
-Iterative Tests und Detail-Arbeiten für die einzelnen Felder des Payloads (mit ggf. Mappings und Erweiterungen um neue Felder, sobald diese am BMS-Endpunkt verfügbar
+
+
+
+
+METHOD log_bms_call.
+  DATA ls_log TYPE zbms_api_log.
+
+  ls_log-log_uuid         = cl_system_uuid=>create_uuid_x16_static( ).
+  ls_log-created_at       = cl_abap_context_info=>get_system_time_stamp( ).
+  ls_log-created_by       = sy-uname.
+  ls_log-direction        = 'OUTBOUND'.
+  ls_log-tour_uuid        = iv_tour_uuid.
+  ls_log-service_uuid     = iv_service_uuid.
+  ls_log-order_number     = iv_order_number.
+  ls_log-endpoint         = iv_endpoint.
+  ls_log-http_status      = iv_http_status.
+  ls_log-request_payload  = iv_request.
+  ls_log-response_body    = iv_response.
+
+
+" After post_bms_order call — log every call for testing
+        zcl_wr_pd_tour_helper=>log_bms_call(
+          iv_tour_uuid    = ls_tour-TourUUID
+          iv_service_uuid = ls_asgmt-ServiceUUID
+          iv_order_number = ls_ewa-smaufnr
+          iv_endpoint     = '/api/container/create-order-halle'
+          iv_http_status  = lv_http_status
+          iv_request      = lv_json
+          iv_response     = lv_response ).
+
+
+
+
+          
+
+
+  
+
+  INSERT zbms_api_log FROM ls_log.
+ENDMETHOD.
+    
