@@ -1,27 +1,3 @@
-class /plce/cl_geocode_base definition
-  public
-  inheriting from /plce/cl_geo_base
-  create public .
-
-  public section.
-    methods constructor.
-    interfaces /plce/if_geocode .
-  protected section.
-    constants:
-      c_appl_log_subobject_name type cl_bali_header_setter=>ty_subobject value '/PLCE/BASE_GEOCODING'.
-
-    methods: geoCodeAddress
-      importing par_address type ref to /plce/if_geocode~georequest
-                par_result  type ref to /plce/if_geocode~georesult
-      raising   /plce/cx_geo.
-  private section.
-ENDCLASS.
-
-
-
-CLASS /PLCE/CL_GEOCODE_BASE IMPLEMENTATION.
-
-
   method /plce/if_geocode~geocode.
     data:
       lresult   type ref to /plce/if_geocode~georesult,
@@ -49,24 +25,3 @@ CLASS /PLCE/CL_GEOCODE_BASE IMPLEMENTATION.
       endtry.
     endloop.
   endmethod.
-
-
-  method /plce/if_geocode~init.
-    init( RFCDestination = RFCDestination
-      CommunicationScenarioId = CommunicationScenarioId
-      CommunicationServiceId = CommunicationServiceId
-      CommunicationSystemId = CommunicationSystemId
-      Parameters = Parameters ).
-  endmethod.
-
-
-  method constructor.
-    super->constructor( ).
-    fappl_log_subobject_name = c_appl_log_subobject_name.
-  endmethod.
-
-
-  method geoCodeAddress.
-    " implement in child
-  endmethod.
-ENDCLASS.
