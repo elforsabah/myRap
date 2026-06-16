@@ -1,2 +1,2 @@
-Die Fehlermeldung „Datensatz gesperrt" ist in diesem Fall irreführend. Nach genauerer Analyse steckt dahinter kein Sperr-Problem, sondern ein Rate-Limit-Fehler (HTTP 429) des Geocodierungsdienstes ZOSM_GEOCODING. Der Dienst hat die Anfragen abgewiesen, weil in kurzer Zeit zu viele auf einmal geschickt wurden. Das RAP-Framework hat das leider nicht sauber weitergegeben und stattdessen eine Sperrmeldung angezeigt.
-Als nächstes sollten wir klären, wie viele Anfragen der Dienst pro Sekunde erlaubt, und dann entsprechende Wartezeiten zwischen den Geocodierungsaufrufen einbauen.
+ " Wartezeit um Rate-Limit zu vermeiden
+  WAIT UP TO 1 SECONDS.
