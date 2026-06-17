@@ -1,67 +1,52 @@
-  method /plce/if_bgprocessing_unit~execute.
+  method WRITE_DATA_TO_EEWA.
+
     data:
-      lretry   type abap_boolean,
-      lmessage type ref to if_abap_behv_message,
-      lex_root type ref to cx_root,
-      lothers  type /plce/cl_pd_messagehelper=>_msg_ref_table,
-      llog     type ref to /plce/cl_appllog_helper.
+      LCALLBACK type ref to CL_EEWA_IMPL_BO_CALLBACK_MLOG,
+      LBAPIRET  type BAPIRET2.
 
-    if lines( service_complete ) is not initial or lines( service_confirm ) is not initial.
-
-      modify entities of /PLCE/R_PDService
-        entity Service
-          execute completeService from service_complete
-          execute confirmService from service_confirm
-      failed data(lfailed)
-      reported data(lreported).
+    create object LCALLBACK exporting PAR_INIT = SPACE.
+    if LINES( IT_TOUR_DATA ) is not initial.
+      LCALLBACK->MSGLOG->HEAD-EXTNUMBER = |{ IT_TOUR_DATA[ 1 ]-TOURID } { IT_TOUR_DATA[ 1 ]-TOURDATE }|.
     endif.
+    LCALLBACK->INIT( ).
+    LCALLBACK->MSGLOG->SETCUMULATE( PAR_CUMULATE = 'X' ).
 
-    if lfailed is initial and lines( service_sequence ) is not initial.
+    try.
 
-      sequence_services(
-        changing
-          cv_reported = lreported
-          cv_failed = lfailed ).
+        TA_BEGIN_NAMED_VAR TA /PLCP/CL_TA_WA_ORDER_RSLT=>CTA_ORDER_RESULT.
+        TA_DO_COMMIT TA.
+*        TA_NO_COMMIT TA.
+        TA_DO_RAISE_EXCEPTION TA.
+        TA_SET_CALLBACK TA LCALLBACK.
+        TA_SET_PARAM TA RESULTDATAS IT_TOUR_DATA.
+        TA_SET_PARAM TA USER_ID IS_SEQUENCE_CONTROL-USER_ID.
+        if IS_SEQUENCE_CONTROL is initial.
+          TA_EXECUTE TA BOOK_IMPORT_RESULTS.
+        else.
+          if IS_SEQUENCE_CONTROL-SEQUENCE_OPERATIONAL is not initial.
+             TA_EXECUTE TA BOOK_IMPORT_ITEM_SEQUENCES.
+          endif.
+          if IS_SEQUENCE_CONTROL-SEQUENCE_MASTERDATA is not initial.
+            TA_EXECUTE TA BOOK_IMPORT_SERVICE_SEQUENCES.
+          endif.
+        endif.
+        TA_END TA.
 
-    endif.
+      catch CX_EEWA_BASE into data(LEX).
+        data(LTEXT) = LEX->GET_TEXT( ).
+        LEX->GET_AS_BAPIRET(
+          changing
+            PAR_BAPIRET2    = LBAPIRET
+        ).
+        insert LBAPIRET into table CT_BAPIRET.
+    endtry.
 
-    if lfailed is not initial.
-      /plce/cl_base_misc=>check_response( exporting is_response = lreported changing ct_messages = lothers ).
-      lmessage = /plce/cl_pd_messagehelper=>get_temporary_error( messages = lothers ).
-      lretry = cond #( when i_retry_possible = abap_true and lmessage is not initial then abap_true else abap_false ).
-
-      if lmessage is initial.
-        lmessage = value #( lothers[ 1 ] default new /plce/cx_bgp( textid = /plce/cx_bgp=>unknown_reason ) ).
-      endif.
-
-      if lmessage is instance of cx_root.
-        lex_root = cast cx_root( lmessage ).
-      else.
-        lex_root = new /plce/cx_bgp( textid = /plce/cx_bgp=>unknown_reason ).
-      endif.
-
-***   save log if more than one message exists.
-
-      if lines( lothers ) > 1.
-
-        try.
-            llog = new /plce/cl_appllog_helper(
-              iv_object      = c_appllog_object
-              iv_subobject   = c_appllog_subobject
-              iv_external_id = conv #( i_bgpunit )
-            ).
-
-            llog->add_abap_behavior_messages( it_message = lothers ).
-            llog->save_log( iv_use_2nd_db_connection = abap_true ).
-
-          catch /plce/cx_baseexception.
-*          nop
-        endtry.
-      endif.
-
-
-      raise exception new /plce/cx_bgp_unit( retry = lretry previous = lex_root ).
-
+    if LCALLBACK->MSGLOG->EXISTS_LOG( ) is not initial.
+      LCALLBACK->MSGLOG->READ_INTO_BAPIRET(
+        importing
+          PAR_BAPIRET2       = CT_BAPIRET
+      ).
+      LCALLBACK->MSGLOG->SAVE( ).
     endif.
 
   endmethod.
