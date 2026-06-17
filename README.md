@@ -1,89 +1,67 @@
-function /PLCP/BGPROCESSUNIT.
-*"----------------------------------------------------------------------
-*"*"Local Interface:
-*"  IMPORTING
-*"     VALUE(I_BGPUNIT) TYPE  /PLCE/UUID
-*"----------------------------------------------------------------------
-  read entities of /PLCE/R_BGProcessingUnit entity ProcessingUnit
-       all fields with value #( ( ProcessingUnitUUID = i_bgpunit ) )
-     result data(units).
+  method /plce/if_bgprocessing_unit~execute.
+    data:
+      lretry   type abap_boolean,
+      lmessage type ref to if_abap_behv_message,
+      lex_root type ref to cx_root,
+      lothers  type /plce/cl_pd_messagehelper=>_msg_ref_table,
+      llog     type ref to /plce/cl_appllog_helper.
 
-  loop at units assigning field-symbol(<unit>).
+    if lines( service_complete ) is not initial or lines( service_confirm ) is not initial.
 
-    " call of /plce/cl_bgprocessing_helper=>deserializeprocessingunit would only allow classes in /PLCE/ namespace or C1 released objects
-    "data(ref) = /plce/cl_bgprocessing_helper=>deserializeprocessingunit( exporting i_value = <unit>-Content ).
-    data: ref type ref to /plce/if_bgprocessing_unit.
-    call transformation id
-             source xml <unit>-Content
-             result model = ref.
-
-    if ref is not initial.
-      try.
-
-          data(retry_possible) = /plcp/cl_bgprocessing=>is_retry_possible( i_bgpunit = <unit>-ProcessingUnitUUID ).
-
-          ref->execute( i_retry_possible = retry_possible i_bgpunit = <unit>-ProcessingUnitUUID ).
-          modify entities of /PLCE/R_BGProcessingUnit entity ProcessingUnit
-            delete from value #( ( corresponding #( <unit> ) ) ).
-
-        catch /plce/cx_bgp_unit into data(lex_bgp).
-
-          rollback entities. "#EC CI_ROLLBACK
-
-          data: units_update type table for update /PLCE/R_BGProcessingUnit,
-                lex_org type ref to CX_ROOT.
-
-          append value #( %tky = <unit>-%tky Status = <unit>-Status  ) to units_update assigning field-symbol(<unit_update>).
-
-          "collect message
-          try.
-            lex_org = cond #( when lex_bgp->previous is not initial then lex_bgp->previous else lex_bgp ).
-            data(bapiret) = /plce/cl_base_misc=>convert_to_plce_exception( lex_org )->get_as_bapiret( ).
-          catch /plce/cx_baseexception.
-          endtry.
-
-          <unit_update>-SystemMessageClass = bapiret-id.
-          <unit_update>-SystemMessageNumber = bapiret-number.
-          <unit_update>-SystemMessageVariable1 = bapiret-message_v1.
-          <unit_update>-SystemMessageVariable2 = bapiret-message_v2.
-          <unit_update>-SystemMessageVariable3 = bapiret-message_v3.
-          <unit_update>-SystemMessageVariable4 = bapiret-message_v4.
-
-          <unit_update>-%control-SystemMessageClass = if_abap_behv=>mk-on.
-          <unit_update>-%control-SystemMessageNumber = if_abap_behv=>mk-on.
-          <unit_update>-%control-SystemMessageVariable1 = if_abap_behv=>mk-on.
-          <unit_update>-%control-SystemMessageVariable2 = if_abap_behv=>mk-on.
-          <unit_update>-%control-SystemMessageVariable3 = if_abap_behv=>mk-on.
-          <unit_update>-%control-SystemMessageVariable4 = if_abap_behv=>mk-on.
-
-          if lex_bgp->retry = 'X'.
-            data(retry_success) = /plcp/cl_bgprocessing=>retry_unit( i_bgpunit = <unit>-ProcessingUnitUUID ).
-          elseif lex_bgp->postpone = 'X'.
-             <unit_update>-Status = /plce/if_constants=>c_bgp_unit_status-postponed.
-             <unit_update>-%control-Status = if_abap_behv=>mk-on.
-             clear: <unit_update>-BGRFCUnitId, <unit_update>-BGRFCLockId.
-             <unit_update>-%control-BGRFCUnitId = if_abap_behv=>mk-on.
-             <unit_update>-%control-BGRFCLockId = if_abap_behv=>mk-on.
-          endif.
-
-          modify entities of /PLCE/R_BGProcessingUnit entity ProcessingUnit
-            update from units_update.
-
-          commit entities.
-
-          if not (
-          ( lex_bgp->retry = abap_true and retry_success = abap_true )
-           or ( lex_bgp->postpone = 'X' )
-          ).
-            message lex_org type 'E'.
-          endif.
-
-        catch cx_root into data(lex).
-          rollback entities. "#EC CI_ROLLBACK
-          message lex type 'E'.
-      endtry.
+      modify entities of /PLCE/R_PDService
+        entity Service
+          execute completeService from service_complete
+          execute confirmService from service_confirm
+      failed data(lfailed)
+      reported data(lreported).
     endif.
 
-  endloop.
+    if lfailed is initial and lines( service_sequence ) is not initial.
 
-endfunction.
+      sequence_services(
+        changing
+          cv_reported = lreported
+          cv_failed = lfailed ).
+
+    endif.
+
+    if lfailed is not initial.
+      /plce/cl_base_misc=>check_response( exporting is_response = lreported changing ct_messages = lothers ).
+      lmessage = /plce/cl_pd_messagehelper=>get_temporary_error( messages = lothers ).
+      lretry = cond #( when i_retry_possible = abap_true and lmessage is not initial then abap_true else abap_false ).
+
+      if lmessage is initial.
+        lmessage = value #( lothers[ 1 ] default new /plce/cx_bgp( textid = /plce/cx_bgp=>unknown_reason ) ).
+      endif.
+
+      if lmessage is instance of cx_root.
+        lex_root = cast cx_root( lmessage ).
+      else.
+        lex_root = new /plce/cx_bgp( textid = /plce/cx_bgp=>unknown_reason ).
+      endif.
+
+***   save log if more than one message exists.
+
+      if lines( lothers ) > 1.
+
+        try.
+            llog = new /plce/cl_appllog_helper(
+              iv_object      = c_appllog_object
+              iv_subobject   = c_appllog_subobject
+              iv_external_id = conv #( i_bgpunit )
+            ).
+
+            llog->add_abap_behavior_messages( it_message = lothers ).
+            llog->save_log( iv_use_2nd_db_connection = abap_true ).
+
+          catch /plce/cx_baseexception.
+*          nop
+        endtry.
+      endif.
+
+
+      raise exception new /plce/cx_bgp_unit( retry = lretry previous = lex_root ).
+
+    endif.
+
+  endmethod.
