@@ -1,52 +1,54 @@
-  method WRITE_DATA_TO_EEWA.
+  method CREATE_NOTIFICATION.
 
     data:
-      LCALLBACK type ref to CL_EEWA_IMPL_BO_CALLBACK_MLOG,
-      LBAPIRET  type BAPIRET2.
+      LTNOTIFICATIONS         type /PLCE/IF_NOTIFICATION_API=>TY_T_NOTIFICATION,
+      LNOTIFICATION_PROCESSOR type ref to /PLCE/CL_BGP_PDNOTIFICATION,
+      LUUID                   type SYSUUID_X16,
+      LLOGHANDLE              type BALLOGHNDL,
+      LLOG_EEWA               type ref to CL_EEWA_IMPL_BO_CALLBACK_MLOG,
+      LLOG_PLCE               type ref to /PLCE/CL_APPLLOG_HELPER.
 
-    create object LCALLBACK exporting PAR_INIT = SPACE.
-    if LINES( IT_TOUR_DATA ) is not initial.
-      LCALLBACK->MSGLOG->HEAD-EXTNUMBER = |{ IT_TOUR_DATA[ 1 ]-TOURID } { IT_TOUR_DATA[ 1 ]-TOURDATE }|.
-    endif.
-    LCALLBACK->INIT( ).
-    LCALLBACK->MSGLOG->SETCUMULATE( PAR_CUMULATE = 'X' ).
+    if PAR_USER_ID is not initial.
 
-    try.
+****      Log handle
+      if FCALLBACK is not initial and FCALLBACK is instance of CL_EEWA_IMPL_BO_CALLBACK_MLOG.
+        LLOG_EEWA ?= FCALLBACK.
+        LLOGHANDLE = LLOG_EEWA->MSGLOG->HANDLE.
+        create object LLOG_PLCE exporting IV_LOG_HANDLE = LLOGHANDLE.
+      endif.
 
-        TA_BEGIN_NAMED_VAR TA /PLCP/CL_TA_WA_ORDER_RSLT=>CTA_ORDER_RESULT.
-        TA_DO_COMMIT TA.
-*        TA_NO_COMMIT TA.
-        TA_DO_RAISE_EXCEPTION TA.
-        TA_SET_CALLBACK TA LCALLBACK.
-        TA_SET_PARAM TA RESULTDATAS IT_TOUR_DATA.
-        TA_SET_PARAM TA USER_ID IS_SEQUENCE_CONTROL-USER_ID.
-        if IS_SEQUENCE_CONTROL is initial.
-          TA_EXECUTE TA BOOK_IMPORT_RESULTS.
+      try.
+          LUUID = CL_UUID_FACTORY=>CREATE_SYSTEM_UUID( )->CREATE_UUID_X16( ).
+
+          insert value #(
+            ID = LUUID
+            TYPE_KEY = PAR_NOTIFKEY
+            TYPE_VERSION = '0.0.5'
+            PRIORITY = /PLCE/IF_NOTIFICATION_API=>GCS_PRIORITIES-NEUTRAL
+            RECIPIENTS = value #( ( ID = PAR_USER_ID ) )
+            PARAMETERS = value #( ( LANGUAGE = SY-LANGU PARAMETERS = value #( ( NAME = 'TourId' VALUE = |{ PAR_TOUR_ID alpha = out }| )  ) ) )
+          )
+          into table LTNOTIFICATIONS.
+
+          create object LNOTIFICATION_PROCESSOR.
+          LNOTIFICATION_PROCESSOR->NOTIFICATIONS = LTNOTIFICATIONS.
+          /PLCE/CL_BGPROCESSING_HELPER=>SCHEDULE( I_BGUNIT = LNOTIFICATION_PROCESSOR ).
+
+        catch CX_UUID_ERROR.
+**        nop
+        catch /plce/cx_bgp into data(lex_bgp).
+        if llog_plce is not initial.
+            LLOG_PLCE->ADD_EXCEPTION(
+              IV_SEVERITY   = IF_BALI_CONSTANTS=>C_SEVERITY_WARNING
+              IRO_EXCEPTION = lex_bgp
+            ).
         else.
-          if IS_SEQUENCE_CONTROL-SEQUENCE_OPERATIONAL is not initial.
-             TA_EXECUTE TA BOOK_IMPORT_ITEM_SEQUENCES.
-          endif.
-          if IS_SEQUENCE_CONTROL-SEQUENCE_MASTERDATA is not initial.
-            TA_EXECUTE TA BOOK_IMPORT_SERVICE_SEQUENCES.
-          endif.
+**        nop
         endif.
-        TA_END TA.
+*            create object EXCEPTION.
+*            EXCEPTION->PUT_SYMSG( ).
 
-      catch CX_EEWA_BASE into data(LEX).
-        data(LTEXT) = LEX->GET_TEXT( ).
-        LEX->GET_AS_BAPIRET(
-          changing
-            PAR_BAPIRET2    = LBAPIRET
-        ).
-        insert LBAPIRET into table CT_BAPIRET.
-    endtry.
-
-    if LCALLBACK->MSGLOG->EXISTS_LOG( ) is not initial.
-      LCALLBACK->MSGLOG->READ_INTO_BAPIRET(
-        importing
-          PAR_BAPIRET2       = CT_BAPIRET
-      ).
-      LCALLBACK->MSGLOG->SAVE( ).
+      endtry.
     endif.
 
   endmethod.
