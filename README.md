@@ -150,6 +150,8 @@ CLASS zcl_wr_pd_tour_helper IMPLEMENTATION.
 
     CLEAR: ev_http_status, ev_response.
 
+    " Build JSON — minimal storno if no full payload provided,
+    " otherwise replace status field in the existing JSON
     DATA(lv_json) = COND string(
       WHEN iv_full_json IS INITIAL
       THEN |\{ "status": "STORNIERT", "orderNumber": "{ iv_order_number }" \}|
@@ -195,23 +197,21 @@ CLASS zcl_wr_pd_tour_helper IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD log_bms_call.
-    "-----------------------------------------------------------------------
-    " FIX: use get_system_time_stamp() — returns timestampl
-    "      previous code used get_system_time() which returns TIMS (time only)
-    "-----------------------------------------------------------------------
+
     DATA ls_log TYPE zbms_api_log.
-    ls_log-log_uuid         = cl_system_uuid=>create_uuid_x16_static( ).
-    ls_log-created_at       = cl_abap_context_info=>get_system_time_stamp( ).
-    ls_log-created_by       = sy-uname.
-    ls_log-direction        = 'OUTBOUND'.
-    ls_log-tour_uuid        = iv_tour_uuid.
-    ls_log-service_uuid     = iv_service_uuid.
-    ls_log-order_number     = iv_order_number.
-    ls_log-endpoint         = iv_endpoint.
-    ls_log-http_status      = iv_http_status.
-    ls_log-request_payload  = iv_request.
-    ls_log-response_body    = iv_response.
+    ls_log-log_uuid        = cl_system_uuid=>create_uuid_x16_static( ).
+    ls_log-created_at      = cl_abap_context_info=>get_system_time_stamp( ).
+    ls_log-created_by      = sy-uname.
+    ls_log-direction       = 'OUTBOUND'.
+    ls_log-tour_uuid       = iv_tour_uuid.
+    ls_log-service_uuid    = iv_service_uuid.
+    ls_log-order_number    = iv_order_number.
+    ls_log-endpoint        = iv_endpoint.
+    ls_log-http_status     = iv_http_status.
+    ls_log-request_payload = iv_request.
+    ls_log-response_body   = iv_response.
     INSERT zbms_api_log FROM ls_log.
+
   ENDMETHOD.
 
 ENDCLASS.
