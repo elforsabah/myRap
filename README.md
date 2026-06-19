@@ -1,3 +1,192 @@
+METHOD stornoBMSService.
+
+  "=======================================================================
+  " CONFIG — read from ZTOUR_BMS_CFG (same as touranBMSfreigeben)
+  "=======================================================================
+SELECT SINGLE bms_endpoint_url,
+              bms_username,
+              bms_password,
+              active
+  FROM ztour_bms_cfg
+  where  config_id = 'DEFAULT'
+  INTO @DATA(ls_cfg).
+
+
+  IF sy-subrc <> 0 OR ls_cfg-active <> 'X'.
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ky>).
+      APPEND VALUE #(
+        %tky = <ky>-%tky
+        %msg = new_message_with_text(
+                 severity = if_abap_behv_message=>severity-error
+                 text     = 'BMS interface not configured or inactive — maintain ZTOUR_BMS_CFG' )
+      ) TO reported-tour.
+    ENDLOOP.
+    RETURN.
+  ENDIF.
+
+  DATA(lv_bms_base_url) = ls_cfg-bms_endpoint_url.
+  DATA(lv_bms_user)     = ls_cfg-bms_username.
+  DATA(lv_bms_password) = ls_cfg-bms_password.
+
+  READ ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
+    ENTITY Tour
+      FIELDS ( TourId TourUUID )
+      WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_tours)
+    FAILED DATA(lt_failed).
+
+  CHECK lt_failed IS INITIAL.
+
+  READ ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
+    ENTITY Tour BY \_ServiceAssignments
+      FIELDS ( TourUUID ServiceUUID Removed )
+      WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_asgmts).
+
+  DELETE lt_asgmts WHERE Removed IS NOT INITIAL.
+
+  DATA lt_svc_uuids TYPE RANGE OF /plce/pdservice_uuid.
+  lt_svc_uuids = VALUE #(
+    FOR ls IN lt_asgmts
+    ( sign = 'I' option = 'EQ' low = ls-ServiceUUID ) ).
+
+  TYPES: BEGIN OF ty_svc_storno,
+           service_uuid     TYPE /plce/pdservice_uuid,
+           reference_int_id TYPE char30,
+         END OF ty_svc_storno.
+  DATA lt_services TYPE HASHED TABLE OF ty_svc_storno
+                   WITH UNIQUE KEY service_uuid.
+
+  IF lt_svc_uuids IS NOT INITIAL.
+    SELECT service_uuid,
+           reference_int_id
+      FROM /plce/tpdsrv
+      WHERE service_uuid IN @lt_svc_uuids
+      INTO CORRESPONDING FIELDS OF TABLE @lt_services.
+  ENDIF.
+
+  LOOP AT lt_tours INTO DATA(ls_tour).
+
+    DATA lv_token TYPE string.
+    DATA lv_error TYPE string.
+    CLEAR: lv_token, lv_error.
+
+    zcl_wr_pd_tour_helper=>get_bms_bearer_token(
+      EXPORTING
+        iv_base_url = lv_bms_base_url
+        iv_username = lv_bms_user
+        iv_password = lv_bms_password
+      IMPORTING
+        ev_token    = lv_token
+        ev_error    = lv_error ).
+
+    IF lv_error IS NOT INITIAL.
+      APPEND VALUE #(
+        %tky = ls_tour-%tky
+        %msg = new_message_with_text(
+                 severity = if_abap_behv_message=>severity-error
+                 text     = lv_error )
+      ) TO reported-tour.
+      CONTINUE.
+    ENDIF.
+
+    LOOP AT lt_asgmts INTO DATA(ls_asgmt)
+      WHERE TourUUID = ls_tour-TourUUID.
+
+      DATA ls_svc TYPE ty_svc_storno.
+      CLEAR ls_svc.
+      READ TABLE lt_services INTO ls_svc
+        WITH KEY service_uuid = ls_asgmt-ServiceUUID.
+      CHECK sy-subrc = 0.
+
+      SELECT SINGLE smaufnr
+        FROM ewa_order_object
+        WHERE pobjnr = @ls_svc-reference_int_id
+        INTO @DATA(lv_smaufnr).
+      CHECK sy-subrc = 0.
+
+      DATA lv_http_status TYPE i.
+      DATA lv_response    TYPE string.
+      CLEAR: lv_http_status, lv_response.
+
+      zcl_wr_pd_tour_helper=>storno_bms_order(
+        EXPORTING
+          iv_base_url     = lv_bms_base_url
+          iv_bearer_token = lv_token
+          iv_order_number = |{ lv_smaufnr ALPHA = OUT }|
+          iv_full_json    = ''
+        IMPORTING
+          ev_http_status  = lv_http_status
+          ev_response     = lv_response ).
+
+      zcl_wr_pd_tour_helper=>log_bms_call(
+        iv_tour_uuid    = ls_tour-TourUUID
+        iv_service_uuid = ls_asgmt-ServiceUUID
+        iv_order_number = lv_smaufnr
+        iv_endpoint     = '/api/container/create-order-halle (STORNO)'
+        iv_http_status  = lv_http_status
+        iv_request      = |STORNIERT: { lv_smaufnr ALPHA = OUT }|
+        iv_response     = lv_response ).
+
+      IF lv_http_status = 200 OR lv_http_status = 201.
+
+        UPDATE /plce/tpdsrvcst
+          SET zz_bms_status = 'STORNIERT'
+          WHERE service_uuid = @ls_asgmt-ServiceUUID.
+
+        IF sy-subrc <> 0.
+          DATA ls_srvcst TYPE /plce/tpdsrvcst.
+          CLEAR ls_srvcst.
+          ls_srvcst-service_uuid  = ls_asgmt-ServiceUUID.
+          ls_srvcst-zz_bms_status = 'STORNIERT'.
+          INSERT /plce/tpdsrvcst FROM ls_srvcst.
+        ENDIF.
+
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '015'
+                   severity = if_abap_behv_message=>severity-success
+                   v1       = |{ lv_smaufnr ALPHA = OUT }| )
+        ) TO reported-tour.
+
+      ELSE.
+
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '016'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = |{ lv_smaufnr ALPHA = OUT }|
+                   v2       = lv_response )
+        ) TO reported-tour.
+
+      ENDIF.
+
+    ENDLOOP.
+
+    MODIFY ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
+      ENTITY ExtCustom
+        UPDATE FIELDS ( zz_bms_status )
+        WITH VALUE #( ( TourUUID = ls_tour-TourUUID zz_bms_status = 'STORNIERT' ) )
+      FAILED   DATA(lf_mod)
+      REPORTED DATA(lr_mod).
+
+    IF lf_mod IS NOT INITIAL.
+      MODIFY ENTITIES OF /PLCE/R_PDTour IN LOCAL MODE
+        ENTITY Tour
+          CREATE BY \_ExtCustom
+            FIELDS ( zz_bms_status )
+            WITH VALUE #( ( %tky = ls_tour-%tky
+                            %target = VALUE #( ( zz_bms_status = 'STORNIERT' ) ) ) )
+        FAILED DATA(lf_crt) REPORTED DATA(lr_crt).
+    ENDIF.
+
+  ENDLOOP.
+
+
 METHOD touranBMSfreigeben.
 
   "=======================================================================
@@ -132,7 +321,6 @@ METHOD touranBMSfreigeben.
                 bms_password,
                 active
     FROM ztour_bms_cfg
-    WHERE mandt = @sy-mandt
     INTO @DATA(ls_cfg).
 
   IF sy-subrc <> 0 OR ls_cfg-active <> 'X'.
@@ -677,7 +865,6 @@ METHOD touranBMSfreigeben.
       IF sy-subrc <> 0.
         DATA ls_srvcst TYPE /plce/tpdsrvcst.
         CLEAR ls_srvcst.
-        ls_srvcst-mandt         = sy-mandt.
         ls_srvcst-service_uuid  = ls_asgmt-ServiceUUID.
         ls_srvcst-zz_bms_status = lv_svc_bms_status.
         INSERT /plce/tpdsrvcst FROM ls_srvcst.
@@ -727,5 +914,300 @@ METHOD touranBMSfreigeben.
     ENDIF.
 
   ENDLOOP. " lt_tours
+
+ENDMETHOD.
+
+ENDCLASS.
+
+@EndUserText.label : 'BMS API Communication Log'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table zbms_api_log {
+
+  key mandt       : mandt not null;
+  key log_uuid    : sysuuid_x16 not null;
+  created_at      : timestampl;
+  created_by      : syuname;
+  direction       : char10;
+  tour_uuid       : /plce/pdtour_uuid;
+  service_uuid    : /plce/pdservice_uuid;
+  order_number    : aufnr;
+  endpoint        : char255;
+  http_status     : int4;
+  request_payload : abap.char(1333);
+  response_body   : abap.char(1333);
+
+}
+
+
+@EndUserText.label : 'BMS connection configuration'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #L
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztour_bms_cfg {
+
+  key mandt        : mandt not null;
+  key config_id    : char10 not null;
+  bms_endpoint_url : zbms_endpoint;
+  bms_username     : zbms_endpoint;
+  bms_password     : zbms_endpoint;
+  active           : char1;
+  description      : char80;
+
+}
+
+
+@EndUserText.label : 'Tour Template → BMS Kolonne Mapping'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #C
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztour_bms_kolonn {
+
+  key mandt         : mandt not null;
+  key tour_template : /plce/pdtour_template not null;
+  bms_team          : text40;
+
+}
+
+
+@EndUserText.label : 'Bermekungen für Storno'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #C
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table zwr_pd_storno_bm {
+
+  key mandt    : mandt not null;
+  key conftype : conftype not null;
+  bemerkung    : zz_bemerkung;
+
+}
+
+
+
+  class ZCL_WR_PD_TOUR_HELPER definition
+  public
+  create public .
+
+public section.
+
+  class-methods GET_BMS_BEARER_TOKEN
+    importing
+      !IV_BASE_URL type CHAR60
+      !IV_USERNAME type CHAR60
+      !IV_PASSWORD type CHAR60
+    exporting
+      !EV_TOKEN type STRING
+      !EV_ERROR type STRING .
+  class-methods POST_BMS_ORDER
+    importing
+      !IV_BASE_URL type CHAR60
+      !IV_BEARER_TOKEN type STRING
+      !IV_JSON type STRING
+    exporting
+      !EV_HTTP_STATUS type I
+      !EV_RESPONSE type STRING .
+  class-methods STORNO_BMS_ORDER
+    importing
+      !IV_BASE_URL type CHAR60
+      !IV_BEARER_TOKEN type STRING
+      !IV_ORDER_NUMBER type STRING
+      !IV_FULL_JSON type STRING
+    exporting
+      !EV_HTTP_STATUS type I
+      !EV_RESPONSE type STRING .
+  class-methods LOG_BMS_CALL
+    importing
+      !IV_TOUR_UUID type /PLCE/PDTOUR_UUID
+      !IV_SERVICE_UUID type /PLCE/PDSERVICE_UUID
+      !IV_ORDER_NUMBER type AUFNR
+      !IV_ENDPOINT type STRING
+      !IV_HTTP_STATUS type I
+      !IV_REQUEST type STRING
+      !IV_RESPONSE type STRING .
+ENDCLASS.
+
+
+
+CLASS ZCL_WR_PD_TOUR_HELPER IMPLEMENTATION.
+
+
+  METHOD get_bms_bearer_token.
+
+    CLEAR: ev_token, ev_error.
+
+    DATA(lv_auth_json) = |\{ "username": "{ iv_username }", | &&
+                          |"password": "{ iv_password }" \}|.
+
+    DATA lo_http TYPE REF TO if_http_client.
+
+    cl_http_client=>create_by_url(
+      EXPORTING url    = iv_base_url && '/api/user/authenticate/user'
+      IMPORTING client = lo_http
+      EXCEPTIONS OTHERS = 4 ).
+
+    IF sy-subrc <> 0.
+      ev_error = 'BMS: auth HTTP client creation failed'.
+      RETURN.
+    ENDIF.
+
+    lo_http->request->set_method( if_http_request=>co_request_method_post ).
+    lo_http->request->set_header_field(
+      name  = 'Content-Type'
+      value = 'application/json' ).
+    lo_http->request->set_cdata( lv_auth_json ).
+
+    lo_http->send(    EXCEPTIONS OTHERS = 4 ).
+    lo_http->receive( EXCEPTIONS OTHERS = 4 ).
+
+    DATA lv_code TYPE i.
+    lo_http->response->get_status( IMPORTING code = lv_code ).
+    DATA(lv_body) = lo_http->response->get_cdata( ).
+    lo_http->close( ).
+
+    IF lv_code <> 200.
+      ev_error = |BMS auth failed — HTTP { lv_code }: { lv_body }|.
+      RETURN.
+    ENDIF.
+
+    TYPES: BEGIN OF ty_auth_data,
+             access_token TYPE string,
+           END OF ty_auth_data,
+           BEGIN OF ty_auth_response,
+             data TYPE ty_auth_data,
+           END OF ty_auth_response.
+    DATA ls_auth TYPE ty_auth_response.
+
+    /ui2/cl_json=>deserialize(
+      EXPORTING
+        json        = lv_body
+        pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+      CHANGING
+        data        = ls_auth ).
+
+    IF ls_auth-data-access_token IS INITIAL.
+      ev_error = |BMS auth: no accessToken in response. Body: { lv_body }|.
+      RETURN.
+    ENDIF.
+
+    ev_token = |Bearer { ls_auth-data-access_token }|.
+
+  ENDMETHOD.
+
+
+  METHOD post_bms_order.
+
+    CLEAR: ev_http_status, ev_response.
+
+    DATA lo_http TYPE REF TO if_http_client.
+
+    cl_http_client=>create_by_url(
+      EXPORTING url    = iv_base_url && '/api/container/create-order-halle'
+      IMPORTING client = lo_http
+      EXCEPTIONS OTHERS = 4 ).
+
+    IF sy-subrc <> 0.
+      ev_http_status = 0.
+      ev_response    = 'BMS: order HTTP client creation failed'.
+      RETURN.
+    ENDIF.
+
+    lo_http->request->set_method( if_http_request=>co_request_method_post ).
+    lo_http->request->set_header_field(
+      name  = 'Content-Type'
+      value = 'application/json-patch+json' ).
+    lo_http->request->set_header_field(
+      name  = 'Authorization'
+      value = iv_bearer_token ).
+    lo_http->request->set_cdata( iv_json ).
+
+    lo_http->send(    EXCEPTIONS OTHERS = 4 ).
+    lo_http->receive( EXCEPTIONS OTHERS = 4 ).
+
+    DATA lv_code TYPE i.
+    lo_http->response->get_status( IMPORTING code = lv_code ).
+    ev_http_status = lv_code.
+    ev_response    = lo_http->response->get_cdata( ).
+
+    lo_http->close( ).
+
+  ENDMETHOD.
+
+
+  METHOD storno_bms_order.
+
+    CLEAR: ev_http_status, ev_response.
+
+    " Build JSON — minimal storno if no full payload provided,
+    " otherwise replace status field in the existing JSON
+    DATA(lv_json) = COND string(
+      WHEN iv_full_json IS INITIAL
+      THEN |\{ "status": "STORNIERT", "orderNumber": "{ iv_order_number }" \}|
+      ELSE iv_full_json ).
+
+    IF iv_full_json IS NOT INITIAL.
+      REPLACE FIRST OCCURRENCE OF '"status":"OK"'
+        IN lv_json WITH '"status":"STORNIERT"'.
+    ENDIF.
+
+    DATA lo_http TYPE REF TO if_http_client.
+
+    cl_http_client=>create_by_url(
+      EXPORTING url    = iv_base_url && '/api/container/create-order-halle'
+      IMPORTING client = lo_http
+      EXCEPTIONS OTHERS = 4 ).
+
+    IF sy-subrc <> 0.
+      ev_http_status = 0.
+      ev_response    = 'BMS Storno: HTTP client creation failed'.
+      RETURN.
+    ENDIF.
+
+    lo_http->request->set_method( if_http_request=>co_request_method_post ).
+    lo_http->request->set_header_field(
+      name  = 'Content-Type'
+      value = 'application/json-patch+json' ).
+    lo_http->request->set_header_field(
+      name  = 'Authorization'
+      value = iv_bearer_token ).
+    lo_http->request->set_cdata( lv_json ).
+
+    lo_http->send(    EXCEPTIONS OTHERS = 4 ).
+    lo_http->receive( EXCEPTIONS OTHERS = 4 ).
+
+    DATA lv_code TYPE i.
+    lo_http->response->get_status( IMPORTING code = lv_code ).
+    ev_http_status = lv_code.
+    ev_response    = lo_http->response->get_cdata( ).
+
+    lo_http->close( ).
+
+  ENDMETHOD.
+
+
+ METHOD log_bms_call.
+
+    DATA ls_log TYPE zbms_api_log.
+    ls_log-log_uuid        = cl_system_uuid=>create_uuid_x16_static( ).
+    GET TIME STAMP FIELD ls_log-created_at.
+    ls_log-created_by      = sy-uname.
+    ls_log-direction       = 'OUTBOUND'.
+    ls_log-tour_uuid       = iv_tour_uuid.
+    ls_log-service_uuid    = iv_service_uuid.
+    ls_log-order_number    = iv_order_number.
+    ls_log-endpoint        = iv_endpoint.
+    ls_log-http_status     = iv_http_status.
+    ls_log-request_payload = iv_request.
+    ls_log-response_body   = iv_response.
+    INSERT zbms_api_log FROM ls_log.
+
+  ENDMETHOD.
+ENDCLASS.
+
+
 
 ENDMETHOD.
