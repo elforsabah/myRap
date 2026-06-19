@@ -185,7 +185,7 @@ SELECT SINGLE bms_endpoint_url,
     ENDIF.
 
   ENDLOOP.
-
+ENDMETHOD.
 
 METHOD touranBMSfreigeben.
 
@@ -1210,4 +1210,4 @@ ENDCLASS.
 
 
 
-ENDMETHOD.
+
