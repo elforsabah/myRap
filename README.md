@@ -1,15 +1,13 @@
 @Metadata.layer: #CUSTOMER
-annotate view /PLCE/C_PDMNLTour with
+annotate view /PLCE/C_PDTour with
 {
-  @UI.lineItem: [{
-    position: 995,
-    label: 'BMS-Status',
-    criticality: 'ZzBmsCriticality',
-    criticalityRepresentation: #WITH_ICON
-  }]
-  @EndUserText.label: 'BMS-Status'
-  ZzBmsStatus;
-
-  @UI.hidden: true
-  ZzBmsCriticality;
+  @UI.lineItem: [
+    {
+      type: #FOR_ACTION,
+      dataAction: 'stornoBMSService',
+      label: 'BMS Storno',
+      position: 50
+    }
+  ]
+  TourUUID;
 }
