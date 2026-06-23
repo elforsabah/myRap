@@ -1,1 +1,13 @@
-<img width="690" height="165" alt="image" src="https://github.com/user-attachments/assets/dfcd3e42-71de-43f2-8b3c-f04daf8ba58d" />
+" Log the inbound call
+    DATA lv_empty_uuid TYPE /plce/pdtour_uuid.
+    CLEAR lv_empty_uuid.
+
+    zcl_wr_pd_tour_helper=>log_bms_call(
+      iv_tour_uuid    = lv_empty_uuid       " ← initial UUID, not empty string
+      iv_service_uuid = lv_service_uuid
+      iv_order_number = lv_smaufnr
+      iv_endpoint     = '/sap/bc/zbms/status_update'
+      iv_http_status  = 200
+      iv_request      = lv_body
+      iv_response     = 'OK'
+      iv_direction    = 'INBOUND' ).
