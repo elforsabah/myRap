@@ -21,3 +21,10 @@
           <lv_set_bms_crit> = lv_bms_crit.
         ENDIF.
       ENDIF.
+
+
+@ObjectModel.virtualElement: true
+  @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_TOUR_EXTEND_CALC'
+  @EndUserText.label: 'BMS Criticality'
+  @UI.hidden: true
+  virtual ZzBmsCriticality : abap.int1,
