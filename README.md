@@ -1,1 +1,9 @@
-<img width="1045" height="423" alt="image" src="https://github.com/user-attachments/assets/b53c6dd5-4e44-4101-969e-9d69bff064ed" />
+
+" 6m OrderNumber — smaufnr with ALPHA conversion and trailing space trim
+        "    Falls back to lv_order_ref when smaufnr is initial to avoid
+        "    sending a blank string that BMS rejects as required field
+        DATA(lv_smaufnr_condensed) = condense( ls_ewa-smaufnr ).
+        DATA(lv_order_number) = COND string(
+          WHEN lv_smaufnr_condensed IS NOT INITIAL
+          THEN |{ ls_ewa-smaufnr ALPHA = OUT }|
+          ELSE lv_order_ref ).
