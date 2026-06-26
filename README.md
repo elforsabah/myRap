@@ -6,86 +6,40 @@ Informationen zur Abbruchstelle
 Quelltextauszug
 Aktive Aufrufe/Ereignisse
 Kopfinformationen
-Kurztext 	Anweisung "INSERT " im aktuellen Zustand unzulässig
-Laufzeitfehler 	BEHAVIOR_ILLEGAL_STATEMENT
+Kurztext 	SQL-Fehler 257 bei der Ausführung von Native SQL aufgetreten.
+Laufzeitfehler 	DBIF_DSQL2_SQL_ERROR
+Ausnahme 	CX_SY_NATIVE_SQL_ERROR
 Programm 	ZCL_WR_PD_TOUR_HELPER=========CP
-Datum/Uhrzeit 	26.06.2026 08:28:48 (System)
+Datum/Uhrzeit 	26.06.2026 08:34:01 (System)
 Benutzer 	HWSB10035 (Elvis Mbah Forsab)
 Mandant 	442
 Host 	evhsap-srv08_RI4_01
 Was ist passiert?
-Fehler im ABAP-Anwendungsprogramm.
-Das laufende ABAP-Programm "ZCL_WR_PD_TOUR_HELPER=========CP" mußte abgebrochen werden, da es auf
-eine Anweisung gestoßen ist, die leider nicht ausgeführt werden kann.
+Der Fehler 257 ist auf der aktuellen Datenbankverbindung "DEFAULT"
+aufgetreten.
+Fehlertext der Datenbank: ???
+Auslösende SQL-Anweisung: "INSERT zbms_api_log FROM ls_log."
 Fehleranalyse
-Die Ausführung befindet sich in einem transaktionalen Kontext:
-Eine BO-Implementierung für "/PLCE/R_PDTOUR" ist aktiv.
-Daher ist die Anweisung "INSERT <dbtab>" verboten.
-Im Fall der Anweisung MESSAGE lautet der Nachrichtentext:
-"???"
-Der eigentliche Fehler liegt möglicherweise nicht in dem Programm, in
-dem der Abbruch erfolgt, sondern in einer höheren Aufrufebene, von der
-es in einer unzulässigen BEHAVIOR-Phase aufgerufen wird.
-Der Grund für den Laufzeitfehler (siehe folgende Liste) ist: (1)
-Gründe für Laufzeitfehler durch Kontraktverletzungen sind:
-(0) Diese Kontraktverletzung führt immer zum Fehler.
-(1) Die "strict"-Spezifikation im laufenden BO fordert es.
-(2) Die "strict"-Spezifikation des aufgerufenen BOs fordert es.
-(3) Die Kontraktverletzung erfolgt in Restricted ABAP.
-(4) Die entsprechende Checkpoint-Gruppe ist auf "Fehler" gestellt.
-(5) Die Verletzung erfolgt in einer BO-Erweiterung in Restricted ABAP.
-Die folgenden ABAP-Anweisungen sind im transaktionalen Kontext
-grundsätzlich verboten:
-- COMMIT, ROLLBACK
-- SUBMIT, CALL TRANSACTION, LEAVE
-- alle DYNPRO-bezogenen, wie MESSAGE, CALL DIALOG, CALL SCREEN
-- RAISE EXCEPTION, sofern es die BEHAVIOR-Implementierung verlassen
-würde.
-Die Anweisungen
-- CALL FUNCTION IN UPDATE TASK
-- CALL FUNCTION IN BACKGROUND TASK/UNIT
-- PERFORM ON COMMIT/ROLLBACK
-sind außerhalb der "Save"-Methode unzulässig.
-Datenbank-Befehle INSERT/DELETE/UPDATE/MODIFY und andere Formen des
-ändernden DB-Zugriffs (z.B. EXEC SQL, AMDP, EXPORT TO DATABASE) auf der
-primären DB-Verbindung sind außerhalb der "Save"-Methode unzulässig.
-(Änderungen auf einer sekundären DB-Verbindung sind jederzeit zulässig.)
-Operationen, die zum Commit der primären DB-Verbindung führen (z.B. RFC,
-HTTP, WAIT, Commit über EXEC SQL), sind in der "Late Save"-Phase
-(Methoden "Adjust_Numbers" und "Save") unzulässig.
-???APDOCU ABENDB_COMMIT
-Die Anweisung AUTHORITY-CHECK oder die Verwendung einer DCL durch ein
-SELECT ohne "Privileged Mode" ist während der Save-Sequenz nicht
-zulässig (Prüfungen sollten in der Interaktionsphase stattfinden).
-GET PERMISSIONS ist in der "Save"-Methode nicht zulässig (Prüfungen
-sollten in der Interaktionsphase stattfinden).
-SET LOCKS ist nur zulässig in MODIFY, LOCK und FINALIZE.
-MODIFY ENTITIES ist unzulässig in BO-Implementierungen außer "Modify",
-in klassifizierten Methoden mit einem anderen Kontrakt als "Modify" oder
-"Surface", sowie in der "Update Task"-Verarbeitung.
-Actions, die in der Definition als "save" gekennzeichnet sind, dürfen
-nur in der entsprechenden Save-Methode aufgerufen werden.
-RAISE EVENT ist nur zulässig in der "Late Save"-Phase.
-???APDOCU ABAPRAP_LUW
-Für (BAdI-)Methoden und Funktionen mit transaktionaler Klassifikation
-gelten folgende Einschränkungen:
-Der Aufruf einer als "Save" transaktional klassifizierten Methode ist
-unzulässig aus der Interaktionsphase heraus, sowie aus einer Methode mit
-einem anderen Kontrakt als "Save" oder "Surface".
-Der Aufruf einer als "Modify" transaktional klassifizierten Methode ist
-nur dann zulässig, wenn auch "MODIFY ENTITIES" erlaubt ist.
-Der Aufruf einer als "Read" klassifizierten Methode ist nur dann
-zulässig, wenn auch "READ ENTITIES" erlaubt ist.
-Der Aufruf einer als "Surface" transaktional klassifizierten Methode ist
-unzulässig aus einer BO-Implementierung heraus, sowie aus einer Methode
-mit einem anderen Kontrakt als "Surface".
+Beschreibung nicht verfügbar
+Parameter:
+P1 [DBDS/NEW DSQL]
+P2 INSERT zbms_api_log FROM ls_log.
+P3 257
+P4 ???
+P5 ???
+P6 DEFAULT
+P7 ???
+P8 ???
+P9 "???"
+
+
+Fehlertext der Datenbank: "???"
 Informationen zur Abbruchstelle
 Der Abbruch trat im ABAP-Programm bzw. Include "ZCL_WR_PD_TOUR_HELPER=========CP"
 auf, und zwar in "LOG_BMS_CALL". Das Hauptprogramm war "SAPMHTTP".
-Im Quelltext befindet sich die Abbruchstelle in Zeile 15
+Im Quelltext befindet sich die Abbruchstelle in Zeile 16
 des Includes "ZCL_WR_PD_TOUR_HELPER=========CM003".
 Quelltextauszug
-5
 6
 7
 8
@@ -95,10 +49,10 @@ Quelltextauszug
 12
 13
 14
+15
 >>
-16
 17
-    GET TIME STAMP FIELD ls_log-created_at.
+18
     ls_log-created_by = sy-uname.
     ls_log-direction = 'OUTBOUND'.
     ls_log-tour_uuid = iv_tour_uuid.
@@ -108,12 +62,13 @@ Quelltextauszug
     ls_log-http_status = iv_http_status.
     ls_log-request_payload = iv_request.
     ls_log-response_body = iv_response.
+    EXEC SQL.
     INSERT zbms_api_log FROM ls_log.
- 
+    ENDEXEC.
   ENDMETHOD.
 Aktive Aufrufe/Ereignisse
 Nr.	Ereignis	Programm	Include	Zeile
-32	LOG_BMS_CALL	ZCL_WR_PD_TOUR_HELPER=========CP	ZCL_WR_PD_TOUR_HELPER=========CM003	15
+32	LOG_BMS_CALL	ZCL_WR_PD_TOUR_HELPER=========CP	ZCL_WR_PD_TOUR_HELPER=========CM003	16
 31	TOURANBMSFREIGEBEN	ZBP_E_BP_R_PDTOUR=============CP	ZBP_E_BP_R_PDTOUR=============CCIMP	1011
 30	INVOKE	CL_ABAP_BEHAVIOR_HANDLER======CP	CL_ABAP_BEHAVIOR_HANDLER======CM002	4
 29	CALL_HANDLER	CL_ABAP_BEHV_CTRL=============CP	CL_ABAP_BEHV_CTRL=============CM001	219
