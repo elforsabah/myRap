@@ -1,1 +1,2 @@
-<img width="606" height="489" alt="image" src="https://github.com/user-attachments/assets/85cc06f7-de17-43d9-975c-794c6c20cba4" />
+Tour & (tour template) hat keine BMS-Kolonne — Eintrag in ZTOUR_BMS_KOLONN fehlt
+Service & (Aktion &) in Tour & hat keinen BMS-Bewegungstyp — Eintrag in ZWRTWAALAPRCTP fehlt
