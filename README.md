@@ -1,34 +1,24 @@
-FUNCTION zwr_bms_log_write.
-*"----------------------------------------------------------------------
-*"*"Lokale Schnittstelle:
-*"  IMPORTING
-*"     VALUE(IV_MANDT)        TYPE  MANDT
-*"     VALUE(IV_CREATED_AT)   TYPE  TIMESTAMPL
-*"     VALUE(IV_CREATED_BY)   TYPE  SYUNAME
-*"     VALUE(IV_DIRECTION)    TYPE  CHAR10
-*"     VALUE(IV_TOUR_UUID)    TYPE  /PLCE/PDTOUR_UUID
-*"     VALUE(IV_SERVICE_UUID) TYPE  /PLCE/PDSERVICE_UUID
-*"     VALUE(IV_ORDER_NUMBER) TYPE  AUFNR
-*"     VALUE(IV_ENDPOINT)     TYPE  STRING
-*"     VALUE(IV_HTTP_STATUS)  TYPE  I
-*"     VALUE(IV_REQUEST)      TYPE  STRING
-*"     VALUE(IV_RESPONSE)     TYPE  STRING
-*"----------------------------------------------------------------------
+METHOD log_bms_call.
 
-  DATA ls_log TYPE zbms_api_log.
+  DATA lv_created_at TYPE timestampl.
+  GET TIME STAMP FIELD lv_created_at.
 
-  ls_log-mandt           = iv_mandt.
-  ls_log-created_at      = iv_created_at.
-  ls_log-created_by      = iv_created_by.
-  ls_log-direction       = iv_direction.
-  ls_log-tour_uuid       = iv_tour_uuid.
-  ls_log-service_uuid    = iv_service_uuid.
-  ls_log-order_number    = iv_order_number.
-  ls_log-endpoint        = iv_endpoint.
-  ls_log-http_status     = iv_http_status.
-  ls_log-request_payload = iv_request.
-  ls_log-response_body   = iv_response.
+  " CALL FUNCTION IN BACKGROUND TASK is permitted inside RAP action
+  " handlers — the FM executes after the LUW commits and does the
+  " INSERT on its own independent connection
+  CALL FUNCTION 'ZWR_BMS_LOG_WRITE'
+    IN BACKGROUND TASK
+    EXPORTING
+      iv_mandt        = sy-mandt
+      iv_created_at   = lv_created_at
+      iv_created_by   = sy-uname
+      iv_direction    = 'OUTBOUND'
+      iv_tour_uuid    = iv_tour_uuid
+      iv_service_uuid = iv_service_uuid
+      iv_order_number = iv_order_number
+      iv_endpoint     = iv_endpoint
+      iv_http_status  = iv_http_status
+      iv_request      = iv_request
+      iv_response     = iv_response.
 
-  INSERT zbms_api_log FROM ls_log.
-
-ENDFUNCTION.
+ENDMETHOD.
