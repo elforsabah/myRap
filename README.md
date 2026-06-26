@@ -1,40 +1,26 @@
-METHOD log_bms_call.
+FUNCTION zwr_bms_log_write.
 
-  DATA lv_created_at  TYPE timestampl.
-  DATA lv_log_message TYPE string.
+  DATA ls_log  TYPE zbms_api_log.
+  DATA lv_uuid TYPE sysuuid_x16.
 
-  GET TIME STAMP FIELD lv_created_at.
+  " Generate UUID via standard FM — works in all RFC contexts
+  CALL FUNCTION 'SYSTEM_UUID_CREATE'
+    IMPORTING
+      uuid = lv_uuid.
 
-  " Extract the message field from a JSON error response if present.
-  " BMS error responses follow the pattern: {"error":{"message":"..."}}
-  " For success responses the full response is logged as-is.
-  lv_log_message = iv_response.
+  ls_log-log_uuid        = lv_uuid.
+  ls_log-mandt           = iv_mandt.
+  ls_log-created_at      = iv_created_at.
+  ls_log-created_by      = iv_created_by.
+  ls_log-direction       = iv_direction.
+  ls_log-tour_uuid       = iv_tour_uuid.
+  ls_log-service_uuid    = iv_service_uuid.
+  ls_log-order_number    = iv_order_number.
+  ls_log-endpoint        = iv_endpoint.
+  ls_log-http_status     = iv_http_status.
+  ls_log-request_payload = iv_request.
+  ls_log-response_body   = iv_response.
 
-  DATA(lv_msg_start) = find( val = iv_response sub = '"message":"' ).
-  IF lv_msg_start >= 0.
-    lv_msg_start = lv_msg_start + strlen( '"message":"' ).
-    DATA(lv_msg_end) = find( val = iv_response sub = '"' off = lv_msg_start ).
-    IF lv_msg_end > lv_msg_start.
-      lv_log_message = substring(
-        val = iv_response
-        off = lv_msg_start
-        len = lv_msg_end - lv_msg_start ).
-    ENDIF.
-  ENDIF.
+  MODIFY zbms_api_log FROM ls_log.
 
-  CALL FUNCTION 'ZWR_BMS_LOG_WRITE'
-    IN BACKGROUND TASK
-    EXPORTING
-      iv_mandt        = sy-mandt
-      iv_created_at   = lv_created_at
-      iv_created_by   = sy-uname
-      iv_direction    = 'OUTBOUND'
-      iv_tour_uuid    = iv_tour_uuid
-      iv_service_uuid = iv_service_uuid
-      iv_order_number = iv_order_number
-      iv_endpoint     = iv_endpoint
-      iv_http_status  = iv_http_status
-      iv_request      = iv_request
-      iv_response     = lv_log_message.
-
-ENDMETHOD.
+ENDFUNCTION.
