@@ -1,1 +1,1 @@
-<img width="1178" height="728" alt="image" src="https://github.com/user-attachments/assets/24d13bb6-e625-4e53-ae7f-f10d867af39c" />
+{"errors":{"order":["The order field is required."],"positions[0].itemPrice":["Error converting value {null} to type 'System.Decimal'. Path 'positions[0].itemPrice', line 1, position 1324.","Required property 'itemPrice' expects a value but got null. Path 'positions[0]', line 1, position 1347."],"positions[0].positionType":["Error converting value \"ZDVC\" to type 'BMS.API
