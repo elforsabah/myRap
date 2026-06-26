@@ -1,102 +1,34 @@
-Inhalte
-Kopfinformationen
-Was ist passiert?
-Fehleranalyse
-Informationen zur Abbruchstelle
-Quelltextauszug
-Aktive Aufrufe/Ereignisse
-Kopfinformationen
-Kurztext 	SQL-Fehler 257 bei der Ausführung von Native SQL aufgetreten.
-Laufzeitfehler 	DBIF_DSQL2_SQL_ERROR
-Ausnahme 	CX_SY_NATIVE_SQL_ERROR
-Programm 	ZCL_WR_PD_TOUR_HELPER=========CP
-Datum/Uhrzeit 	26.06.2026 08:34:01 (System)
-Benutzer 	HWSB10035 (Elvis Mbah Forsab)
-Mandant 	442
-Host 	evhsap-srv08_RI4_01
-Was ist passiert?
-Der Fehler 257 ist auf der aktuellen Datenbankverbindung "DEFAULT"
-aufgetreten.
-Fehlertext der Datenbank: ???
-Auslösende SQL-Anweisung: "INSERT zbms_api_log FROM ls_log."
-Fehleranalyse
-Beschreibung nicht verfügbar
-Parameter:
-P1 [DBDS/NEW DSQL]
-P2 INSERT zbms_api_log FROM ls_log.
-P3 257
-P4 ???
-P5 ???
-P6 DEFAULT
-P7 ???
-P8 ???
-P9 "???"
+FUNCTION zwr_bms_log_write.
+*"----------------------------------------------------------------------
+*"*"Lokale Schnittstelle:
+*"  IMPORTING
+*"     VALUE(IV_MANDT)        TYPE  MANDT
+*"     VALUE(IV_CREATED_AT)   TYPE  TIMESTAMPL
+*"     VALUE(IV_CREATED_BY)   TYPE  SYUNAME
+*"     VALUE(IV_DIRECTION)    TYPE  CHAR10
+*"     VALUE(IV_TOUR_UUID)    TYPE  /PLCE/PDTOUR_UUID
+*"     VALUE(IV_SERVICE_UUID) TYPE  /PLCE/PDSERVICE_UUID
+*"     VALUE(IV_ORDER_NUMBER) TYPE  AUFNR
+*"     VALUE(IV_ENDPOINT)     TYPE  STRING
+*"     VALUE(IV_HTTP_STATUS)  TYPE  I
+*"     VALUE(IV_REQUEST)      TYPE  STRING
+*"     VALUE(IV_RESPONSE)     TYPE  STRING
+*"----------------------------------------------------------------------
 
+  DATA ls_log TYPE zbms_api_log.
 
-Fehlertext der Datenbank: "???"
-Informationen zur Abbruchstelle
-Der Abbruch trat im ABAP-Programm bzw. Include "ZCL_WR_PD_TOUR_HELPER=========CP"
-auf, und zwar in "LOG_BMS_CALL". Das Hauptprogramm war "SAPMHTTP".
-Im Quelltext befindet sich die Abbruchstelle in Zeile 16
-des Includes "ZCL_WR_PD_TOUR_HELPER=========CM003".
-Quelltextauszug
-6
-7
-8
-9
-10
-11
-12
-13
-14
-15
->>
-17
-18
-    ls_log-created_by = sy-uname.
-    ls_log-direction = 'OUTBOUND'.
-    ls_log-tour_uuid = iv_tour_uuid.
-    ls_log-service_uuid = iv_service_uuid.
-    ls_log-order_number = iv_order_number.
-    ls_log-endpoint = iv_endpoint.
-    ls_log-http_status = iv_http_status.
-    ls_log-request_payload = iv_request.
-    ls_log-response_body = iv_response.
-    EXEC SQL.
-    INSERT zbms_api_log FROM ls_log.
-    ENDEXEC.
-  ENDMETHOD.
-Aktive Aufrufe/Ereignisse
-Nr.	Ereignis	Programm	Include	Zeile
-32	LOG_BMS_CALL	ZCL_WR_PD_TOUR_HELPER=========CP	ZCL_WR_PD_TOUR_HELPER=========CM003	16
-31	TOURANBMSFREIGEBEN	ZBP_E_BP_R_PDTOUR=============CP	ZBP_E_BP_R_PDTOUR=============CCIMP	1011
-30	INVOKE	CL_ABAP_BEHAVIOR_HANDLER======CP	CL_ABAP_BEHAVIOR_HANDLER======CM002	4
-29	CALL_HANDLER	CL_ABAP_BEHV_CTRL=============CP	CL_ABAP_BEHV_CTRL=============CM001	219
-28	EXECUTE	CL_ABAP_BEHV_HANDLER_PROJ=====CP	CL_ABAP_BEHV_HANDLER_PROJ=====CM001	145
-27	CALL_HANDLER	CL_ABAP_BEHV_CTRL=============CP	CL_ABAP_BEHV_CTRL=============CM001	206
-26	CALL_HANDLERS_MODIFY	CL_RAP_BHV_PROCESSOR==========CP	CL_RAP_BHV_PROCESSOR==========CM00L	18
-25	IF_RAP_TRANSACTION_PROCESSOR~MODIFY	CL_RAP_BHV_PROCESSOR==========CP	CL_RAP_BHV_PROCESSOR==========CM00B	77
-24	IF_SADL_CHANGESET~MODIFY	CL_RAP_TRANSACTION_MANAGER====CP	CL_RAP_TRANSACTION_MANAGER====CM00E	71
-23	_MODIFY	CL_SADL_TRANSACTION_MANAGER===CP	CL_SADL_TRANSACTION_MANAGER===CM00O	19
-22	IF_SADL_CHANGESET~MODIFY	CL_SADL_TRANSACTION_MANAGER===CP	CL_SADL_TRANSACTION_MANAGER===CM00L	13
-21	IF_SADL_CHANGESET~MODIFY	CL_SADL_CHANGESET=============CP	CL_SADL_CHANGESET=============CM006	23
-20	IF_SADL_GW_V4_GENERIC_DPC~PROCESS_CHANGE_SET	CL_SADL_GW_V4_GENERIC_DPC=====CP	CL_SADL_GW_V4_GENERIC_DPC=====CM010	54
-19	/IWBEP/IF_V4_DP_ADVANCED~EXECUTE_ACTION	CL_SADL_GW_V4_DPC_ADAPTER=====CP	CL_SADL_GW_V4_DPC_ADAPTER=====CM00I	49
-18	EXECUTE_BATCH_OPERATION	/IWBEP/CL_V4_ABS_DATA_PROVIDERCP	/IWBEP/CL_V4_ABS_DATA_PROVIDERCM01O	43
-17	/IWBEP/IF_V4_DP_BATCH~PROCESS_BATCH	/IWBEP/CL_V4_ABS_DATA_PROVIDERCP	/IWBEP/CL_V4_ABS_DATA_PROVIDERCM01K	81
-16	/IWBEP/IF_V4_DP_BATCH~PROCESS_BATCH	CL_SADL_GW_V4_DPC_ADAPTER=====CP	CL_SADL_GW_V4_DPC_ADAPTER=====CM01T	4
-15	/IWBEP/IF_V4_DATA_PROVIDER_FW~PROCESS_BATCH	/IWBEP/CL_V4_DP_PROXY=========CP	/IWBEP/CL_V4_DP_PROXY=========CM006	50
-14	/IWBEP/IF_V4_DATA_PROVIDER_FW~PROCESS_BATCH	/IWBEP/CL_V4_LOCAL_DP_PROXY===CP	/IWBEP/CL_V4_LOCAL_DP_PROXY===CM009	5
-13	/IWCOR/IF_OD_PROC_BATCH~EXECUTE	/IWBEP/CL_OD_PROCESSOR========CP	/IWBEP/CL_OD_PROCESSOR========CM00B	234
-12	PROCESS_BATCH	/IWCOR/CL_OD_PROC_DISPATCHER==CP	/IWCOR/CL_OD_PROC_DISPATCHER==CM00F	26
-11	/IWCOR/IF_OD_PROCESSOR~PROCESS	/IWCOR/CL_OD_PROC_DISPATCHER==CP	/IWCOR/CL_OD_PROC_DISPATCHER==CM005	125
-10	DISPATCH	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM004	255
-9	DISPATCH	/IWBEP/CL_OD_ROOT_HANDLER=====CP	/IWBEP/CL_OD_ROOT_HANDLER=====CM003	124
-8	HANDLE_WITH_MODE	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM00L	209
-7	/IWCOR/IF_REST_HANDLER~HANDLE	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM00F	3
-6	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWCOR/CL_REST_HTTP_HANDLER===CP	/IWCOR/CL_REST_HTTP_HANDLER===CM001	121
-5	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWBEP/CL_OD_HTTP_REQ_HANDLER=CP	/IWBEP/CL_OD_HTTP_REQ_HANDLER=CM007	70
-4	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWBEP/CL_OD_ICF_HANDLER======CP	/IWBEP/CL_OD_ICF_HANDLER======CM001	39
-3	EXECUTE_REQUEST	CL_HTTP_SERVER================CP	CL_HTTP_SERVER================CM00D	814
-2	HTTP_DISPATCH_REQUEST	SAPLHTTP_RUNTIME	LHTTP_RUNTIMEU02	1655
-1	%_HTTP_START	SAPMHTTP	SAPMHTTP	12
+  ls_log-mandt           = iv_mandt.
+  ls_log-created_at      = iv_created_at.
+  ls_log-created_by      = iv_created_by.
+  ls_log-direction       = iv_direction.
+  ls_log-tour_uuid       = iv_tour_uuid.
+  ls_log-service_uuid    = iv_service_uuid.
+  ls_log-order_number    = iv_order_number.
+  ls_log-endpoint        = iv_endpoint.
+  ls_log-http_status     = iv_http_status.
+  ls_log-request_payload = iv_request.
+  ls_log-response_body   = iv_response.
+
+  INSERT zbms_api_log FROM ls_log.
+
+ENDFUNCTION.
