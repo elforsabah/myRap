@@ -29,3 +29,6 @@
           WHEN lv_http_status = 200 OR lv_http_status = 201
           THEN 'FREIGEGEBEN'
           ELSE 'ERROR' ).
+
+
+<img width="1398" height="612" alt="image" src="https://github.com/user-attachments/assets/1b7c3768-5cc2-4d50-9be4-d9c5a8dc60ed" />
