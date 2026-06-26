@@ -1,1 +1,20 @@
-<img width="1898" height="242" alt="image" src="https://github.com/user-attachments/assets/3cf5e33c-78b2-4306-a115-52066992f5fb" />
+@EndUserText.label : 'BMS API Communication Log'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table zbms_api_log {
+  key mandt        : mandt not null;
+  key tour_uuid    : /plce/pdtour_uuid not null;
+  key service_uuid : /plce/pdservice_uuid not null;
+  created_at       : timestampl;
+  created_by       : syuname;
+  direction        : char10;
+  order_number     : aufnr;
+  endpoint         : char255;
+  http_status      : int4;
+  request_payload_len : int4;
+  request_payload  : zwrbms_payload;
+  response_body_len   : int4;
+  response_body    : zwrbms_payload;
+}
