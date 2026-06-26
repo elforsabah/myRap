@@ -1,4 +1,220 @@
-METHOD touranbmsfreigeben.
+CLASS lhc_tour DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+
+    METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
+      IMPORTING REQUEST requested_authorizations FOR tour RESULT result.
+
+    METHODS createtour FOR MODIFY
+      IMPORTING keys FOR ACTION tour~createtour RESULT result.
+
+    METHODS precheck_createtour FOR PRECHECK
+      IMPORTING keys FOR ACTION tour~createtour.
+
+    METHODS assign_earliest_to_latest_date FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR tour~assign_earliest_to_latest_date.
+
+    METHODS touranbmsfreigeben FOR MODIFY
+      IMPORTING keys FOR ACTION tour~touranbmsfreigeben RESULT result.
+    METHODS stornobmsservice FOR MODIFY
+      IMPORTING keys FOR ACTION tour~stornobmsservice RESULT result.
+
+
+ENDCLASS.
+
+CLASS lhc_tour IMPLEMENTATION.
+
+  METHOD assign_earliest_to_latest_date.
+
+    READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+      ENTITY tour
+        FIELDS ( startdate enddate )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_tour).
+
+    MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+      ENTITY tour
+        UPDATE FIELDS ( enddate )
+        WITH VALUE #(
+          FOR ls IN lt_tour
+          WHERE ( startdate IS NOT INITIAL AND enddate IS INITIAL )
+          ( %tky    = ls-%tky
+            enddate = ls-startdate )
+        )
+      FAILED   DATA(lt_fai)
+      REPORTED DATA(lt_rep).
+
+  ENDMETHOD.
+
+  METHOD get_global_authorizations.
+  ENDMETHOD.
+
+  METHOD createtour.
+
+    DATA lv_first_date   TYPE /plce/date.
+    DATA lv_last_date    TYPE /plce/date.
+    DATA lv_current_date TYPE /plce/date.
+    DATA lv_exists       TYPE abap_bool.
+
+    TYPES: BEGIN OF ty_msg_sort,
+             date TYPE /plce/date,
+             msg  TYPE REF TO if_abap_behv_message,
+           END OF ty_msg_sort.
+    DATA lt_msg_sort TYPE STANDARD TABLE OF ty_msg_sort.
+
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<key>)
+         GROUP BY ( template   = <key>-%param-tour_template
+                    first_date = <key>-%param-start_date
+                    last_date  = <key>-%param-end_date )
+         ASSIGNING FIELD-SYMBOL(<group>).
+
+      lv_first_date = <group>-first_date.
+      lv_last_date  = COND /plce/date(
+                        WHEN <group>-last_date IS INITIAL
+                        THEN lv_first_date
+                        ELSE <group>-last_date ).
+
+      IF lv_last_date < lv_first_date.
+        DATA(lv_tmp)  = lv_first_date.
+        lv_first_date = lv_last_date.
+        lv_last_date  = lv_tmp.
+      ENDIF.
+
+      lv_current_date = lv_first_date.
+
+      WHILE lv_current_date <= lv_last_date.
+
+        CLEAR lv_exists.
+
+        SELECT SINGLE @abap_true
+          FROM /plce/r_pdtour
+          WHERE tourtemplate = @<group>-template
+            AND startdate    = @lv_current_date
+          INTO @lv_exists.
+
+        IF lv_exists = abap_true.
+
+          APPEND VALUE #( date = lv_current_date
+                          msg  = new_message(
+                                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                                   number   = '008'
+                                   severity = if_abap_behv_message=>severity-information
+                                   v1       = |{ lv_current_date DATE = USER }|
+                                   v2       = <group>-template )
+                        ) TO lt_msg_sort.
+
+        ELSE.
+
+          DATA(lv_internal_cid) = cl_system_uuid=>create_uuid_x16_static( ).
+
+          MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+            ENTITY tour
+              EXECUTE createtourwithtemplate
+              FROM VALUE #(
+                ( %cid                 = lv_internal_cid
+                  %param-without_draft = 'X'
+                  %param-tour_template = <group>-template
+                  %param-start_date    = lv_current_date ) )
+            MAPPED   DATA(mapped_tour)
+            FAILED   DATA(failed_tour)
+            REPORTED DATA(reported_tour).
+
+          READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+            ENTITY tour
+              ALL FIELDS
+              WITH CORRESPONDING #( mapped_tour-tour )
+            RESULT DATA(tours).
+
+          IF lines( tours ) > 0.
+            APPEND VALUE #( date = lv_current_date
+                            msg  = new_message(
+                                     id       = 'Z_MSG_SVR_TOUR_EXT'
+                                     number   = '007'
+                                     severity = if_abap_behv_message=>severity-success
+                                     v1       = |{ lv_current_date DATE = USER }|
+                                     v2       = |{ tours[ 1 ]-tourid ALPHA = OUT }| )
+                          ) TO lt_msg_sort.
+
+            result = VALUE #( BASE result
+                              FOR tour IN tours
+                              ( %cid   = lv_internal_cid
+                                %param = tour ) ).
+          ENDIF.
+        ENDIF.
+
+        lv_current_date = lv_current_date + 1.
+
+      ENDWHILE.
+    ENDLOOP.
+
+    SORT lt_msg_sort BY date DESCENDING.
+
+    LOOP AT lt_msg_sort INTO DATA(ls_msg_sort).
+      INSERT ls_msg_sort-msg INTO reported-%other INDEX 1.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD precheck_createtour.
+
+    DATA(lv_today) = cl_abap_context_info=>get_system_date( ).
+
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<key>).
+
+      DATA lv_failed   TYPE abap_bool VALUE abap_false.
+      DATA lv_start    TYPE /plce/date.
+      DATA lv_end      TYPE /plce/date.
+      DATA lv_template TYPE /plce/pdtour_template.
+
+      lv_start    = <key>-%param-start_date.
+      lv_end      = <key>-%param-end_date.
+      lv_template = <key>-%param-tour_template.
+
+      DATA(lv_cid) = cl_system_uuid=>create_uuid_x16_static( ).
+
+      IF lv_start IS INITIAL.
+        APPEND VALUE #(
+          %cid = <key>-%cid
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '003'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = |{ lv_start DATE = USER }| )
+        ) TO reported-tour.
+        lv_failed = abap_true.
+      ENDIF.
+
+      IF lv_end IS NOT INITIAL AND lv_end < lv_start.
+        APPEND VALUE #(
+          %cid = <key>-%cid
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '002'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = |{ lv_start DATE = USER }|
+                   v2       = |{ lv_end DATE = USER }| )
+        ) TO reported-tour.
+        lv_failed = abap_true.
+      ENDIF.
+
+      IF lv_template IS INITIAL.
+        APPEND VALUE #(
+          %cid = <key>-%cid
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '001'
+                   severity = if_abap_behv_message=>severity-error )
+        ) TO reported-tour.
+        lv_failed = abap_true.
+      ENDIF.
+
+      IF lv_failed = abap_true.
+        APPEND VALUE #( %cid = <key>-%cid ) TO failed-tour.
+      ENDIF.
+
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD touranbmsfreigeben.
 
     "=======================================================================
     " TYPES
@@ -836,9 +1052,16 @@ METHOD touranbmsfreigeben.
           THEN 'FREIGEGEBEN'
           ELSE 'ERROR' ).
 
-        UPDATE /plce/tpdsrvcst
-          SET zz_bms_status = @lv_svc_bms_status
-          WHERE service_uuid = @ls_asgmt-serviceuuid.
+*        UPDATE /plce/tpdsrvcst
+*          SET zz_bms_status = @lv_svc_bms_status
+*          WHERE service_uuid = @ls_asgmt-serviceuuid.
+*
+*
+        CALL FUNCTION 'ZWR_BMS_UPDATE_SERVICE'
+          EXPORTING
+            service_uuid  = ls_asgmt-serviceuuid
+            zz_bms_status = lv_svc_bms_status.
+
 
         IF sy-subrc <> 0.
           DATA ls_srvcst TYPE /plce/tpdsrvcst.
@@ -894,3 +1117,352 @@ METHOD touranbmsfreigeben.
     ENDLOOP. " lt_tours
 
   ENDMETHOD.
+
+
+  METHOD stornobmsservice.
+
+    "=======================================================================
+    " CONFIG — read from ZTOUR_BMS_CFG (same as touranBMSfreigeben)
+    "=======================================================================
+    SELECT SINGLE bms_endpoint_url,
+                  bms_username,
+                  bms_password,
+                  active
+      FROM ztour_bms_cfg
+      WHERE  config_id = 'DEFAULT'
+      INTO @DATA(ls_cfg).
+
+
+    IF sy-subrc <> 0 OR ls_cfg-active <> 'X'.
+      LOOP AT keys ASSIGNING FIELD-SYMBOL(<ky>).
+        APPEND VALUE #(
+          %tky = <ky>-%tky
+          %msg = new_message_with_text(
+                   severity = if_abap_behv_message=>severity-error
+                   text     = 'BMS interface not configured or inactive — maintain ZTOUR_BMS_CFG' )
+        ) TO reported-tour.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_bms_base_url) = ls_cfg-bms_endpoint_url.
+    DATA(lv_bms_user)     = ls_cfg-bms_username.
+    DATA(lv_bms_password) = ls_cfg-bms_password.
+
+    READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+      ENTITY tour
+        FIELDS ( tourid touruuid )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_tours)
+      FAILED DATA(lt_failed).
+
+    CHECK lt_failed IS INITIAL.
+
+    READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+      ENTITY tour BY \_serviceassignments
+        FIELDS ( touruuid serviceuuid removed )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_asgmts).
+
+    DELETE lt_asgmts WHERE removed IS NOT INITIAL.
+
+    DATA lt_svc_uuids TYPE RANGE OF /plce/pdservice_uuid.
+    lt_svc_uuids = VALUE #(
+      FOR ls IN lt_asgmts
+      ( sign = 'I' option = 'EQ' low = ls-serviceuuid ) ).
+
+    TYPES: BEGIN OF ty_svc_storno,
+             service_uuid     TYPE /plce/pdservice_uuid,
+             reference_int_id TYPE char30,
+           END OF ty_svc_storno.
+    DATA lt_services TYPE HASHED TABLE OF ty_svc_storno
+                     WITH UNIQUE KEY service_uuid.
+
+    IF lt_svc_uuids IS NOT INITIAL.
+      SELECT service_uuid,
+             reference_int_id
+        FROM /plce/tpdsrv
+        WHERE service_uuid IN @lt_svc_uuids
+        INTO CORRESPONDING FIELDS OF TABLE @lt_services.
+    ENDIF.
+
+    LOOP AT lt_tours INTO DATA(ls_tour).
+
+      DATA lv_token TYPE string.
+      DATA lv_error TYPE string.
+      CLEAR: lv_token, lv_error.
+
+      zcl_wr_pd_tour_helper=>get_bms_bearer_token(
+        EXPORTING
+          iv_base_url = lv_bms_base_url
+          iv_username = lv_bms_user
+          iv_password = lv_bms_password
+        IMPORTING
+          ev_token    = lv_token
+          ev_error    = lv_error ).
+
+      IF lv_error IS NOT INITIAL.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message_with_text(
+                   severity = if_abap_behv_message=>severity-error
+                   text     = lv_error )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      LOOP AT lt_asgmts INTO DATA(ls_asgmt)
+        WHERE touruuid = ls_tour-touruuid.
+
+        DATA ls_svc TYPE ty_svc_storno.
+        CLEAR ls_svc.
+        READ TABLE lt_services INTO ls_svc
+          WITH KEY service_uuid = ls_asgmt-serviceuuid.
+        CHECK sy-subrc = 0.
+
+        SELECT SINGLE smaufnr, pobjnr
+          FROM ewa_order_object
+          WHERE pobjnr = @ls_svc-reference_int_id
+          INTO (  @DATA(lv_smaufnr), @DATA(lv_pobjnr) ) .
+        CHECK sy-subrc = 0.
+
+        DATA lv_http_status TYPE i.
+        DATA lv_response    TYPE string.
+        CLEAR: lv_http_status, lv_response.
+
+        zcl_wr_pd_tour_helper=>storno_bms_order(
+          EXPORTING
+            iv_base_url     = lv_bms_base_url
+            iv_bearer_token = lv_token
+            iv_order_number = |{ lv_smaufnr ALPHA = OUT }|
+            iv_full_json    = ''
+          IMPORTING
+            ev_http_status  = lv_http_status
+            ev_response     = lv_response ).
+
+        zcl_wr_pd_tour_helper=>log_bms_call(
+          iv_tour_uuid    = ls_tour-touruuid
+          iv_service_uuid = ls_asgmt-serviceuuid
+          iv_order_number = lv_smaufnr
+          iv_endpoint     = '/api/container/create-order-halle (STORNO)'
+          iv_http_status  = lv_http_status
+          iv_request      = |STORNIERT: { lv_smaufnr ALPHA = OUT }|
+          iv_response     = lv_response
+          iv_pobjnr       = lv_pobjnr
+          ).
+
+        IF lv_http_status = 200 OR lv_http_status = 201.
+
+          UPDATE /plce/tpdsrvcst
+            SET zz_bms_status = 'STORNIERT'
+            WHERE service_uuid = @ls_asgmt-serviceuuid.
+
+          IF sy-subrc <> 0.
+            DATA ls_srvcst TYPE /plce/tpdsrvcst.
+            CLEAR ls_srvcst.
+            ls_srvcst-service_uuid  = ls_asgmt-serviceuuid.
+            ls_srvcst-zz_bms_status = 'STORNIERT'.
+            INSERT /plce/tpdsrvcst FROM ls_srvcst.
+          ENDIF.
+
+          APPEND VALUE #(
+            %tky = ls_tour-%tky
+            %msg = new_message(
+                     id       = 'Z_MSG_SVR_TOUR_EXT'
+                     number   = '015'
+                     severity = if_abap_behv_message=>severity-success
+                     v1       = |{ lv_smaufnr ALPHA = OUT }| )
+          ) TO reported-tour.
+
+        ELSE.
+
+          APPEND VALUE #(
+            %tky = ls_tour-%tky
+            %msg = new_message(
+                     id       = 'Z_MSG_SVR_TOUR_EXT'
+                     number   = '016'
+                     severity = if_abap_behv_message=>severity-error
+                     v1       = |{ lv_smaufnr ALPHA = OUT }|
+                     v2       = lv_response )
+          ) TO reported-tour.
+
+        ENDIF.
+
+      ENDLOOP.
+
+      MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+        ENTITY extcustom
+          UPDATE FIELDS ( zz_bms_status )
+          WITH VALUE #( ( touruuid = ls_tour-touruuid zz_bms_status = 'STORNIERT' ) )
+        FAILED   DATA(lf_mod)
+        REPORTED DATA(lr_mod).
+
+      IF lf_mod IS NOT INITIAL.
+        MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+          ENTITY tour
+            CREATE BY \_extcustom
+              FIELDS ( zz_bms_status )
+              WITH VALUE #( ( %tky = ls_tour-%tky
+                              %target = VALUE #( ( zz_bms_status = 'STORNIERT' ) ) ) )
+          FAILED DATA(lf_crt) REPORTED DATA(lr_crt).
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+ENDCLASS.
+
+
+FUNCTION ZWR_BMS_UPDATE_SERVICE.
+*"----------------------------------------------------------------------
+*"*"Lokale Schnittstelle:
+*"  IMPORTING
+*"     VALUE(IV_SERVICE_UUID) TYPE  /PLCE/PDSERVICE_UUID
+*"     VALUE(IV_ZZ_BMS_STATUS) TYPE  CHAR30
+*"----------------------------------------------------------------------
+
+data ls_SRVCST type /PLCE/TPDSRVCST.
+ ls_SRVCST-service_uuid = iv_service_uuid.
+ ls_srvcst-zz_bms_status = iv_zz_bms_status.
+MODIFY /PLCE/TPDSRVCST FROM  ls_SRVCST.
+
+
+ENDFUNCTION.
+
+
+
+
+
+
+Inhalte
+Kopfinformationen
+Was ist passiert?
+Fehleranalyse
+Informationen zur Abbruchstelle
+Quelltextauszug
+Aktive Aufrufe/Ereignisse
+Kopfinformationen
+Kurztext 	Fehlender Parameter bei CALL FUNCTION.
+Laufzeitfehler 	CALL_FUNCTION_PARM_MISSING
+Ausnahme 	CX_SY_DYN_CALL_PARAM_MISSING
+Programm 	ZBP_E_BP_R_PDTOUR=============CP
+Datum/Uhrzeit 	26.06.2026 11:51:28 (System)
+Benutzer 	HWSB10035 (Elvis Mbah Forsab)
+Mandant 	442
+Host 	evhsap-srv08_RI4_01
+Was ist passiert?
+Beim Aufruf eines Funktionsbausteins wurde ein Parameter nicht
+mitgegeben.
+Fehler im ABAP-Anwendungsprogramm.
+Das laufende ABAP-Programm "ZBP_E_BP_R_PDTOUR=============CP" mußte abgebrochen werden, da es auf
+eine Anweisung gestoßen ist, die leider nicht ausgeführt werden kann.
+Fehleranalyse
+Beschreibung nicht verfügbar
+Parameter:
+P1 IV_SERVICE_UUID
+P2 ZWR_BMS_UPDATE_SERVICE
+P3 ???
+P4 ???
+P5 ???
+P6 ???
+P7 ???
+P8 ???
+P9 "???"
+
+
+Bei Aufruf des Funktionsbausteins "ZWR_BMS_UPDATE_SERVICE" wurde ein Parameter, der
+laut Schnittstellenbeschreibung gebraucht wird, nicht mitgegeben.
+Es handelt sich um den Parameter "IV_SERVICE_UUID".
+Informationen zur Abbruchstelle
+Der Abbruch trat im ABAP-Programm bzw. Include "ZBP_E_BP_R_PDTOUR=============CP"
+auf, und zwar in "TOURANBMSFREIGEBEN". Das Hauptprogramm war "SAPMHTTP".
+Im Quelltext befindet sich die Abbruchstelle in Zeile 1060
+des Includes "ZBP_E_BP_R_PDTOUR=============CCIMP".
+Quelltextauszug
+1047
+1048
+1049
+1050
+1051
+1052
+1053
+1054
+1055
+1056
+1057
+1058
+1059
+>>>>
+1061
+1062
+1063
+1064
+1065
+1066
+1067
+1068
+1069
+1070
+        ENDIF.
+ 
+        " Write per-service BMS status to /plce/tpdsrvcst
+        DATA(lv_svc_bms_status) = COND string(
+          WHEN lv_http_status = 200 OR lv_http_status = 201
+          THEN 'FREIGEGEBEN'
+          ELSE 'ERROR' ).
+ 
+* UPDATE /plce/tpdsrvcst
+* SET zz_bms_status = @lv_svc_bms_status
+* WHERE service_uuid = @ls_asgmt-serviceuuid.
+*
+*
+        CALL FUNCTION 'ZWR_BMS_UPDATE_SERVICE'
+          EXPORTING
+            service_uuid = ls_asgmt-serviceuuid
+            zz_bms_status = lv_svc_bms_status.
+ 
+ 
+        IF sy-subrc <> 0.
+          DATA ls_srvcst TYPE /plce/tpdsrvcst.
+          CLEAR ls_srvcst.
+          ls_srvcst-service_uuid = ls_asgmt-serviceuuid.
+          ls_srvcst-zz_bms_status = lv_svc_bms_status.
+Aktive Aufrufe/Ereignisse
+Nr.	Ereignis	Programm	Include	Zeile
+31	TOURANBMSFREIGEBEN	ZBP_E_BP_R_PDTOUR=============CP	ZBP_E_BP_R_PDTOUR=============CCIMP	1060
+30	INVOKE	CL_ABAP_BEHAVIOR_HANDLER======CP	CL_ABAP_BEHAVIOR_HANDLER======CM002	4
+29	CALL_HANDLER	CL_ABAP_BEHV_CTRL=============CP	CL_ABAP_BEHV_CTRL=============CM001	219
+28	EXECUTE	CL_ABAP_BEHV_HANDLER_PROJ=====CP	CL_ABAP_BEHV_HANDLER_PROJ=====CM001	145
+27	CALL_HANDLER	CL_ABAP_BEHV_CTRL=============CP	CL_ABAP_BEHV_CTRL=============CM001	206
+26	CALL_HANDLERS_MODIFY	CL_RAP_BHV_PROCESSOR==========CP	CL_RAP_BHV_PROCESSOR==========CM00L	18
+25	IF_RAP_TRANSACTION_PROCESSOR~MODIFY	CL_RAP_BHV_PROCESSOR==========CP	CL_RAP_BHV_PROCESSOR==========CM00B	77
+24	IF_SADL_CHANGESET~MODIFY	CL_RAP_TRANSACTION_MANAGER====CP	CL_RAP_TRANSACTION_MANAGER====CM00E	71
+23	_MODIFY	CL_SADL_TRANSACTION_MANAGER===CP	CL_SADL_TRANSACTION_MANAGER===CM00O	19
+22	IF_SADL_CHANGESET~MODIFY	CL_SADL_TRANSACTION_MANAGER===CP	CL_SADL_TRANSACTION_MANAGER===CM00L	13
+21	IF_SADL_CHANGESET~MODIFY	CL_SADL_CHANGESET=============CP	CL_SADL_CHANGESET=============CM006	23
+20	IF_SADL_GW_V4_GENERIC_DPC~PROCESS_CHANGE_SET	CL_SADL_GW_V4_GENERIC_DPC=====CP	CL_SADL_GW_V4_GENERIC_DPC=====CM010	54
+19	/IWBEP/IF_V4_DP_ADVANCED~EXECUTE_ACTION	CL_SADL_GW_V4_DPC_ADAPTER=====CP	CL_SADL_GW_V4_DPC_ADAPTER=====CM00I	49
+18	EXECUTE_BATCH_OPERATION	/IWBEP/CL_V4_ABS_DATA_PROVIDERCP	/IWBEP/CL_V4_ABS_DATA_PROVIDERCM01O	43
+17	/IWBEP/IF_V4_DP_BATCH~PROCESS_BATCH	/IWBEP/CL_V4_ABS_DATA_PROVIDERCP	/IWBEP/CL_V4_ABS_DATA_PROVIDERCM01K	81
+16	/IWBEP/IF_V4_DP_BATCH~PROCESS_BATCH	CL_SADL_GW_V4_DPC_ADAPTER=====CP	CL_SADL_GW_V4_DPC_ADAPTER=====CM01T	4
+15	/IWBEP/IF_V4_DATA_PROVIDER_FW~PROCESS_BATCH	/IWBEP/CL_V4_DP_PROXY=========CP	/IWBEP/CL_V4_DP_PROXY=========CM006	50
+14	/IWBEP/IF_V4_DATA_PROVIDER_FW~PROCESS_BATCH	/IWBEP/CL_V4_LOCAL_DP_PROXY===CP	/IWBEP/CL_V4_LOCAL_DP_PROXY===CM009	5
+13	/IWCOR/IF_OD_PROC_BATCH~EXECUTE	/IWBEP/CL_OD_PROCESSOR========CP	/IWBEP/CL_OD_PROCESSOR========CM00B	234
+12	PROCESS_BATCH	/IWCOR/CL_OD_PROC_DISPATCHER==CP	/IWCOR/CL_OD_PROC_DISPATCHER==CM00F	26
+11	/IWCOR/IF_OD_PROCESSOR~PROCESS	/IWCOR/CL_OD_PROC_DISPATCHER==CP	/IWCOR/CL_OD_PROC_DISPATCHER==CM005	125
+10	DISPATCH	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM004	255
+9	DISPATCH	/IWBEP/CL_OD_ROOT_HANDLER=====CP	/IWBEP/CL_OD_ROOT_HANDLER=====CM003	124
+8	HANDLE_WITH_MODE	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM00L	209
+7	/IWCOR/IF_REST_HANDLER~HANDLE	/IWCOR/CL_OD_HDLR_ROOT========CP	/IWCOR/CL_OD_HDLR_ROOT========CM00F	3
+6	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWCOR/CL_REST_HTTP_HANDLER===CP	/IWCOR/CL_REST_HTTP_HANDLER===CM001	121
+5	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWBEP/CL_OD_HTTP_REQ_HANDLER=CP	/IWBEP/CL_OD_HTTP_REQ_HANDLER=CM007	70
+4	IF_HTTP_EXTENSION~HANDLE_REQUEST	/IWBEP/CL_OD_ICF_HANDLER======CP	/IWBEP/CL_OD_ICF_HANDLER======CM001	39
+3	EXECUTE_REQUEST	CL_HTTP_SERVER================CP	CL_HTTP_SERVER================CM00D	814
+2	HTTP_DISPATCH_REQUEST	SAPLHTTP_RUNTIME	LHTTP_RUNTIMEU02	1655
+1	%_HTTP_START	SAPMHTTP	SAPMHTTP	12
+
+
+
+
