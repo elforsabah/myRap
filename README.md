@@ -1,9 +1,1 @@
-
-" 6m OrderNumber — smaufnr with ALPHA conversion and trailing space trim
-        "    Falls back to lv_order_ref when smaufnr is initial to avoid
-        "    sending a blank string that BMS rejects as required field
-        DATA(lv_smaufnr_condensed) = condense( ls_ewa-smaufnr ).
-        DATA(lv_order_number) = COND string(
-          WHEN lv_smaufnr_condensed IS NOT INITIAL
-          THEN |{ ls_ewa-smaufnr ALPHA = OUT }|
-          ELSE lv_order_ref ).
+{"errors":{"order":["The order field is required."],"containers[0].MovementType":["Error converting value \"A\" to type 'BMS.API.WebService.Controllers.Container.ContainerHalleController+OptiAwiMovementType'. Path 'containers[0].MovementType', line 1, position 1442."]},"type":"https://tools.ietf.org/html/rfc9110#section-15.5.1","title":"One or more validation errors occurred.","status":400,"traceId":"80004c85-0000-f800-b63f-84710c7967bb"}
