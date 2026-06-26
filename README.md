@@ -1,3 +1,4 @@
-item_price = COND decfloat16(
-  WHEN ls_vbap-netpr IS INITIAL THEN 0
-  ELSE ls_vbap-netpr )
+DATA(lv_position_type) = SWITCH string( ls_vbap-pstyv
+  WHEN 'ZDVC' THEN 'AWI'        " ← replace with actual BMS enum value
+  WHEN 'ZDVN' THEN 'AWI'        " ← same
+  ELSE              'AWI' ).    " ← safe default until confirmed
