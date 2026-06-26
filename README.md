@@ -1,1 +1,21 @@
-{"status":"OK","OrderNumber":"6460","order":"6460","orderSheet":"","orderSheetType":"LS","customer":{"Number":"100020","Name1":"Blumenladen AGA","Name2":"Zwei","Street":"Walter-Hülse-Straße","StreetNumber":"5","ZipCode":"06112","City":"Halle"},"placeOfDelivery":{"Number":"100020","Name1":"Blumenladen AGA","Name2":"Zwei","Street":"Walter-Hülse-Straße","StreetNumber":"5","ZipCode":"06112","City":"Halle"},"location":{"Number":"100020","Name1":"Blumenladen AGA","Name2":"","Street":"Walter-Hülse-Straße","StreetNumber":"5","ZipCode":"06112","City":"Halle"},"estimatedDuration":0,"plannedDate":"2026-06-26T00:00:00.000Z","executionDate":"2026-06-26T00:00:00.000Z","executionTimeFrameStart":"","executionTimeFrameEnd":"","executionTime":"","notes":"","specialNotes":"","producer":{"Number":"100020","Name1":"Blumenladen AGA","Name2":"Zwei","Street":"Walter-Hülse-Straße","StreetNumber":"5","ZipCode":"06112","City":"Halle"},"recycler":{"Number":"100045","Name1":"Kati Kirchner","Name2":"","Street":"Bornknechtstraße","StreetNumber":"5","ZipCode":"06108","City":"Halle"},"carrier":{"Number":"100045","Name1":"Kati Kirchner","Name2":"","Street":"Bornknechtstraße","StreetNumber":"5","ZipCode":"06108","City":"Halle"},"garbageKey":"150102","garbageName":"","collectiveConsignmentNoteNumber":"","team":"","contractRelated":false,"signatureRequired":false,"positions":[],"containers":[{"Quantity":1,"MovementType":"S","ContainerTypeName":"05","ContainerTypeNumber":"05","ContainerNumberOld":"","ContainerNumberNew":"0","CustomerOwned":false}]}
+@EndUserText.label : 'BMS API Communication Log'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table zbms_api_log {
+
+  key mandt       : mandt not null;
+  key log_uuid    : sysuuid_x16 not null;
+  created_at      : timestampl;
+  created_by      : syuname;
+  direction       : char10;
+  tour_uuid       : /plce/pdtour_uuid;
+  service_uuid    : /plce/pdservice_uuid;
+  order_number    : aufnr;
+  endpoint        : char255;
+  http_status     : int4;
+  request_payload : abap.char(1333);
+  response_body   : abap.char(1333);
+
+}
