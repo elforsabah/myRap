@@ -3,6 +3,8 @@
 
 <img width="1298" height="803" alt="image" src="https://github.com/user-attachments/assets/3198dfdf-81f4-4ff5-a648-76005f79e4e5" />
 
+<img width="1163" height="748" alt="image" src="https://github.com/user-attachments/assets/f37e16b5-36cd-4fa4-a686-4131f6b5a981" />
+
 
 method GET_V_ZZWASTE_DEF.
   RV_VALUEHELP_DESCRIPTOR = new CL_BSP_WD_VALUEHELP_F4DESCR(
