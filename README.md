@@ -1,6 +1,24 @@
 <img width="1649" height="900" alt="image" src="https://github.com/user-attachments/assets/405f56ef-506e-4728-8913-59fc4636f1b4" />
 
 
+<img width="1298" height="803" alt="image" src="https://github.com/user-attachments/assets/3198dfdf-81f4-4ff5-a648-76005f79e4e5" />
+
+
+method GET_V_ZZWASTE_DEF.
+  RV_VALUEHELP_DESCRIPTOR = new CL_BSP_WD_VALUEHELP_F4DESCR(
+    IV_HELP_ID        = '/WATP/HCMA_WASTE_AVVCODE'
+    IV_HELP_ID_KIND   = IF_BSP_WD_VALUEHELP_F4DESCR=>HELP_ID_KIND_COMP
+    IV_INPUT_MAPPING  = value IF_BSP_WD_VALUEHELP_F4DESCR=>GTYPE_PARAM_MAPPING_TAB(
+                          ( CONTEXT_ATTR = 'STRUCT.ZZWASTE_DEF' F4_ATTR = 'MATNR' ) )
+    IV_OUTPUT_MAPPING = value IF_BSP_WD_VALUEHELP_F4DESCR=>GTYPE_PARAM_MAPPING_TAB(
+                         ( CONTEXT_ATTR = 'STRUCT.ZZWASTE_DEF' F4_ATTR = 'MATNR' )
+                         ( CONTEXT_ATTR = 'STRUCT.ZZAVVCODE_DEF' F4_ATTR = 'AVVCODE' ) )
+    IV_OBJECT_REF     = ME ) ##NO_TEXT.
+endmethod.
+
+
+![Uploading image.png…]()
+
 
 
 
