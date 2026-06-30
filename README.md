@@ -1,5 +1,6 @@
 <img width="1880" height="811" alt="image" src="https://github.com/user-attachments/assets/630af298-150f-49d1-953b-7ffd5831407e" />
 
+<img width="1150" height="592" alt="image" src="https://github.com/user-attachments/assets/bc88f8a9-405d-4aab-8665-7edf3aed9bce" />
 
 
 class ZL_WRELOCSD_ELOCSD_NEW_D0_CN00 definition
