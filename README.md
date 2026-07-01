@@ -1,1 +1,3 @@
-types tt_matnr_rng type range of matnr
+    call function 'Z_ARB_WASTE_AVV_SHLP_EXIT'   "<- your ARB copy, not /WATP/...
+      tables     SHLP_TAB = SHLP_TAB   RECORD_TAB = RECORD_TAB
+      changing   SHLP = SHLP           CALLCONTROL = CALLCONTROL.
