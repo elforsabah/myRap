@@ -1,136 +1,116 @@
-*&---------------------------------------------------------------------*
-*&  Include           /WATP/MACRO_SEARCHHELP                           *
-*&---------------------------------------------------------------------*
+function ZZ_ARB_WASTE_AVV_SHLP_EXIT.
+*"----------------------------------------------------------------------
+*"*"Lokale Schnittstelle:
+*"  TABLES
+*"      SHLP_TAB TYPE  SHLP_DESCT
+*"      RECORD_TAB STRUCTURE  SEAHLPRES
+*"  CHANGING
+*"     REFERENCE(SHLP) TYPE  SHLP_DESCR
+*"     REFERENCE(CALLCONTROL) LIKE  DDSHF4CTRL STRUCTURE  DDSHF4CTRL
+*"----------------------------------------------------------------------
 
-define SEARCHHELP_CALL_BADI.
-  /WATP/CL_SEARCHHELP=>BADI_ESH_IF_F4_MODIFY_STEP(
-    changing
-      PAR_SHLP_TAB    = SHLP_TAB[]
-      PAR_RECORD_TAB  = RECORD_TAB[]
-      PAR_SHLP        = SHLP
-      PAR_CALLCONTROL = CALLCONTROL
-  ).
-end-of-definition.
+  check CALLCONTROL-STEP = 'SELECT'.
 
-*&1 Strukturname
-define BEGIN_SEARCHHELP_SELECT.
-  if CALLCONTROL-STEP = 'SELECT'.
-    data:
-      LFLD_TABNAME type TABNAME,
-      LRESULTS type standard table of &1.
-    LFLD_TABNAME = '&1'.
-    DATA_BO_RANGE SHLP.
-end-of-definition.
-
-define SEARCHHELP_CONVERTRANGE.
-  /WATP/CL_CONVERT=>CONVERT_DDSHSELOPS_TO_RANGES(
-    PAR_SELOPS = SHLP-SELOPT
-    PAR_RANGES = LRANGESHLPS->*
-  ).
-end-of-definition.
-
-define END_SEARCHHELP_SELECT.
-    call function 'F4UT_RESULTS_MAP'
-      exporting
-        SOURCE_STRUCTURE         = LFLD_TABNAME
-        APPLY_RESTRICTIONS       = SPACE
-      tables
-        SHLP_TAB                 = SHLP_TAB
-        RECORD_TAB               = RECORD_TAB
-        SOURCE_TAB               = LRESULTS
-      changing
-        SHLP                     = SHLP
-        CALLCONTROL              = CALLCONTROL.
-
-    CALLCONTROL-STEP = 'DISP'.
-*   Don't process STEP DISP additionally in this call
-    return.
-  endif.
-end-of-definition.
-
-define BEGIN_SEARCHHELP_DISP.
-  if CALLCONTROL-STEP = 'DISP'.
-end-of-definition.
-
-define END_SEARCHHELP_DISP.
-  endif.
-end-of-definition.
-
-define SEARCHHELP_OPTIMIZE.
-* Spaltenbreite optimieren
-  call function 'F4UT_OPTIMIZE_COLWIDTH'
-    tables
-      SHLP_TAB    = SHLP_TAB
-      RECORD_TAB  = RECORD_TAB
-    changing
-      SHLP        = SHLP
-      CALLCONTROL = CALLCONTROL.
-end-of-definition.
-
-define SEARCHHELP_DISP_OPTIMIZE.
-  BEGIN_SEARCHHELP_DISP.
-* Spaltenbreite optimieren
-  CALLCONTROL-STEP = 'PRESEL1'.
-  SEARCHHELP_OPTIMIZE.
-  CALLCONTROL-STEP = 'DISP'.
-  return.
-  END_SEARCHHELP_DISP.
-end-of-definition.
-
-define END_SEARCHHELP_SELECT_OPTIMIZE.
-    call function 'F4UT_RESULTS_MAP'
-      exporting
-        SOURCE_STRUCTURE         = LFLD_TABNAME
-        APPLY_RESTRICTIONS       = SPACE
-      tables
-        SHLP_TAB                 = SHLP_TAB
-        RECORD_TAB               = RECORD_TAB
-        SOURCE_TAB               = LRESULTS
-      changing
-        SHLP                     = SHLP
-        CALLCONTROL              = CALLCONTROL.
-    CALLCONTROL-STEP = 'DISP'.
-    SEARCHHELP_DISP_OPTIMIZE.
-  endif.
-end-of-definition.
-
-define BEGIN_SEARCHHELP_PRESEL.
   data:
-    __LPRESEL_FIELDDESCR type ref to DFIES.
-  if CALLCONTROL-STEP = 'PRESEL'.
-end-of-definition.
+    LSELOPTREF   type ref to DDSHSELOPT,
+    LWHERECLAUSE type STRING,
+    LV_VBELN     type VBELN,
+    LV_POSNR     type POSNR_VA,
+    LR_MATNR     type ZCL_WR_CCMG_MISC=>TT_MATNR_RNG,
+    LR_MAKTX     type range of MAKTX,
+    LRESULTS     type standard table of /WATP/SARB_WASTE_SHLP.
 
-define END_SEARCHHELP_PRESEL.
-    return.
+  loop at SHLP-SELOPT reference into LSELOPTREF.
+    case LSELOPTREF->SHLPFIELD.
+      when 'MATNR'.
+        LSELOPTREF->SHLPNAME = 'V_EWAEL_WASTE'.
+      when 'AVVCODE'.
+        LSELOPTREF->SHLPNAME = '/WATP/TAVVMARA'.
+      when 'MIRROR_ENTRY'.
+        LSELOPTREF->SHLPNAME = '/WATP/TAVVCATH'.
+      when 'VBELN'.
+        LV_VBELN = LSELOPTREF->LOW.
+      when 'POSNR'.
+        LV_POSNR = LSELOPTREF->LOW.
+      when 'MAKTX'.
+        append value #( SIGN   = LSELOPTREF->SIGN
+                        OPTION = LSELOPTREF->OPTION
+                        LOW    = TO_UPPER( LSELOPTREF->LOW )
+                        HIGH   = TO_UPPER( LSELOPTREF->HIGH ) ) to LR_MAKTX.
+        delete SHLP-SELOPT.
+    endcase.
+  endloop.
+
+* keep the framework / carrier fields out of the generic WHERE clause
+  delete SHLP-SELOPT where SHLPFIELD = 'KEY_REF'.
+  delete SHLP-SELOPT where SHLPFIELD = 'VBELN'.
+  delete SHLP-SELOPT where SHLPFIELD = 'POSNR'.
+
+  call function 'F4_CONV_SELOPT_TO_WHERECLAUSE'
+    exporting
+      GEN_ALIAS_NAMES = 'X'
+    importing
+      WHERE_CLAUSE    = LWHERECLAUSE
+    tables
+      SELOPT_TAB      = SHLP-SELOPT.
+
+* case-insensitive material-description search
+  if LR_MAKTX is not initial.
+    if LWHERECLAUSE is INITIAL.
+      LWHERECLAUSE = ' UPPER( V_EWAEL_WASTE~MAKTX ) in @LR_MAKTX ' ##NO_TEXT.
+    else.
+      LWHERECLAUSE = ' ' && LWHERECLAUSE && ' and ( UPPER( V_EWAEL_WASTE~MAKTX ) in @LR_MAKTX ) ' ##NO_TEXT.
+    endif.
   endif.
-end-of-definition.
 
-define SEARCHHELP_SUPPRESS_SELOPTS.
-  " stolen from function 'F4UT_SUPPRESS_SELECT_OPTIONS'
-  read table SHLP-FIELDDESCR reference into __LPRESEL_FIELDDESCR
-    with key FIELDNAME = '&1'.
-  if SY-SUBRC is initial.
-    __LPRESEL_FIELDDESCR->MASK+9(1) = 'X'.
+* restrict to the waste fractions configured (active) on the contract item
+  if LV_VBELN is not initial.
+    LR_MATNR = ZCL_WR_CCMG_MISC=>GET_CONTRACT_WASTE(
+                 IV_VBELN = LV_VBELN
+                 IV_POSNR = LV_POSNR ).
+    if LR_MATNR is initial.
+*     contract has no active waste -> force an empty result
+      LR_MATNR = value #( ( SIGN = 'I' OPTION = 'EQ' LOW = '##########' ) ).
+    endif.
+    if LWHERECLAUSE is INITIAL.
+      LWHERECLAUSE = ' V_EWAEL_WASTE~MATNR in @LR_MATNR ' ##NO_TEXT.
+    else.
+      LWHERECLAUSE = ' ' && LWHERECLAUSE && ' and ( V_EWAEL_WASTE~MATNR in @LR_MATNR ) ' ##NO_TEXT.
+    endif.
   endif.
-end-of-definition.
 
+  "SECURITY: LWHERECLAUSE is built only by 'F4_CONV_SELOPT_TO_WHERECLAUSE' plus fixed literals, so no SQL injection is possible.
+  select
+      V_EWAEL_WASTE~MATNR          as MATNR,
+      V_EWAEL_WASTE~MAKTX          as MAKTX,
+      /WATP/TAVVMARA~AVVCODE       as AVVCODE,
+      /WATP/TAVVCATHT~DESCRIPTION  as DESCRIPTION,
+      /WATP/TAVVCATH~LFDNR         as LFDNR,
+      /WATP/TAVVCATH~MIRROR_ENTRY  as MIRROR_ENTRY
+    from V_EWAEL_WASTE
+    inner join /WATP/TAVVMARA on V_EWAEL_WASTE~MATNR = /WATP/TAVVMARA~MATNR
+    inner join /WATP/TAVVCATH on /WATP/TAVVMARA~AVVCODE = /WATP/TAVVCATH~AVVCODE
+           and /WATP/TAVVMARA~LFDNR = /WATP/TAVVCATH~LFDNR
+           and /WATP/TAVVCATH~VALID_FROM <= @SY-DATUM and /WATP/TAVVCATH~VALID_TO >= @SY-DATUM
+    left outer join /WATP/TAVVCATHT on /WATP/TAVVCATH~AVVCODE = /WATP/TAVVCATHT~AVVCODE
+           and /WATP/TAVVCATH~LFDNR = /WATP/TAVVCATHT~LFDNR
+           and /WATP/TAVVCATHT~SPRAS = @SY-LANGU
+    where V_EWAEL_WASTE~SPRAS = @SY-LANGU and (LWHERECLAUSE)
+    into corresponding fields of table @LRESULTS.
 
-method BADI_ESH_IF_F4_MODIFY_STEP.
+* map results back to the search help  (= END_SEARCHHELP_SELECT)
+  call function 'F4UT_RESULTS_MAP'
+    exporting
+      SOURCE_STRUCTURE   = '/WATP/SARB_WASTE_SHLP'
+      APPLY_RESTRICTIONS = SPACE
+    tables
+      SHLP_TAB           = SHLP_TAB
+      RECORD_TAB         = RECORD_TAB
+      SOURCE_TAB         = LRESULTS
+    changing
+      SHLP               = SHLP
+      CALLCONTROL        = CALLCONTROL.
 
-  data: LR_BADI_ESH_F4 type ref to BADI_ESH_IF_F4_MODIFY_STEP.
+  CALLCONTROL-STEP = 'DISP'.
 
-* Call BAdI
-  try.
-      get badi LR_BADI_ESH_F4
-        filters
-          SHLPNAME = PAR_SHLP-SHLPNAME.
-      call badi LR_BADI_ESH_F4->MODIFY_SEARCH_HELP
-        changing
-          CT_SHLP_TAB    = PAR_SHLP_TAB
-          CT_RECORD_TAB  = PAR_RECORD_TAB
-          CS_SHLP        = PAR_SHLP
-          CS_CALLCONTROL = PAR_CALLCONTROL.
-    catch CX_ROOT.                                          "#EC *
-  endtry.
-
-endmethod.
+endfunction.
