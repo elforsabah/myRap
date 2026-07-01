@@ -45,3 +45,10 @@ method GET_V_ZZWASTE_DEF.
                           ( CONTEXT_ATTR = 'STRUCT.ZZAVVCODE_DEF' F4_ATTR = 'AVVCODE' ) )
     IV_OBJECT_REF     = ME ) ##NO_TEXT.
 endmethod.
+
+
+  if LV_VBELN is initial.
+    LV_VBELN = ZCL_WR_CCMG_MISC=>GV_VBELN.
+    LV_POSNR = ZCL_WR_CCMG_MISC=>GV_POSNR.
+  endif.
+
