@@ -23,3 +23,25 @@ method get_contract_waste.
     append value #( sign = 'I' option = 'EQ' low = ls-atwrt ) to rt_matnr.
   endloop.
 endmethod.
+
+
+
+method GET_V_ZZWASTE_DEF.
+  clear: ZCL_WR_CCMG_MISC=>GV_VBELN, ZCL_WR_CCMG_MISC=>GV_POSNR.
+
+  data(lr_current) = me->collection_wrapper->get_current( ).
+  if lr_current is bound.
+    ZCL_WR_CCMG_MISC=>GV_VBELN = lr_current->get_property_as_string( 'VBELN' ).
+    ZCL_WR_CCMG_MISC=>GV_POSNR = lr_current->get_property_as_string( 'POSNR' ).
+  endif.
+
+  RV_VALUEHELP_DESCRIPTOR = new CL_BSP_WD_VALUEHELP_F4DESCR(
+    IV_HELP_ID        = 'ZZ_HCMA_WASTE_AVVCODE'
+    IV_HELP_ID_KIND   = IF_BSP_WD_VALUEHELP_F4DESCR=>HELP_ID_KIND_COMP
+    IV_INPUT_MAPPING  = value #(
+                          ( CONTEXT_ATTR = 'STRUCT.ZZWASTE_DEF' F4_ATTR = 'MATNR' ) )
+    IV_OUTPUT_MAPPING = value #(
+                          ( CONTEXT_ATTR = 'STRUCT.ZZWASTE_DEF'   F4_ATTR = 'MATNR' )
+                          ( CONTEXT_ATTR = 'STRUCT.ZZAVVCODE_DEF' F4_ATTR = 'AVVCODE' ) )
+    IV_OBJECT_REF     = ME ) ##NO_TEXT.
+endmethod.
