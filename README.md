@@ -1,7 +1,1 @@
-method GET_V_ZZWASTE_DEF.
-  data(lr_current) = me->collection_wrapper->get_current( ).
-  break-point.   " inspect lr_current
-  ...
-lr_current->get_property_as_string( 'VBELN' )
-lr_current->get_property_as_string( 'POSNR' )
-lr_current->get_property_as_string( 'ZZCONTASSIGNMENT_ID' )
+<img width="1558" height="606" alt="image" src="https://github.com/user-attachments/assets/9dc46d75-cd2a-4aff-b59b-63332dede7de" />
