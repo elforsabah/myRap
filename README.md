@@ -1,101 +1,17 @@
-METHOD createlanf.
+FUNCTION z_lanf_create_dmreq_rfc
+  IMPORTING
+    VALUE(iv_contract) TYPE vbeln_va
+    VALUE(iv_deliverydat) TYPE dats
+    VALUE(iv_customerref) TYPE bstkd
+    VALUE(iv_auart) TYPE auart DEFAULT 'ZLRA'
+  EXPORTING
+    VALUE(ev_vbeln) TYPE vbeln_va
+  TABLES
+    it_positions TYPE zlanf_pos_in_tt
+    et_return TYPE bapiret2_tab.
 
-  READ TABLE keys INTO DATA(ls_key) INDEX 1.
-  DATA(ls_input) = ls_key-%param.
+  CLEAR: ev_vbeln, et_return[].
 
-  DATA lv_contract TYPE vbeln_va.
-  lv_contract = |{ ls_input-contractvbeln ALPHA = IN }|.
-
-  DATA lt_pos_rfc  TYPE zlanf_pos_in_tt.
-  lt_pos_rfc = VALUE #(
-    FOR p IN ls_input-_positions
-    WHERE ( menge > 0 )
-    ( matnr = p-matnr
-      menge = p-menge
-      meins = p-meins )
-  ).
-
-  DATA lt_return  TYPE bapiret2_tab.
-  DATA lv_new_so  TYPE vbeln_va.
-  DATA lv_sysmsg  TYPE char60.
-  DATA lv_commmsg TYPE char60.
-
-  CALL FUNCTION 'Z_LANF_CREATE_DMREQ_RFC'
-    DESTINATION 'NONE'
-    EXPORTING
-      iv_contract     = lv_contract
-      iv_deliverydat  = ls_input-deliverydate
-      iv_customerref  = ls_input-customerref
-      iv_auart        = 'ZLRA'
-    IMPORTING
-      ev_vbeln        = lv_new_so
-    TABLES
-      it_positions    = lt_pos_rfc
-      et_return       = lt_return
-    EXCEPTIONS
-      system_failure        = 1 MESSAGE lv_sysmsg
-      communication_failure = 2 MESSAGE lv_commmsg
-      OTHERS                = 3.
-
-  IF sy-subrc <> 0 OR lv_new_so IS INITIAL
-     OR line_exists( lt_return[ type = 'E' ] )
-     OR line_exists( lt_return[ type = 'A' ] ).
-
-    "you can still report errors via reported-... even if response is VBELN-only
-    LOOP AT lt_return INTO DATA(ls_r) WHERE type CA 'EA'.
-      APPEND VALUE #( %msg = new_message(
-        id       = ls_r-id
-        number   = ls_r-number
-        v1       = ls_r-message_v1
-        v2       = ls_r-message_v2
-        v3       = ls_r-message_v3
-        v4       = ls_r-message_v4
-        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-    ENDLOOP.
-
-    IF sy-subrc <> 0.
-      APPEND VALUE #( %msg = new_message(
-        id       = '00' number = '001'
-        v1       = |RFC failed: { COND string(
-                   WHEN sy-subrc = 1 THEN lv_sysmsg
-                   WHEN sy-subrc = 2 THEN lv_commmsg
-                   ELSE |SUBRC { sy-subrc }| ) }|
-        severity = if_abap_behv_message=>severity-error ) ) TO reported-lanfroot.
-    ENDIF.
-
-    failed-lanfroot = VALUE #( ( %cid = ls_key-%cid ) ).
-    RETURN.
-  ENDIF.
-
-  "Return only VBELN
-  result = VALUE #(
-    ( %cid   = ls_key-%cid
-      %param = VALUE #( vbeln = |{ lv_new_so ALPHA = OUT }| ) )
-  ).
-
-ENDMETHOD.
-
-
-
-
-FUNCTION Z_LANF_CREATE_DMREQ_RFC.
-*"----------------------------------------------------------------------
-*"*"Local Interface:
-*"  IMPORTING
-*"     VALUE(IV_CONTRACT) TYPE  VBELN_VA
-*"     VALUE(IV_DELIVERYDAT) TYPE  DATS
-*"     VALUE(IV_CUSTOMERREF) TYPE  BSTKD
-*"     VALUE(IV_AUART) TYPE  AUART DEFAULT 'ZLRA'
-*"  EXPORTING
-*"     VALUE(EV_VBELN) TYPE  VBELN_VA
-*"  TABLES
-*"      IT_POSITIONS TYPE  ZLANF_POS_IN_TT
-*"      ET_RETURN TYPE  BAPIRET2_TAB
-*"----------------------------------------------------------------------
-
-CLEAR: ev_vbeln, et_return[].
-
-  "Run SD in German (your system has TSPAT only DE)
   DATA(lv_old_langu) = sy-langu.
   SET LOCALE LANGUAGE 'D'.
 
@@ -131,7 +47,7 @@ CLEAR: ev_vbeln, et_return[].
     RETURN.
   ENDIF.
 
-  "3) Aggregate positions by contract POSNR (prevents duplicates / M_/011)
+  "3) Aggregate positions by contract POSNR
   TYPES: BEGIN OF ty_agg,
            posnr TYPE posnr_va,
            qty   TYPE kwmeng,
@@ -139,43 +55,39 @@ CLEAR: ev_vbeln, et_return[].
            matnr TYPE matnr,
          END OF ty_agg.
   DATA lt_agg TYPE HASHED TABLE OF ty_agg WITH UNIQUE KEY posnr.
-  FIELD-SYMBOLS <agg> TYPE ty_agg.
+  FIELD-SYMBOLS: <agg> TYPE ty_agg.
 
   LOOP AT it_positions ASSIGNING FIELD-SYMBOL(<p>) WHERE menge > 0.
 
-    DATA lv_matnr TYPE matnr.
-    lv_matnr = <p>-matnr.
+    "Inline DATA ensures reinitialization on every iteration
+    DATA(lv_matnr) = <p>-matnr.
     CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
       EXPORTING input  = lv_matnr
       IMPORTING output = lv_matnr.
 
-    "Detect ambiguity: same material multiple times in contract
-    DATA lv_hits TYPE i VALUE 0.
-    DATA ls_ctr  TYPE ty_ctr.
+    DATA(lv_hits) = 0.
+    DATA(ls_ctr)  = VALUE ty_ctr( ).
+
     LOOP AT lt_ctr INTO ls_ctr WHERE matnr = lv_matnr.
       lv_hits += 1.
-      IF lv_hits = 1.
-        "keep first hit in ls_ctr
-      ENDIF.
+      EXIT. "take first hit only
     ENDLOOP.
 
     IF lv_hits = 0.
       APPEND VALUE bapiret2( type = 'E' id = '00' number = '001'
         message = |Material { <p>-matnr } not found in contract { iv_contract }| ) TO et_return.
       CONTINUE.
-*    ELSEIF lv_hits > 1.
-*      APPEND VALUE bapiret2( type = 'E' id = '00' number = '001'
-*        message = |Material { <p>-matnr } occurs multiple times in contract { iv_contract } -> ambiguous| ) TO et_return.
-*      CONTINUE.
     ENDIF.
 
     "UoM check
-    IF <p>-meins IS NOT INITIAL AND ls_ctr-vrkme IS NOT INITIAL AND <p>-meins <> ls_ctr-vrkme.
+    IF <p>-meins IS NOT INITIAL AND ls_ctr-vrkme IS NOT INITIAL
+       AND <p>-meins <> ls_ctr-vrkme.
       APPEND VALUE bapiret2( type = 'E' id = '00' number = '001'
         message = |UoM mismatch for { <p>-matnr }: { <p>-meins } <> contract { ls_ctr-vrkme }| ) TO et_return.
       CONTINUE.
     ENDIF.
 
+    "Aggregate qty per contract position
     ASSIGN lt_agg[ posnr = ls_ctr-posnr ] TO <agg>.
     IF sy-subrc = 0.
       <agg>-qty = <agg>-qty + <p>-menge.
@@ -194,35 +106,33 @@ CLEAR: ev_vbeln, et_return[].
     RETURN.
   ENDIF.
 
-  "4) Build BAPI (CREATEFROMDATA1) structures
+  "4) Build BAPI structures
   DATA ls_head   TYPE bapisdhead1.
   DATA ls_headx  TYPE bapisdhead1x.
-  DATA lt_items  TYPE STANDARD TABLE OF bapisditem WITH DEFAULT KEY.
+  DATA lt_items  TYPE STANDARD TABLE OF bapisditem  WITH DEFAULT KEY.
   DATA lt_itemsx TYPE STANDARD TABLE OF bapisditemx WITH DEFAULT KEY.
-  DATA lt_sched  TYPE STANDARD TABLE OF bapischedule WITH DEFAULT KEY.
+  DATA lt_sched  TYPE STANDARD TABLE OF bapischedule  WITH DEFAULT KEY.
   DATA lt_schedx TYPE STANDARD TABLE OF bapischedulex WITH DEFAULT KEY.
-  DATA lt_part   TYPE STANDARD TABLE OF bapipartnr WITH DEFAULT KEY.
+  DATA lt_part   TYPE STANDARD TABLE OF bapipartnr    WITH DEFAULT KEY.
   DATA lt_cond   TYPE STANDARD TABLE OF bapicondition WITH DEFAULT KEY.
 
-  CLEAR: ls_head, ls_headx.
-
-  ls_head-doc_type   = iv_auart.
-  ls_head-sales_org  = ls_vbak-vkorg.
-  ls_head-distr_chan = ls_vbak-vtweg.
-  ls_head-division   = ls_vbak-spart.
-  ls_head-req_date_h = iv_deliverydat.
-  ls_head-purch_no_c = iv_customerref.
-  ls_head-ref_doc    = iv_contract.
+  ls_head-doc_type    = iv_auart.
+  ls_head-sales_org   = ls_vbak-vkorg.
+  ls_head-distr_chan  = ls_vbak-vtweg.
+  ls_head-division    = ls_vbak-spart.
+  ls_head-req_date_h  = iv_deliverydat.
+  ls_head-purch_no_c  = iv_customerref.
+  ls_head-ref_doc     = iv_contract.
   ls_head-ref_doc_cat = 'G'.
 
-  ls_headx-updateflag = 'I'.
-  ls_headx-doc_type   = 'X'.
-  ls_headx-sales_org  = 'X'.
-  ls_headx-distr_chan = 'X'.
-  ls_headx-division   = 'X'.
-  ls_headx-req_date_h = 'X'.
-  ls_headx-purch_no_c = 'X'.
-  ls_headx-ref_doc    = 'X'.
+  ls_headx-updateflag  = 'I'.
+  ls_headx-doc_type    = 'X'.
+  ls_headx-sales_org   = 'X'.
+  ls_headx-distr_chan  = 'X'.
+  ls_headx-division    = 'X'.
+  ls_headx-req_date_h  = 'X'.
+  ls_headx-purch_no_c  = 'X'.
+  ls_headx-ref_doc     = 'X'.
   ls_headx-ref_doc_cat = 'X'.
 
   "Partners from contract
@@ -236,9 +146,7 @@ CLEAR: ev_vbeln, et_return[].
     APPEND VALUE bapipartnr( partn_role = 'AG' partn_numb = ls_vbak-kunnr ) TO lt_part.
   ENDIF.
 
-  "Conditions: pick PR00 from contract pricing if possible; else fallback to VBAP-NETPR
-  DATA lv_knumv TYPE knumv.
-  lv_knumv = ls_vbak-knumv.
+  DATA(lv_knumv) = ls_vbak-knumv.
 
   LOOP AT lt_agg INTO DATA(ls_agg).
 
@@ -278,15 +186,14 @@ CLEAR: ev_vbeln, et_return[].
       req_date   = 'X'
     ) TO lt_schedx.
 
-    "Try get PR00 (or first active price condition) from PRCD_ELEMENTS
-    DATA: lv_kschl TYPE kschl VALUE 'PR00',
-          lv_kbetr TYPE kbetr_kond,
-          lv_waers TYPE waers,
-          lv_kpein TYPE kpein,
-          lv_kmein TYPE kmein.
+    "Inline DATA reinitialized each iteration
+    DATA(lv_kschl) = CONV kschl( 'PR00' ).
+    DATA(lv_kbetr) = CONV kbetr_kond( '' ).
+    DATA(lv_waers) = CONV waers( '' ).
+    DATA(lv_kpein) = CONV kpein( 0 ).
+    DATA(lv_kmein) = CONV kmein( '' ).
 
-    CLEAR: lv_kbetr, lv_waers, lv_kpein, lv_kmein.
-
+    "Try PR00 from PRCD_ELEMENTS
     IF lv_knumv IS NOT INITIAL.
       SELECT SINGLE kschl, kbetr, waers, kpein, kmein
         FROM prcd_elements
@@ -306,7 +213,7 @@ CLEAR: ev_vbeln, et_return[].
       ENDIF.
     ENDIF.
 
-    "Fallback: VBAP-NETPR if PRCD_ELEMENTS not found
+    "Fallback: VBAP-NETPR
     IF lv_kbetr IS INITIAL.
       SELECT SINGLE netpr, kpein, kmein
         FROM vbap
@@ -342,24 +249,26 @@ CLEAR: ev_vbeln, et_return[].
     RETURN.
   ENDIF.
 
-  "5) Call BAPI in this RFC session (allowed to use update-task)
+  "5) Call BAPI
   CALL FUNCTION 'BAPI_SALESDOCU_CREATEFROMDATA1'
     EXPORTING
-      sales_header_in   = ls_head
-      sales_header_inx  = ls_headx
+      sales_header_in       = ls_head
+      sales_header_inx      = ls_headx
       int_number_assignment = space
     IMPORTING
-      salesdocument_ex  = ev_vbeln
+      salesdocument_ex      = ev_vbeln
     TABLES
-      return              = et_return
-      sales_items_in      = lt_items
-      sales_items_inx     = lt_itemsx
-      sales_partners      = lt_part
-      sales_schedules_in  = lt_sched
-      sales_schedules_inx = lt_schedx
-      sales_conditions_in = lt_cond.
+      return                = et_return
+      sales_items_in        = lt_items
+      sales_items_inx       = lt_itemsx
+      sales_partners        = lt_part
+      sales_schedules_in    = lt_sched
+      sales_schedules_inx   = lt_schedx
+      sales_conditions_in   = lt_cond.
 
-  IF ev_vbeln IS INITIAL OR line_exists( et_return[ type = 'E' ] ) OR line_exists( et_return[ type = 'A' ] ).
+  IF ev_vbeln IS INITIAL
+     OR line_exists( et_return[ type = 'E' ] )
+     OR line_exists( et_return[ type = 'A' ] ).
     CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
   ELSE.
     CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
@@ -369,14 +278,3 @@ CLEAR: ev_vbeln, et_return[].
   SET LOCALE LANGUAGE lv_old_langu.
 
 ENDFUNCTION.
-
-
-<img width="1842" height="507" alt="image" src="https://github.com/user-attachments/assets/1c20a96a-6424-4833-aa6e-c26d773cd76c" />
-
-<img width="1737" height="780" alt="image" src="https://github.com/user-attachments/assets/150bbee6-8b46-457d-bab4-7d3179c32358" />
-
-
-<img width="1824" height="756" alt="image" src="https://github.com/user-attachments/assets/98cfd3ee-d162-4377-b2fc-c8dfca534e9c" />
-
-<img width="1842" height="507" alt="image" src="https://github.com/user-attachments/assets/8730ffc7-5b68-438d-9b8f-1a2d4b85c7da" />
-
