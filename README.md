@@ -1,14 +1,21 @@
-{
-  "ContractVbeln": "40000170",
-  "DeliveryDate": "2024-05-20",
-  "CustomerRef": "PO-TEST-1001",
-  "Description": "Call-off via OData",
-  "_Positions": [
-    {
-      "ContractVbeln": "40000170",
-      "Matnr": "ABP_GEM.SIED",
-      "Menge": 10.5,
-      "Meins": "ST"
-    }
-  ]
-}
+static action CreateLanf parameter (
+  ContractVbeln : vbeln_va;
+  DeliveryDate : kbdat;
+  CustomerRef : bstkd;
+  Description : abap.char(225);
+  Positions : array of {
+    Matnr : matnr;
+    Menge : dzmeng;
+    Meins : meins;
+  }
+) result [1] (
+  Vbeln : vbeln_va;
+);
+
+static action AttachDocument parameter (
+  Vbeln : vbeln_va;
+  Title : text100;
+  Url : url;
+) result [1] (
+  Vbeln : vbeln_va;
+);
