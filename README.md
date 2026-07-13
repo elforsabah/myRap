@@ -6,17 +6,17 @@
     typeNamePlural: 'Behälter-Lagerbestände',
     title:       { value: 'ContainerType' },
     description: { value: 'ContainerTypeName' }
-  },
-  //=== Object Page: Aufbau der Detailseite (Klick auf Zeile) ===============
-  facet: [
+  }
+}
+annotate entity ZC_ContainerStock with
+{
+  //=== Object Page: facet MUSS am Schlüsselfeld stehen, NICHT im Header-Block!
+  @UI.facet: [
     { id: 'General',   purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE,
       label: 'Allgemein',           position: 10 },
     { id: 'Locations', purpose: #STANDARD, type: #FIELDGROUP_REFERENCE,
       label: 'Bestand je Lagerort', position: 20, targetQualifier: 'Locations' }
   ]
-}
-annotate entity ZC_ContainerStock with
-{
   //--- Kopf / Identification (Object Page: Abschnitt „Allgemein“) ---
   @UI.selectionField: [{ position: 10 }]
   @UI.lineItem:       [{ position: 10, label: 'Behältertyp', importance: #HIGH }]
