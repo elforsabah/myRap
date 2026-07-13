@@ -481,3 +481,8 @@ Sicherheitsbestand ändern → „Sichern“.
 - Lagerort-Spalten (`Loc1000`…) auf eure realen Behälterlager anpassen
   (in ZI_ContainerStock, ZC_ContainerStock, der Metadaten-Extension und `gc_loc`).
 ```
+
+
+
+
+<img width="973" height="615" alt="image" src="https://github.com/user-attachments/assets/4b9e33af-0afc-49d9-87f6-6e4f4bff6de0" />
