@@ -25,3 +25,16 @@ authorization master ( global )
     SafetyStock   = safetystock;
   }
 }
+
+
+
+
+projection;
+strict ( 2 );
+
+define behavior for ZC_ContainerStock //alias <alias_name>
+{
+//  use create;
+  use update;
+  use delete;
+}
