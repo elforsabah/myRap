@@ -1,381 +1,483 @@
-<img width="1792" height="419" alt="image" src="https://github.com/user-attachments/assets/f02490ca-cf9a-4f9d-bc46-e89a05510d21" />
-<img width="1283" height="423" alt="image" src="https://github.com/user-attachments/assets/f0af567c-a103-46c1-a9f2-ae699a51b7b2" />
-*&---------------------------------------------------------------------*
-*& Report ZWR_WATP_CONTAINER_OVERVIEW
-*&---------------------------------------------------------------------*
-*&
-*&---------------------------------------------------------------------*
-REPORT zwr_watp_container_overview.
-INCLUDE /watp/macro_range.
-
-DEFINE __add.
-  IF &3 IS INITIAL.
-    CONCATENATE &3 &2 INTO &3 SEPARATED BY space.
-  ELSE.
-    CONCATENATE &3 &1 &2 INTO &3 SEPARATED BY space.
-  ENDIF.
-END-OF-DEFINITION.
-
-TYPES:
-  BEGIN OF _tbehtxt,
-    matnr   TYPE matnr,
-    bauform TYPE bauform,
-    bautxt  TYPE bautxt,
-  END OF _tbehtxt.
-
-
-TABLES:
-  /watp/vcaequz,
-  ewaelocsd_new,
-  eqbs.
-
-DATA:
-  gt_output      TYPE STANDARD TABLE OF zwr_s_cs_container_overview, "ZWRS_CONTAINER_OVERVIEW,
-  gr_output      TYPE REF TO zwr_s_cs_container_overview, "ZWRS_CONTAINER_OVERVIEW,
-  gt_address     TYPE /watp/paddress,
-  gt_partnerinfo TYPE /watp/pbpartnerinfo,
-  gt_behtxt      TYPE STANDARD TABLE OF _tbehtxt.
-
-
-SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
-
-  SELECT-OPTIONS:
-    styp FOR /watp/vcaequz-matnr,
-    sser FOR /watp/vcaequz-sernr,
-    stid FOR /watp/vcaequz-tidnr.
-
-SELECTION-SCREEN END OF BLOCK b1.
-
-SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-002.
-
-  SELECT-OPTIONS:
-    sgpl FOR /watp/vcaequz-tplnr,
-    scon FOR ewaelocsd_new-vbeln MATCHCODE OBJECT vmva,
-    sgp  FOR ewaelocsd_new-kunnr.
-
-SELECTION-SCREEN END OF BLOCK b2.
-
-SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE TEXT-003.
-
-  SELECT-OPTIONS:
-    slgort  FOR eqbs-b_lager.
-
-SELECTION-SCREEN END OF BLOCK b3.
-
-
-PARAMETERS:
-  psel TYPE char1 AS LISTBOX VISIBLE LENGTH 20 OBLIGATORY DEFAULT 'A' USER-COMMAND sp1.
-
-
-INITIALIZATION.
-
-  DATA:
-    lt_val   TYPE vrm_values,
-    lv_name  TYPE vrm_id,
-    lv_value TYPE vrm_value.
-
-  CLEAR lt_val.
-  lv_name = 'PSEL'.
-
-
-  lv_value-key = 'A'.
-  lv_value-text = 'Alle'(004).
-  APPEND lv_value TO lt_val.
-
-  lv_value-key = 'K'.
-  lv_value-text = 'Kunden'(005).
-  APPEND lv_value TO lt_val.
-
-  lv_value-key = 'L'.
-  lv_value-text = 'Lager'(006).
-  APPEND lv_value TO lt_val.
-
-  CALL FUNCTION 'VRM_SET_VALUES'
-    EXPORTING
-      id     = lv_name           " Name der Wertemenge
-      values = lt_val.         " Wertetabelle für ID.
-
-AT SELECTION-SCREEN OUTPUT.
-
-  IF psel = 'K'.
-
-    LOOP AT SCREEN.
-      IF screen-name CS 'SLGORT'.
-        screen-invisible = 1.
-        screen-input = 0.
-      ENDIF.
-      MODIFY SCREEN.
-    ENDLOOP.
-
-  ELSEIF psel = 'L'.
-
-    LOOP AT SCREEN.
-      IF screen-name CS 'SGPL' OR screen-name CS 'SCON' OR screen-name CS 'SGP'.
-        screen-invisible = 1.
-        screen-input = 0.
-      ENDIF.
-
-      MODIFY SCREEN.
-    ENDLOOP.
-
-  ENDIF.
-
-START-OF-SELECTION.
-
-  IF psel = 'A'.
-
-    PERFORM select_from_table.
-
-    PERFORM  get_contract.
-
-  ELSEIF psel = 'K'.
-
-    PERFORM select_from_table.
-
-    PERFORM get_contract.
-
-  ELSEIF psel = 'L'.
-
-    PERFORM select_from_table.
-
-  ENDIF.
-
-  PERFORM get_additional_data.
-
-  PERFORM prepare_for_display.
-
-  PERFORM display_alv.
-
-  """"""""""""""""""""""""""""""""""""""""""""""""""""FORM DEFINITION"""""""""""""""""""""""""""""""""""""""""""""""""""""""
-
-FORM get_contract.
-
-  DATA:
-    lcount        TYPE int8,
-    lt_output_con TYPE STANDARD TABLE OF zwr_s_cs_container_overview, "ZWRS_CONTAINER_OVERVIEW,
-    lr_output_con TYPE REF TO zwr_s_cs_container_overview, "ZWRS_CONTAINER_OVERVIEW,
-    lt_output_tmp TYPE STANDARD TABLE OF zwr_s_cs_container_overview. "ZWRS_CONTAINER_OVERVIEW.
-
-  IF lines( gt_output ) > 0.
-    SELECT
-      c~vbeln AS vbeln,
-      c~equnr AS equnr,
-      c~kunnr AS partner,
-      v~ktext AS vbeln_desc
-      FROM ewaelocsd_new AS c
-      INNER JOIN vbak AS v ON v~vbeln = c~vbeln
-      FOR ALL ENTRIES IN @gt_output
-      WHERE c~equnr = @gt_output-equnr
-      AND c~vbeln IN @scon
-      AND c~kunnr IN @sgp
-      AND c~bis >= @sy-datum
-      AND c~ab  <= @sy-datum
-      INTO CORRESPONDING FIELDS OF TABLE @lt_output_con.
-  ENDIF.
-
-  LOOP AT gt_output REFERENCE INTO gr_output.
-    lcount = 0.
-    LOOP AT lt_output_con REFERENCE INTO lr_output_con WHERE equnr = gr_output->equnr.
-      IF lcount = 0.
-        gr_output->vbeln = lr_output_con->vbeln.
-        gr_output->partner = lr_output_con->partner.
-        gr_output->vbeln_desc = lr_output_con->vbeln_desc.
-        lcount = 1.
-      ELSE.
-        INSERT gr_output->* INTO TABLE lt_output_tmp.
-        gr_output->vbeln = lr_output_con->vbeln.
-        gr_output->partner = lr_output_con->partner.
-        gr_output->vbeln_desc = lr_output_con->vbeln_desc.
-      ENDIF.
-    ENDLOOP.
-  ENDLOOP.
-
-  INSERT LINES OF lt_output_tmp INTO TABLE gt_output.
-
-  IF scon IS NOT INITIAL OR sgp IS NOT INITIAL.
-    DELETE gt_output WHERE vbeln NOT IN scon OR partner NOT IN sgp.
-  ENDIF.
-
-ENDFORM.
-
-FORM select_from_table.
-
-  DATA:
-    lv_empty_logiknr TYPE logiknr,
-    lv_where         TYPE char2048,
-    lv_conttype      TYPE kombinat VALUE 'B'.
-
-  PERFORM build_where USING lv_where.
-
-  SELECT
-         a~equnr      AS equnr,
-         a~sernr      AS sernr,
-         a~matnr      AS matnr,
-         a~tplnr      AS devloc,
-         s~b_werk     AS werk,
-         s~b_lager    AS lgort,
-         tx~pltxt     AS pltxt,
-         a~tidnr      AS tidnr
-    INTO CORRESPONDING FIELDS OF TABLE @gt_output
-    FROM /watp/vcaequz AS a
-    INNER JOIN etyp AS t ON a~matnr = t~matnr
-    LEFT OUTER JOIN eqbs AS s ON a~equnr = s~equnr
-    LEFT OUTER JOIN iflotx AS tx ON a~tplnr = tx~tplnr AND tx~spras = @sy-langu
-      WHERE (lv_where).
-
-ENDFORM.
-
-FORM build_where USING par_where TYPE char2048.
-
-  __add 'AND' 'S~B_LAGER    in @SLGORT' par_where.          "#EC NOTEXT
-  __add 'AND' 'A~TPLNR      in @SGPL' par_where.            "#EC NOTEXT
-  __add 'AND' 'A~MATNR      in @STYP' par_where.            "#EC NOTEXT
-  __add 'AND' 'A~SERNR      in @SSER' par_where.            "#EC NOTEXT
-  __add 'AND' 'A~TIDNR      in @STID' par_where.            "#EC NOTEXT
-  __add 'AND' '( A~DATAB <= @SY-DATUM and A~DATBI >= @SY-DATUM )' par_where. "#EC NOTEXT
-  __add 'AND' 'T~KOMBINAT     = @LV_CONTTYPE' par_where.
-
-  IF psel = 'K'.
-    __add 'AND' 'A~LOGIKNR    <> @LV_EMPTY_LOGIKNR' par_where. "#EC NOTEXT
-  ELSEIF psel = 'L'.
-    __add 'AND' 'A~LOGIKNR    = @LV_EMPTY_LOGIKNR' par_where. "#EC NOTEXT
-  ENDIF.
-ENDFORM.
-
-FORM get_additional_data.
-
-  DATA:
-    lt_devloc  TYPE tplnr_tab,
-    lt_partner TYPE /watp/ppartners,
-    lt_behtyp  TYPE STANDARD TABLE OF matnr.
-
-  LOOP AT gt_output REFERENCE INTO gr_output.
-    IF gr_output->devloc IS NOT INITIAL.
-      INSERT gr_output->devloc INTO TABLE lt_devloc.
+# Behälter-Lagerbestände (RAP) — manuelle Anlage in ADT
+
+Schritt-für-Schritt ohne abapGit. Alle Objekte werden in **Eclipse mit ADT**
+angelegt (nicht in SAP GUI/SE80 – RAP-Objekte gibt es nur in ADT).
+
+> **Namenskonvention:** unten sind Z-Namen verwendet. Passe sie bei Bedarf an
+> eure Richtlinie an – dann überall konsistent umbenennen.
+
+---
+
+## 0) Vorbereitung
+
+1. Eclipse mit **ADT** starten, mit dem System verbinden.
+2. Im *Project Explorer* dein ABAP-Projekt öffnen → Ordner **Favorite Packages**.
+3. Ein Entwicklungspaket wählen/anlegen (z. B. `ZWR_CONTAINER_STOCK`).
+   - Neues Paket: Rechtsklick Paket → *New → ABAP Package*.
+   - Für ersten Test reicht `$TMP` (lokal, nicht transportierbar).
+4. Transportauftrag bereithalten (außer bei `$TMP`).
+
+Reihenfolge unbedingt einhalten – jedes Objekt nach dem Einfügen mit
+**Strg+S** speichern und **Strg+F3** aktivieren.
+
+---
+
+## 1) Datenbanktabelle `ZWRTCSSAFESTOCK`
+
+**Die Tabelle existiert bereits – hier ist NICHTS zu tun.** Diese Anleitung nutzt
+sie unverändert (ohne Verwaltungs-/Zeitstempelfelder). Es genügen der Schlüssel
+und das Feld `safety_stock`.
+
+> Nur zur Info – so sieht die genutzte Minimal-Struktur aus:
+> ```abap
+> key mandt          : mandt not null;
+> key container_type : abap.char(18) not null;   // ggf. eure reale Domäne/Länge
+> safety_stock       : abap.int4;
+> ```
+>
+> **Konsequenz ohne Zeitstempelfeld:** keine optimistische Sperre. Ändern zwei
+> Disponenten *gleichzeitig* denselben Behältertyp, gewinnt der zuletzt
+> Speichernde. Für den Prototyp/Test unkritisch.
+
+---
+
+## 2) Interface-CDS `ZI_ContainerStock` (Root-View)
+
+Rechtsklick Paket → *New → Other → Core Data Services → Data Definition*.
+Name `ZI_ContainerStock`, Template *Define a View Entity* (Inhalt danach ersetzen):
+
+```abap
+@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Behälter-Lagerbestände (Interface, Root)'
+@Metadata.allowExtensions: true
+@ObjectModel.usageType: { serviceQuality: #A, sizeCategory: #S, dataClass: #MIXED }
+
+define root view entity ZI_ContainerStock
+  as select from zwrtcssafestock as SafeStock
+{
+  key SafeStock.container_type                                     as ContainerType,
+
+      SafeStock.safety_stock                                       as SafetyStock,
+
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( '' as abap.char( 40 ) )                               as ContainerTypeName,
+
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as Loc1000,
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as Loc1010,
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as Loc1020,
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as Loc2000,
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as Loc2010,
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as Loc3000,
+
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as WithoutLocation,
+
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as OtherLocations,
+
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as TotalOnStock,
+
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as Difference,
+
+      @ObjectModel.virtualElement: true
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
+      cast( 0 as abap.int4 )                                      as DifferenceCriticality
+}
+```
+
+> Aktivierung schlägt zunächst fehl, weil `ZCL_CONTAINER_STOCK_CALC` noch fehlt.
+> Erst Schritt 3 anlegen, dann diese View aktivieren. (Reihenfolge: 2 anlegen →
+> speichern → 3 anlegen+aktivieren → 2 aktivieren.)
+
+---
+
+## 3) Klasse `ZCL_CONTAINER_STOCK_CALC` (füllt die berechneten Spalten)
+
+Rechtsklick Paket → *New → ABAP Class*. Name `ZCL_CONTAINER_STOCK_CALC`.
+Gesamten Quelltext ersetzen:
+
+```abap
+CLASS zcl_container_stock_calc DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES if_sadl_exit_calc_element_read.
+
+  PRIVATE SECTION.
+    CONSTANTS:
+      BEGIN OF gc_loc,
+        l1000 TYPE lgort_d VALUE '1000',
+        l1010 TYPE lgort_d VALUE '1010',
+        l1020 TYPE lgort_d VALUE '1020',
+        l2000 TYPE lgort_d VALUE '2000',
+        l2010 TYPE lgort_d VALUE '2010',
+        l3000 TYPE lgort_d VALUE '3000',
+      END OF gc_loc.
+ENDCLASS.
+
+CLASS zcl_container_stock_calc IMPLEMENTATION.
+
+  METHOD if_sadl_exit_calc_element_read~get_calculation_info.
+    et_requested_orig_elements = VALUE #( ( `CONTAINERTYPE` )
+                                          ( `SAFETYSTOCK` ) ).
+  ENDMETHOD.
+
+  METHOD if_sadl_exit_calc_element_read~calculate.
+
+    DATA lt_result TYPE STANDARD TABLE OF zi_containerstock WITH DEFAULT KEY.
+    lt_result = CORRESPONDING #( it_original_data ).
+
+    IF lt_result IS INITIAL.
+      RETURN.
     ENDIF.
-    IF gr_output->partner IS NOT INITIAL.
-      INSERT gr_output->partner INTO TABLE lt_partner.
-    ENDIF.
-    IF gr_output->matnr IS NOT INITIAL.
-      INSERT gr_output->matnr INTO TABLE lt_behtyp.
-    ENDIF.
-  ENDLOOP.
 
-  SORT lt_devloc.
-  DELETE ADJACENT DUPLICATES FROM lt_devloc.
-  SORT lt_partner.
-  DELETE ADJACENT DUPLICATES FROM lt_partner.
-  SORT lt_behtyp.
-  DELETE ADJACENT DUPLICATES FROM lt_behtyp.
+    " Tagesfaktoren einmalig lesen – wie im Report ZWR_CS_CONTAINER_INVENTORY
+    SELECT * FROM zwrtcsdayfactor INTO TABLE @DATA(lt_dayfactor). "#EC CI_NOWHERE
 
-  IF lines( lt_devloc ) IS NOT INITIAL.
+    LOOP AT lt_result ASSIGNING FIELD-SYMBOL(<row>).
 
-    /watp/cl_bo_devloc=>read_addresses(
-      EXPORTING
-        par_devlocs   = lt_devloc         " Tabelle über TechnischePlatznummern
-      IMPORTING
-        par_addresses =  gt_address       " Liste von Adressen
-    ).
-    SORT gt_address BY external_key.
-  ENDIF.
-
-  IF lines( lt_partner ) IS NOT INITIAL.
-    gt_partnerinfo = /watp/cl_bo_partner=>read_partnerinfos_bulk(
-       EXPORTING
-         par_partners = lt_partner         " Liste von Geschäftspartnernummern
-    ).
-    SORT gt_partnerinfo BY partner.
-  ENDIF.
-
-  IF lines( lt_behtyp ) IS NOT INITIAL.
-    SELECT * FROM etyp
-      INTO CORRESPONDING FIELDS OF TABLE @gt_behtxt
-      FOR ALL ENTRIES IN @lt_behtyp
-      WHERE etyp~matnr = @lt_behtyp-table_line.
-    SORT gt_behtxt BY matnr.
-  ENDIF.
-
-ENDFORM.
-
-FORM prepare_for_display.
-
-  DATA:
-    lr_partnerinfo TYPE REF TO /watp/sbpartnerinfo,
-    lr_address     TYPE REF TO /watp/saddress,
-    lr_behtxt      TYPE REF TO _tbehtxt.
-
-  LOOP AT gt_output REFERENCE INTO gr_output.
-    gr_output->con_count = 1.
-    IF gr_output->devloc IS NOT INITIAL.
-      gr_output->status = 'K'.
-    ELSE.
-      gr_output->status = 'L'.
-    ENDIF.
-    IF gr_output->devloc IS NOT INITIAL.
-      CLEAR: gr_output->lgort,
-             gr_output->werk.
-      READ TABLE gt_address WITH KEY external_key = gr_output->devloc REFERENCE INTO lr_address BINARY SEARCH.
-      IF sy-subrc = 0.
-        gr_output->city = lr_address->city1.
-        gr_output->post_code = lr_address->post_code1.
-        CONCATENATE lr_address->street lr_address->house_num1 INTO gr_output->street SEPARATED BY space.
-        CONCATENATE gr_output->street lr_address->house_num2 INTO gr_output->street.
-      ENDIF.
-    ENDIF.
-    IF gr_output->partner IS NOT INITIAL.
-      READ TABLE gt_partnerinfo WITH KEY partner = gr_output->partner REFERENCE INTO lr_partnerinfo BINARY SEARCH.
-      IF sy-subrc = 0.
-        gr_output->partnername = lr_partnerinfo->name1.
-      ENDIF.
-    ENDIF.
-    IF gr_output->matnr IS NOT INITIAL.
-      READ TABLE gt_behtxt WITH KEY matnr = gr_output->matnr REFERENCE INTO lr_behtxt BINARY SEARCH.
-      IF sy-subrc = 0.
-        IF lr_behtxt->bautxt IS NOT INITIAL.
-          gr_output->behtyptxt = lr_behtxt->bautxt.
-        ELSE.
-          gr_output->behtyptxt = lr_behtxt->bauform.
-        ENDIF.
-      ENDIF.
-    ENDIF.
-  ENDLOOP.
-
-ENDFORM.
-
-FORM display_alv.
-  DATA:
-    lv_key       TYPE salv_s_layout_key, "value SY-REPID,
-    lr_table     TYPE REF TO cl_salv_table,
-    lr_functions TYPE REF TO cl_salv_functions,
-    lr_layout    TYPE REF TO cl_salv_layout,
-    lr_display   TYPE REF TO cl_salv_display_settings.
-
-  lv_key-report = sy-repid.
-
-  TRY.
-      cl_salv_table=>factory(                           "#EC CI_NOORDER
+      " === (A) TYP-EBENE: bestehende, geprüfte Logik wiederverwenden =========
+      " ZCL_WR_WATP_CS_MISC=>CL_CALC_CONTAINER_INVENTORY liefert je Behältertyp
+      " den Netto-Gesamtbestand (Dummies herausgerechnet) + Sicherheitsbestand.
+      " (Nicht benötigte IMPORTING-Parameter können entfallen.)
+      DATA(lv_total) = zcl_wr_watp_cs_misc=>cl_calc_container_inventory(
+        EXPORTING
+          par_date                = sy-datum
+          par_behtyp              = CONV #( <row>-containertype )
+          par_dayfactor           = lt_dayfactor
         IMPORTING
-          r_salv_table = lr_table
-        CHANGING
-          t_table = gt_output ).
-    CATCH cx_salv_msg. "
-  ENDTRY.
+          par_current_inventory   = DATA(lv_current)
+          par_delivered_inventory = DATA(lv_delivered)
+          par_changed_inventory   = DATA(lv_changed)
+          par_removed_inventory   = DATA(lv_removed)
+          par_dummy_inventory     = DATA(lv_dummy)
+          par_safetystock         = DATA(lv_safety) ).
 
-  IF lr_table IS NOT INITIAL.
-**"-----Optional
-**---Setting the ALV toolbar
-    lr_functions = lr_table->get_functions( ).
-    lr_functions->set_all( abap_true ).
-**---Setting the Layout Save property
-    lr_layout = lr_table->get_layout( ).
-    lr_layout->set_initial_layout( value = '/DEFAULT' ).
-    lr_layout->set_key( lv_key ).
-    lr_layout->set_save_restriction( cl_salv_layout=>restrict_none ).
+      <row>-totalonstock = lv_total.                 " Netto-Gesamtbestand (ohne Dummies)
+      <row>-difference   = lv_total - <row>-safetystock.
+      <row>-differencecriticality =
+        COND #( WHEN lv_total <  <row>-safetystock THEN 1
+                WHEN lv_total =  <row>-safetystock THEN 2
+                ELSE 3 ).
+      <row>-containertypename = <row>-containertype.
 
-    lr_table->display( ).
-  ENDIF.
-ENDFORM.
-""""""""""""""""""""""""""""""""""""""""""""""""""""FORM DEFINITION"""""""""""""""""""""""""""""""""""""""""""""""""""""""
+      " === (B) LAGERORT-EBENE: NICHT in obiger Klasse enthalten ==============
+      " Die Methode liefert KEINE Aufteilung je Lagerort. Die Spalten
+      " Loc1000…/ohne Lagerort müssen aus der Selektion von ZWR_CONTAINER_OVW
+      " (Programm ZWR_WATP_CONTAINER_OVERVIEW – Tabellen /watp/vcaequz + etyp +
+      " Equipment-Stammdaten mit Lagerort/Status/Hersteller) befüllt werden.
+      "
+      " >>> TODO: Equipment-Selektion einsetzen und je Behältertyp zählen:
+      "     - nur Status 'L' (auf Lager)
+      "     - Hersteller <> 'DUMMY'
+      "     - je Lagerort nach <row>-locXXXX, ohne Lagerort nach
+      "       <row>-withoutlocation, übrige Lagerorte nach <row>-otherlocations
+      CLEAR: <row>-loc1000, <row>-loc1010, <row>-loc1020,
+             <row>-loc2000, <row>-loc2010, <row>-loc3000,
+             <row>-withoutlocation, <row>-otherlocations.
 
+    ENDLOOP.
 
+    ct_calculated_data = CORRESPONDING #( lt_result ).
 
+  ENDMETHOD.
+
+ENDCLASS.
+```
+
+Aktivieren. Danach zurück zu **Schritt 2** und `ZI_ContainerStock` aktivieren.
+
+> **Wichtig:** Teil (A) läuft sofort (Gesamtbestand, Sicherheitsbestand,
+> Differenz). Teil (B) – die Lagerort-Spalten – bleibt zunächst `0`, bis die
+> Selektion aus `ZWR_WATP_CONTAINER_OVERVIEW` eingesetzt ist. Ohne diese
+> Selektion zeigt die App korrekte Typ-Summen, aber leere Lagerort-Spalten.
+
+---
+
+## 4) Behavior Definition + Behavior-Klasse
+
+### 4a) Behavior Definition für `ZI_ContainerStock`
+Rechtsklick auf die Data Definition `ZI_ContainerStock` → *New Behavior Definition*.
+Implementation Type: **Managed**. Inhalt ersetzen:
+
+```abap
+managed implementation in class zbp_i_containerstock unique;
+strict ( 2 );
+
+define behavior for ZI_ContainerStock alias ContainerStock
+persistent table zwrtcssafestock
+lock master
+authorization master ( global )
+{
+  update;
+
+  field ( readonly ) ContainerType;
+
+  field ( readonly ) ContainerTypeName,
+                     Loc1000, Loc1010, Loc1020, Loc2000, Loc2010, Loc3000,
+                     WithoutLocation, OtherLocations,
+                     TotalOnStock, Difference, DifferenceCriticality;
+
+  validation validateSafetyStock on save { field SafetyStock; create; update; }
+
+  mapping for zwrtcssafestock corresponding
+  {
+    ContainerType = container_type;
+    SafetyStock   = safety_stock;
+  }
+}
+```
+
+### 4b) Behavior-Klasse generieren
+Speichern → im Editor erscheint eine Warnung/Quick-Fix zur Klasse
+`ZBP_I_CONTAINERSTOCK`. Cursor auf `zbp_i_containerstock` → **Strg+1** →
+*„Create behavior implementation class …“* → anlegen lassen.
+
+Die generierte globale Klasse so lassen. In den **Local Types** (Tab unten im
+Klassen-Editor) folgende Handler-Klasse einfügen:
+
+```abap
+CLASS lhc_containerstock DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+    METHODS validateSafetyStock FOR VALIDATE ON SAVE
+      IMPORTING keys FOR ContainerStock~validateSafetyStock.
+ENDCLASS.
+
+CLASS lhc_containerstock IMPLEMENTATION.
+
+  METHOD validateSafetyStock.
+
+    READ ENTITIES OF zi_containerstock IN LOCAL MODE
+      ENTITY ContainerStock
+        FIELDS ( SafetyStock )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_stock).
+
+    LOOP AT lt_stock INTO DATA(ls_stock).
+      IF ls_stock-SafetyStock < 0.
+        APPEND VALUE #( %tky = ls_stock-%tky ) TO failed-containerstock.
+        APPEND VALUE #( %tky                 = ls_stock-%tky
+                        %element-SafetyStock = if_abap_behv=>mk-on
+                        %msg = new_message_with_text(
+                                 severity = if_abap_behv_message=>severity-error
+                                 text     = 'Sicherheitsbestand darf nicht negativ sein' )
+                      ) TO reported-containerstock.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+ENDCLASS.
+```
+
+Klasse aktivieren, dann Behavior Definition aktivieren.
+
+---
+
+## 5) Projektion `ZC_ContainerStock`
+
+Rechtsklick Paket → *New → Data Definition*. Name `ZC_ContainerStock`,
+Template *Define a Projection View* (Inhalt ersetzen):
+
+```abap
+@EndUserText.label: 'Behälter-Lagerbestände'
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@Metadata.allowExtensions: true
+@Search.searchable: true
+
+define root view entity ZC_ContainerStock
+  provider contract transactional_query
+  as projection on ZI_ContainerStock
+{
+      @Search.defaultSearchElement: true
+  key ContainerType,
+      ContainerTypeName,
+
+      Loc1000,
+      Loc1010,
+      Loc1020,
+      Loc2000,
+      Loc2010,
+      Loc3000,
+      WithoutLocation,
+      OtherLocations,
+      TotalOnStock,
+
+      SafetyStock,
+
+      Difference,
+      DifferenceCriticality
+}
+```
+
+---
+
+## 6) Behavior Definition (Projektion) für `ZC_ContainerStock`
+
+Rechtsklick auf `ZC_ContainerStock` → *New Behavior Definition*.
+Implementation Type: **Projection**. Inhalt:
+
+```abap
+projection;
+strict ( 2 );
+
+define behavior for ZC_ContainerStock alias ContainerStock
+{
+  use update;
+}
+```
+
+---
+
+## 7) Metadaten-Extension (UI-Annotationen)
+
+Rechtsklick Paket → *New → Other → Core Data Services → Metadata Extension*.
+Name `ZC_CONTAINERSTOCK` (extended entity = `ZC_ContainerStock`). Inhalt:
+
+```abap
+@Metadata.layer: #CORE
+
+@UI: {
+  headerInfo: {
+    typeName:       'Behältertyp',
+    typeNamePlural: 'Behälter-Lagerbestände',
+    title:       { value: 'ContainerType' },
+    description: { value: 'ContainerTypeName' }
+  }
+}
+annotate entity ZC_ContainerStock with
+{
+  @UI.selectionField: [{ position: 10 }]
+  @UI.lineItem:       [{ position: 10, label: 'Behältertyp', importance: #HIGH }]
+  @EndUserText.label: 'Behältertyp'
+  ContainerType;
+
+  @UI.lineItem: [{ position: 20, label: 'Bezeichnung', importance: #HIGH }]
+  @EndUserText.label: 'Bezeichnung'
+  ContainerTypeName;
+
+  @UI.lineItem: [{ position: 30, label: '1000 Hauptlager Halle A' }]
+  Loc1000;
+  @UI.lineItem: [{ position: 31, label: '1010 Wareneingang' }]
+  Loc1010;
+  @UI.lineItem: [{ position: 32, label: '1020 Kommissionierung' }]
+  Loc1020;
+  @UI.lineItem: [{ position: 33, label: '2000 Außenlager Nord' }]
+  Loc2000;
+  @UI.lineItem: [{ position: 34, label: '2010 Außenlager Süd' }]
+  Loc2010;
+  @UI.lineItem: [{ position: 35, label: '3000 Produktion Linie 1' }]
+  Loc3000;
+
+  @UI.lineItem: [{ position: 40, label: 'ohne Lagerort', importance: #HIGH }]
+  @EndUserText.label: 'ohne Lagerort'
+  WithoutLocation;
+
+  @UI.lineItem: [{ position: 45, label: 'sonstige Lagerorte' }]
+  @EndUserText.label: 'sonstige Lagerorte'
+  OtherLocations;
+
+  @UI.lineItem: [{ position: 50, label: 'Summe Lager', importance: #HIGH }]
+  @EndUserText.label: 'Summe Lager'
+  TotalOnStock;
+
+  @UI.lineItem: [{ position: 60, label: 'Sicherheitsbestand', importance: #HIGH }]
+  @EndUserText.label: 'Sicherheitsbestand'
+  SafetyStock;
+
+  @UI.lineItem: [{ position: 70, label: 'Differenz', criticality: 'DifferenceCriticality', importance: #HIGH }]
+  @EndUserText.label: 'Differenz'
+  Difference;
+
+  @UI.hidden: true
+  DifferenceCriticality;
+}
+```
+
+---
+
+## 8) Service Definition `ZUI_ContainerStock`
+
+Rechtsklick auf `ZC_ContainerStock` → *New → Service Definition*
+(oder Paket → *New → Other → Business Services → Service Definition*).
+Name `ZUI_ContainerStock`. Inhalt:
+
+```abap
+@EndUserText.label: 'Behälter-Lagerbestände'
+define service ZUI_ContainerStock {
+  expose ZC_ContainerStock as ContainerStock;
+}
+```
+
+---
+
+## 9) Service Binding + App starten
+
+1. Rechtsklick auf `ZUI_ContainerStock` → *New → Service Binding*.
+   - Name `ZUI_CONTAINERSTOCK_O4`.
+   - Binding Type: **OData V4 – UI**.
+2. Service Binding **aktivieren**, dann Button **Publish** (Local Service Endpoint).
+3. Im Binding-Editor die Entität `ContainerStock` markieren → **Preview** →
+   die generierte Fiori-Elements-App (List Report) öffnet sich im Browser.
+
+Test: „Go“ zeigt die Behältertypen mit Lagerort-Spalten; „Bearbeiten“ →
+Sicherheitsbestand ändern → „Sichern“.
+
+---
+
+## 10) Fiori Launchpad (produktiv)
+
+1. Aus dem Service Binding eine **IBN/Tile** im Launchpad-Content anlegen
+   (Business Catalog / SAP Fiori Launchpad Content Manager `/UI2/FLPCM_*`
+   bzw. in S/4HANA: Business Catalog + Business Rolle über die IAM-App).
+2. Berechtigung über `authorization master ( global )` bzw. die zugehörige
+   IAM-App/Rolle vergeben.
+3. Kachel testen → öffnet sich parallel zum Planungscockpit.
+
+---
+
+## Reihenfolge auf einen Blick
+
+1 Tabelle (bereits vorhanden – nichts zu tun) → 2 ZI_ContainerStock (anlegen) → 3 ZCL_...CALC (aktiv.) →
+2 aktivieren → 4 BDEF + ZBP-Klasse → 5 ZC_ContainerStock →
+6 BDEF-Projektion → 7 Metadaten-Extension → 8 Service Definition →
+9 Service Binding + Publish + Preview → 10 Launchpad.
+
+## Noch anzupassen
+
+- **Lagerort-Split (Teil B in Schritt 3):** Die eigentliche Aufteilung je
+  Lagerort fehlt noch. Selektion aus `ZWR_WATP_CONTAINER_OVERVIEW`
+  (`/watp/vcaequz` + `etyp` + Equipment-Stammdaten) einsetzen, je Behältertyp
+  Status `L` zählen, Hersteller `DUMMY` ausschließen, nach Lagerort verteilen.
+- **Behältertyp = `matnr` (`BEHTYPNEU`):** Im Report ist der Behältertyp das
+  Material aus `etyp`. Den Schlüssel `container_type` in `ZWRTCSSAFESTOCK` bzw.
+  `ZI_ContainerStock` an diese Domäne/Länge angleichen.
+- **Zeilen = gepflegte Typen (Entscheidung):** Root ist `ZWRTCSSAFESTOCK`, es
+  erscheinen also nur Behältertypen mit dortigem Sicherheitsbestand-Eintrag.
+  Das ist gewollt. Neue Typen werden über die Pflege dieser Tabelle sichtbar.
+- `ContainerTypeName`: echten Typtext statt Platzhalter lesen.
+- Lagerort-Spalten (`Loc1000`…) auf eure realen Behälterlager anpassen
+  (in ZI_ContainerStock, ZC_ContainerStock, der Metadaten-Extension und `gc_loc`).
+```
