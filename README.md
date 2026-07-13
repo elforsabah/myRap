@@ -24,30 +24,25 @@ Reihenfolge unbedingt einhalten – jedes Objekt nach dem Einfügen mit
 
 ## 1) Datenbanktabelle `ZWRTCSSAFESTOCK`
 
-> Existiert die Tabelle schon (Pflege-View)? Dann **diesen Schritt überspringen**
-> und nur prüfen, dass die Verwaltungsfelder (v. a. `LOCAL_LAST_CHANGED_AT`)
-> vorhanden sind – das managed BO braucht sie als ETag.
+**Die Tabelle existiert bereits – hier ist NICHTS zu tun.** Diese Anleitung nutzt
+sie unverändert (ohne Verwaltungs-/Zeitstempelfelder). Es genügen der Schlüssel
+und das Feld `safety_stock`.
 
-Rechtsklick Paket → *New → Other ABAP Repository Object → Dictionary → Database Table*.
-Name `ZWRTCSSAFESTOCK`. Quelltext:
-
-```abap
-@EndUserText.label : 'Behälter: Sicherheitsbestände'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #ALLOWED
-define table zwrtcssafestock {
-  key mandt            : mandt not null;
-  key container_type   : abap.char(18) not null;
-  safety_stock         : abap.int4;
-  created_by           : syuname;
-  created_at           : timestampl;
-  last_changed_by      : syuname;
-  last_changed_at      : timestampl;
-  local_last_changed_at : timestampl;
-}
-```
+> Nur zur Info – so sieht die genutzte Minimal-Struktur aus:
+> ```abap
+> key mandt          : mandt not null;
+> key container_type : abap.char(18) not null;   // ggf. eure reale Domäne/Länge
+> safety_stock       : abap.int4;
+> ```
+>
+> **Konsequenz ohne ETag-Feld:** keine optimistische Sperre. Ändern zwei
+> Disponenten *gleichzeitig* denselben Behältertyp, gewinnt der zuletzt
+> Speichernde (der erste Wert wird stillschweigend überschrieben). Für den
+> Prototyp/Test unkritisch.
+>
+> **Später nachrüstbar:** Ein Feld `local_last_changed_at : timestampl` per
+> Append-Struktur ergänzen, dann in Schritt 4a `etag master LocalLastChangedAt`
+> sowie das Feld in View/Mapping wieder aktivieren – siehe Kommentare dort.
 
 ---
 
@@ -111,20 +106,16 @@ define root view entity ZI_ContainerStock
 
       @ObjectModel.virtualElement: true
       @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CONTAINER_STOCK_CALC'
-      cast( 0 as abap.int4 )                                      as DifferenceCriticality,
-
-      @Semantics.user.createdBy: true
-      SafeStock.created_by                                         as CreatedBy,
-      @Semantics.systemDateTime.createdAt: true
-      SafeStock.created_at                                         as CreatedAt,
-      @Semantics.user.localInstanceLastChangedBy: true
-      SafeStock.last_changed_by                                    as LastChangedBy,
-      @Semantics.systemDateTime.localInstanceLastChangedAt: true
-      SafeStock.local_last_changed_at                             as LocalLastChangedAt,
-      @Semantics.systemDateTime.lastChangedAt: true
-      SafeStock.last_changed_at                                    as LastChangedAt
+      cast( 0 as abap.int4 )                                      as DifferenceCriticality
 }
 ```
+
+> Kein ETag/Verwaltungsfeld – passend zur bestehenden Tabelle.
+> (Später mit `local_last_changed_at` nachrüstbar: dann hier vor der
+> schließenden Klammer wieder ergänzen:
+> `@Semantics.systemDateTime.localInstanceLastChangedAt: true`
+> `SafeStock.local_last_changed_at as LocalLastChangedAt` – Komma nach
+> `DifferenceCriticality` nicht vergessen.)
 
 > Aktivierung schlägt zunächst fehl, weil `ZCL_CONTAINER_STOCK_CALC` noch fehlt.
 > Erst Schritt 3 anlegen, dann diese View aktivieren. (Reihenfolge: 2 anlegen →
@@ -242,7 +233,7 @@ define behavior for ZI_ContainerStock alias ContainerStock
 persistent table zwrtcssafestock
 lock master
 authorization master ( global )
-etag master LocalLastChangedAt
+// kein "etag master ..." – die Tabelle hat kein ETag-Feld
 {
   update;
 
@@ -253,23 +244,19 @@ etag master LocalLastChangedAt
                      WithoutLocation, OtherLocations,
                      TotalOnStock, Difference, DifferenceCriticality;
 
-  field ( readonly, numbering : managed ) CreatedBy, CreatedAt,
-                                          LastChangedBy, LastChangedAt, LocalLastChangedAt;
-
   validation validateSafetyStock on save { field SafetyStock; create; update; }
 
   mapping for zwrtcssafestock corresponding
   {
-    ContainerType      = container_type;
-    SafetyStock        = safety_stock;
-    CreatedBy          = created_by;
-    CreatedAt          = created_at;
-    LastChangedBy      = last_changed_by;
-    LastChangedAt      = last_changed_at;
-    LocalLastChangedAt = local_last_changed_at;
+    ContainerType = container_type;
+    SafetyStock   = safety_stock;
   }
 }
 ```
+
+> ETag später gewünscht? Zeile `etag master LocalLastChangedAt` einfügen und
+> `LocalLastChangedAt = local_last_changed_at;` ins Mapping ergänzen (setzt das
+> Tabellenfeld aus Schritt 1 voraus).
 
 ### 4b) Behavior-Klasse generieren
 Speichern → im Editor erscheint eine Warnung/Quick-Fix zur Klasse
@@ -349,10 +336,7 @@ define root view entity ZC_ContainerStock
       SafetyStock,
 
       Difference,
-      DifferenceCriticality,
-
-      LastChangedAt,
-      LocalLastChangedAt
+      DifferenceCriticality
 }
 ```
 
@@ -484,7 +468,7 @@ Sicherheitsbestand ändern → „Sichern“.
 
 ## Reihenfolge auf einen Blick
 
-1 Tabelle → 2 ZI_ContainerStock (anlegen) → 3 ZCL_...CALC (aktiv.) →
+1 Tabelle (bereits vorhanden – nichts zu tun) → 2 ZI_ContainerStock (anlegen) → 3 ZCL_...CALC (aktiv.) →
 2 aktivieren → 4 BDEF + ZBP-Klasse → 5 ZC_ContainerStock →
 6 BDEF-Projektion → 7 Metadaten-Extension → 8 Service Definition →
 9 Service Binding + Publish + Preview → 10 Launchpad.
