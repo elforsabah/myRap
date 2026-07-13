@@ -482,3 +482,131 @@ Sicherheitsbestand ändern → „Sichern“.
 - Lagerort-Spalten (`Loc1000`…) auf eure realen Behälterlager anpassen
   (in ZI_ContainerStock, ZC_ContainerStock, der Metadaten-Extension und `gc_loc`).
 ```
+
+
+
+
+
+*&---------------------------------------------------------------------*
+*& Report ZWR_CS_CONTAINER_INVENTORY
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zwr_cs_container_inventory.
+INCLUDE /watp/macro_range.
+
+TABLES:
+  /watp/vcaequz,
+  etyp.
+
+TYPES:
+  BEGIN OF tcontainerdata,
+    matnr               TYPE matnr,
+    totalinventory      TYPE zwr_d_cs_container_inventory,
+    current_inventory   TYPE zwr_d_cs_current_inventory,
+*    calculated_inventory TYPE zwr_d_cs_current_inventory,
+    delivered_inventory TYPE zwr_d_cs_delivered_inventory,
+    changed_inventory   TYPE zwr_d_cs_changed_inventory,
+    removed_inventory   TYPE zwr_d_cs_removed_inventory,
+    dummy_inventory     TYPE zwr_d_cs_dummy_inventory,
+    safetystock         TYPE zwr_d_cs_safetystock,
+  END OF tcontainerdata.
+
+DATA:
+  gt_output      TYPE STANDARD TABLE OF zwr_s_cs_container_overview, "ZWRS_CONTAINER_OVERVIEW,
+  lreturn        TYPE zwr_d_cs_container_inventory,
+  lcontainerdata TYPE STANDARD TABLE OF tcontainerdata,
+  lmatnrs        TYPE STANDARD TABLE OF matnr,
+  ltcsdayfactor  TYPE STANDARD TABLE OF zwrtcsdayfactor.
+
+*SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+SELECT-OPTIONS:
+  smatnrs FOR etyp-matnr.
+
+PARAMETERS:
+  pdatum TYPE dats DEFAULT sy-datum.
+
+*SELECTION-SCREEN END OF BLOCK b1.
+
+*initialization.
+
+*at selection-screen output.
+
+START-OF-SELECTION.
+
+  PERFORM get_data.
+
+  PERFORM display_alv.
+
+
+FORM get_data.
+  SELECT matnr
+    INTO CORRESPONDING FIELDS OF TABLE lcontainerdata
+    FROM etyp
+    WHERE matnr IN smatnrs.
+
+  SELECT *                                              "#EC CI_NOWHERE
+    INTO TABLE ltcsdayfactor
+    FROM zwrtcsdayfactor.
+
+  LOOP AT lcontainerdata REFERENCE INTO DATA(lcontainerdata_ref).
+    lcontainerdata_ref->totalinventory = zcl_wr_watp_cs_misc=>cl_calc_container_inventory(
+      EXPORTING
+        par_date        = pdatum
+        par_behtyp      = lcontainerdata_ref->matnr
+        par_dayfactor   = ltcsdayfactor
+      IMPORTING
+        par_current_inventory = lcontainerdata_ref->current_inventory
+*        par_calculated_inventory = lcontainerdata_ref->calculated_inventory
+        par_delivered_inventory = lcontainerdata_ref->delivered_inventory
+        par_changed_inventory = lcontainerdata_ref->changed_inventory
+        par_removed_inventory = lcontainerdata_ref->removed_inventory
+        par_dummy_inventory = lcontainerdata_ref->dummy_inventory
+        par_safetystock = lcontainerdata_ref->safetystock
+    ).
+  ENDLOOP.
+
+  SORT lcontainerdata BY matnr.
+
+ENDFORM.
+
+
+FORM display_alv.
+
+  DATA:
+    lv_key       TYPE salv_s_layout_key,
+    lr_table     TYPE REF TO cl_salv_table,
+    lr_functions TYPE REF TO cl_salv_functions,
+    lr_layout    TYPE REF TO cl_salv_layout,
+    lr_display   TYPE REF TO cl_salv_display_settings.
+
+  lv_key-report = sy-repid.
+
+  TRY.
+      cl_salv_table=>factory(
+        IMPORTING r_salv_table = lr_table
+        CHANGING t_table = lcontainerdata ).
+    CATCH cx_salv_msg INTO DATA(lv_exc).
+  ENDTRY.
+
+  IF lr_table IS NOT INITIAL.
+*"-----Optional
+*---Setting the ALV toolbar
+    lr_functions = lr_table->get_functions( ).
+    lr_functions->set_all( abap_true ).
+*---Setting the Layout Save property
+    lr_layout = lr_table->get_layout( ).
+    lr_layout->set_initial_layout( value = '/DEFAULT' ).
+    lr_layout->set_key( lv_key ).
+    lr_layout->set_save_restriction( cl_salv_layout=>restrict_none ).
+
+    lr_table->display( ).
+  ENDIF.
+
+ENDFORM.
+
+
+
+<img width="1546" height="585" alt="image" src="https://github.com/user-attachments/assets/5e7c7514-b0ab-478e-b38f-bbc7d82675ac" />
+
