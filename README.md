@@ -1,4 +1,27 @@
-<img width="1888" height="452" alt="image" src="https://github.com/user-attachments/assets/c73ef0d3-a00b-49b7-a919-0342d4fd535c" />
+managed implementation in class zbp_i_containerstock unique;
+strict ( 2 );
 
+define behavior for ZI_ContainerStock alias ContainerStock
+persistent table zwrtcssafestock
+lock master
+authorization master ( global )
+{
+  update;
+  delete;
 
-<img width="1780" height="677" alt="image" src="https://github.com/user-attachments/assets/5d9c04ec-459f-4cd9-863b-e460c7cfb50d" />
+  field ( readonly ) ContainerType;
+
+  field ( readonly ) ContainerTypeName,
+                     LagerA, LagerB, LagerC, WerkstattW, WerkstattX,
+                     WithoutLocation, OtherLocations,
+                     TotalOnStock, Difference, DifferenceCriticality,
+                     SafetyStockCriticality;
+
+  validation validateSafetyStock on save { field SafetyStock; create; update; }
+
+  mapping for zwrtcssafestock corresponding
+  {
+    ContainerType = behtyp;
+    SafetyStock   = safetystock;
+  }
+}
