@@ -1,24 +1,12 @@
-Zusammenfassung:
+Was gebaut werden muss
 
-Zusammen mit den Auftragsdaten SAP→BMS (vgl. #40067) wird für den Containerdienst eine eine bidirektionale Schnittstelle zwischen SAP und dem BMS-System vorgesehen.
-Im SAP findet die Auftragserfassung, die Disposition in P&D und (nach Ausführung) die Rückmeldung und Abrechnung statt.
-Das BMS-System ersetzt die Mobilgeräte. Das bedeutet die Fahrer haben ein Tablet mit einer BMS-App. HWS setzt das BMS bereits heute ein.
-Wir übermitteln aus P&D heraus “fertig geplante” Touren mit den darauf geplanten Services an das BMS-System. 
-Das BMS-System meldet uns später den Status “begonnen” pro Auftrag. Das Feld BMS-Status wird im P&D aktualisiert.
-Das BMS-System meldet uns später die Rückmeldedaten aus der Ausführung. Wir übernehmen diese Daten direkt in die EAP.
-Das BMS-System meldet später außerdem Leistungsdaten der gesamten Tour (z.B. Zeiten, gefahrene km). Wir übernehmen diese Daten direkt an die Tagestour bzw. Entsorgungsauftragskopf.
+Die Inbound-Seite besteht aus drei funktionalen Endpunkten:
 
- 
+Endpunkt 1 — Auftragsstatus "begonnen"
+BMS meldet pro Auftrag (Service/EAP), dass die Ausführung gestartet wurde. SAP aktualisiert ZZ_BMS_STATUS auf BEGONNEN in /plce/tpdsrvcst. Technisch ein einfacher PATCH/POST mit Auftragsnummer als Schlüssel. Grundstruktur ist bereits vorhanden — der SICF-Handler ZCL_BMS_INBOUND_HANDLER und die Tabellenerweiterung existieren schon.
 
-Wir haben für einen anderen Kunden (ERZ / Zürich) bereits einmal OData-Endpunkte für diese Rückdaten gebaut. Fachlich können wir uns daran orientieren, siehe Auszug aus der Doku im Anhang. Die technische Umsetzung können wir uns wohl nicht 1:1 als Vorbild nehmen (so die Einschätzung vom einem Entwickler aus dem ERZ-Projekt).
+Endpunkt 2 — Rückmeldedaten Auftrag (EAP)
+BMS liefert die Ausführungsdaten pro Service: tatsächliche Menge, Containertyp, Zeitstempel, ggf. Abweichungen. SAP schreibt diese Daten in die EAP (EWA_ORDER_OBJECT oder entsprechende Rückmeldetabelle). Das ist der komplexeste Endpunkt weil die Feldmapping-Logik aufwendig ist und mit Patrick geklärt werden muss welche Felder BMS tatsächlich zurückliefert.
 
- 
-
-Was wird also insgesamt (vermutlich) gebraucht:
-
-Ein Endpunkt für Rückmeldedaten Auftrag (EAP)
-Ein Endpunkt für Status-Update “begonnen” → separat oder als eigenes Feld im 1. Endpunkt oben sinnvoll? (oder beides??)
-Ein Endpunkt für Leistungsdaten der Tour (EA-Kopf/Ressourcen), ggf. zwei separate.
- 
-
-Kannst du hierfür bitte zuerst eine ganz grobe Größenordnung und Zeitplan für die Umsetzung einschätzen?
+Endpunkt 3 — Leistungsdaten Tour
+BMS liefert Tourgesamtdaten: Startzeit, Endzeit, gefahrene km, ggf. Ressourcendaten. SAP schreibt in den Entsorgungsauftragskopf oder die Tagestour. Abhängig davon ob das ein oder zwei separate Endpunkte werden sollen (Tour-Kopf vs. Ressourcen) variiert der Aufwand.
