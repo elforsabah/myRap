@@ -1,13 +1,1 @@
-@EndUserText.label: 'Position Input for LANF'
-define abstract entity ZI_LANF_POSITION_INPUT
-{
-  key ContractVbeln : vbeln_va;
-  key Matnr         : matnr;
-      @Semantics.quantity.unitOfMeasure: 'Meins'
-      Menge         : dzmeng;
-      @Semantics.unitOfMeasure: true
-      Meins         : abap.char(3);      // was: meins -> conversion exit CUNIT
-
-      _Parent : association to parent ZI_LANF_CREATE_INPUT
-                  on $projection.ContractVbeln = _Parent.ContractVbeln;
-}
+<img width="1114" height="779" alt="image" src="https://github.com/user-attachments/assets/5f426ef7-8c7b-42bf-a1a4-979c547e52e0" />
