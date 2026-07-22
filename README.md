@@ -1,1 +1,1 @@
-<img width="1571" height="1078" alt="image" src="https://github.com/user-attachments/assets/9090c5ef-4bab-4052-9923-884779c63d66" />
+https://evhsap-srv08.swhsap.vw.vw-konzern.net:44303/sap/opu/odata4/sap/zsb_lanf_bms_interface_v4/srvd_a2x/sap/zsb_lanf_bms_interface_v4/0001/ZL_LANF_ROOT/com.sap.gateway.srvd_a2x.zsb_lanf_bms_interface_v4.v0001.CreateLanf
