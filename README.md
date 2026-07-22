@@ -278,3 +278,86 @@ CLASS lsc_zi_lanf_root IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
+
+
+
+
+
+@EndUserText.label: 'Input for Document Attachment'
+define root abstract entity ZI_ATTACH_INPUT
+
+{
+//  key TechKey       : abap.char(1);
+  key Vbeln             : vbeln_va;     // LANF number
+  Title             : text100;      // Title/Description
+  Url               : url;          // Document URL (for archive link)
+    
+}
+
+
+@EndUserText.label: 'Input for LANF Creation'
+define root abstract entity ZI_LANF_CREATE_INPUT
+  
+{
+//  key TechKey     : abap.char(1); // Required for root abstract entity
+  key ContractVbeln     : vbeln_va;     // Contract number (VBELN)
+  DeliveryDate      : kbdat;        // Delivery/Service date (FBUDA/KETDAT)
+  CustomerRef       : bstkd;        // Customer reference (BSTKD)
+   @ObjectModel.mandatory: false
+//  Description       : abap.char(225);      // Description (VBAK-TEXT)
+  _Positions        : composition [0..*] of ZI_LANF_POSITION_INPUT;
+    
+}
+
+
+@EndUserText.label: 'Position Input for LANF'
+define abstract entity ZI_LANF_POSITION_INPUT
+ 
+{
+// key TechKey       : abap.char(1);
+  key ContractVbeln     : vbeln_va;     // Contract number (VBELN)
+  key Matnr             : matnr;        // Material number
+@Semantics.quantity.unitOfMeasure: 'Meins'
+Menge             : dzmeng;       // Quantity (ZMENG, assuming decimal quantity type)
+@Semantics.unitOfMeasure: true
+Meins             : meins;        // Unit of measure (ZIEME)
+
+_Parent           : association to parent ZI_LANF_CREATE_INPUT  on $projection.ContractVbeln = _Parent.ContractVbeln;
+
+}
+
+
+@EndUserText.label: 'Response Structure'
+define root abstract entity ZI_LANF_RESPONSE
+{
+ key Vbeln             : vbeln_va;     // Created LANF number   
+}
+
+
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Root for LANF'
+@Metadata.ignorePropagatedAnnotations: true
+define root view entity ZI_LANF_ROOT as select from ddddlsrc
+{
+    
+    key cast('' as abap.char(30)) as Techkey
+} where 1 = 2 // Ensures no data is returned
+
+
+@EndUserText.label: 'Message Structure'
+define abstract entity ZI_MESSAGE
+  
+{
+   key TechKey       : abap.char(1);
+  Msgid             : msgid;
+  Msgno             : msgnr;
+  Msgty             : msgty;
+  Msgv1             : symsgv;
+  Msgv2             : symsgv;
+  Msgv3             : symsgv;
+  Msgv4             : symsgv;
+  
+//  _Parent           : association to parent ZI_LANF_RESPONSE on $projection.TechKey = _Parent.TechKey;
+}
+
