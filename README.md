@@ -1,1 +1,16 @@
-<img width="1873" height="836" alt="image" src="https://github.com/user-attachments/assets/69a09f3f-7d6c-4fa1-acd9-b2bd51f42fb0" />
+@EndUserText.label: 'Position Input for LANF'
+define abstract entity ZI_LANF_POSITION_INPUT
+ 
+{
+  key ContractVbeln     : vbeln_va;     // Contract number (VBELN)
+  key Matnr             : matnr;        // Material number
+@Semantics.quantity.unitOfMeasure: 'Meins'
+Menge             : dzmeng;       // Quantity (ZMENG, assuming decimal quantity type)
+@Semantics.unitOfMeasure: true
+Meins             : abap.unit(3);         //meins; Unit of measure (ZIEME)
+
+_Parent           : association to parent ZI_LANF_CREATE_INPUT  on $projection.ContractVbeln = _Parent.ContractVbeln;
+
+}
+
+
