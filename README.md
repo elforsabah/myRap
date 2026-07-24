@@ -1,13 +1,11 @@
 Lösungsweg
-Liebe Kollegin, lieber Kollege, persistieren Sie – live abfragen Sie nicht.
-Sortieren/Filtern wird beim Read (Virtual Element) verhindert und beijedem OData-Request wird das BMS aufgerufen und macht die App im Ausfall unbenutzbar. Auch die Bauweise ist dereinfacher, nämlich persistenz.
+Persistenz verwenden anstatt live zu abfragen.
+Einen Abruf im Read (Virtual Element) verursacht Sortierung/Filter und erfordert für jedes OData Request den Aufruf des BMS, und macht somit die App bei Ausfall unbekanntbar. Persistenz ist auch die einfachere Realisierung.
 Abruf:
-täglicher Job mit
+Täglicher Job mit
 deadline = heute
-+ Button „Daten aktualisieren“. Abfruf beim App-Start (no sauberer Einmal-Trigger, mehr als ein User, Wartezeit). App zeigt „Stand vom …“.
++ Button „Daten aktualisieren“. Keine Abruf beim Start der App (kein sauberes einzigartiges Event, parallele Nutzer, Wartezeit). App zeigt „Stand vom …“.
 Technik:
-SM59-Destination → Klasse
+SM59 Destination → Klasse
 ZCL_BMS_CONTAINER_API
-(Login, GET, generisches Parsing derdynamischen Depot-Keys) → Z-Tabellen (Daten je Stichtag, Lauf-Protokoll, Depot-Mapping) → CDS liestdaraus. Das bestehende RAP-Verhalten wird beibehalten.
-Spalten:
-Object Page –Fiori Elements can't support any dynamic Spalten for the relevant Depots + „sonstige“.
+(Login, GET, generisches Parsing derdynamischen Depot Keys) → Z-Tabelle (Daten nach Tag, Prozess Protokoll, Depot mapping) → CDS liestdaraus. Das vorhandene R
