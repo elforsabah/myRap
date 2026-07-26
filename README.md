@@ -1,14 +1,8 @@
-Lösungsweg
-Persistenz verwenden anstatt live zu abfragen.
-Einen Abruf im Read (Virtual Element) verursacht Sortierung/Filter und erfordert für jedes OData Request den Aufruf des BMS, und macht somit die App bei Ausfall unbekanntbar. Persistenz ist auch die einfachere Realisierung.
-Abruf:
-Täglicher Job mit
-deadline = heute
-+ Button „Daten aktualisieren“. Keine Abruf beim Start der App (kein sauberes einzigartiges Event, parallele Nutzer, Wartezeit). App zeigt „Stand vom …“.
-Technik:
-SM59 Destination → Klasse
-ZCL_BMS_CONTAINER_API
-(Login, GET, generisches Parsing derdynamischen Depot Keys) → Z-Tabelle (Daten nach Tag, Prozess Protokoll, Depot mapping) → CDS liestdaraus. Das vorhandene RAP Verhalten wird beibehalten
+1. Daher kam der Wunsch auf: Können wir die wichtigsten Daten vor der Verarbeitung prüfen? Aus meiner Sicht wäre das mindestens die Vertragsnummer:
 
-Spalten:
-feste Spalten für die relevanten Depots + „sonstige“ – vollständige Liste auf der Object Page –Fiori Elements kann keine dynamischen Spalten.
+wenn es keine gültige/existierende Vertragsnummer ist (existiert nicht in VBAK oder VBAK-VBTYP <>"G"), dann Fehlermeldung “Vertragsnummer XYZ ist ungültig.” oder so ähnlich.
+ 
+
+2. Die erzeugten SD-Orders hatten jetzt immer die Verkaufsbelegart “ZLRA” (Lanf Rechnung Allgemein). Eigentlich müsste das SAP SD aber von sich aus immer die Standard-Folgebelegart von der Vertragsart übernehmen. So funktioniert es zumindest manuell. Oder musst du das im Coding händisch festlegen/ermitteln?
+
+Der Vertrag 1200000002 ist zum Beispiel ein “ZKDV” (Dauervertrag Entsorgung) und dessen Folgebelegart wäre “ZLDV” (siehe TVAK-AUARA). 
