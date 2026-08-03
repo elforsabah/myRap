@@ -66,3 +66,7 @@ endloop.
 10. Tell the business: RE is done; WDF is derived per EWC code, not fixed at 67, and stays manual wherever more than one facility accepts that code.
 
 Start with step 1 and tell me what you see.
+
+
+
+<img width="1328" height="1024" alt="image" src="https://github.com/user-attachments/assets/27ce3d04-83ac-456b-90c2-6ee9a03f31cc" />
