@@ -1,1 +1,13 @@
-<img width="1907" height="1028" alt="image" src="https://github.com/user-attachments/assets/db4725dc-2180-4f2e-9e76-5185d5d587f2" />
+Anforderungsbeschreibung: 
+
+Bei der Variantenkonfiguration in „Verträge“ muss der Benutzer die Abfallfraktionen, den WDF und das Abfallentsorgungsverfahren angeben. 
+
+ 
+
+Beispieldaten: 
+
+image_20260625133220.png
+ 
+
+Akzeptanzkriterien: 
+Das Abfallentsorgungsverfahren wird standardmäßig auf „RE“ gesetzt, da dies der einzig mögliche Wert ist. 
