@@ -1,8 +1,3 @@
-What still needs checking
-Do waste approvals actually exist in this client for these EWC codes? This is the one thing that decides scope. If yes, both columns default themselves and the derivation above is not just convenient but consistent with the validation. If no, WDPLANT genuinely cannot be derived — and note your German acceptance criterion only ever promised RE, so defaulting the procedure alone would still meet it. Get this answered before estimating.
-Domain /WATP/DWASTEMODE fixed values. If RE really is the only entry, the constant is safe. If there are others, move it to a Z table rather than a literal.
-The DEFAULT_AVV field on /WATP/SCSBO_CABAVVD — "Attribute assignment default yes/no". Run a where-used on its data element. There may already be a defaulting mechanism here that nobody switched on.
-"Not entered manually" — pre-filling covers the default half. Making the two columns display-only is a change in the waste-list maintenance UI, which is still the one object we haven't identified. F1 → Technical Information on the "Waste Disp. Facility" field in that popup gives you the program in one step. It's a cosmetic follow-up though: AVV_CHECK_SPEC already blocks an active row with either field empty, so leaving them editable carries no data-integrity risk.
 
 
 <img width="942" height="956" alt="image" src="https://github.com/user-attachments/assets/17634136-0560-482f-816c-b4d444bdf9bd" />
