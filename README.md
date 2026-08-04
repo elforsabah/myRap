@@ -1,46 +1,21 @@
-. Redefine AVV_FILL_UP. Paste:
+Hi Elvis, das klingt prinzipiell gut!
 
+Nur eine Frage dazu: Kann man “Daten aktualisieren” zusätzlich trotzdem auch beim/nach Start der App auslösen?
 
-method AVV_FILL_UP.
-  data:
-    LDETAILTABLE type ref to DATA,
-    LMODES       type standard table of /WATP/DWASTEMODE,
-    LDEFMODE     type /WATP/DWASTEMODE.
-  field-symbols:
-    <TABLE> type standard table,
-    <ITEM>  type /WATP/SCSBO_CABAVVD.
+ 
 
-  SUPER->AVV_FILL_UP( PAR_CABNAVVS = PAR_CABNAVVS ).
+Zur Erklärung, warum das für die Anwender wichtig wäre:
 
-* nur vorbelegen, solange es genau einen zulässigen Wert gibt
-  select WASTEMODE from /WATP/TTWSTMODE
-    into table LMODES up to 2 rows.                  "#EC CI_NOFIRST
-  check LINES( LMODES ) = 1.
-  read table LMODES into LDEFMODE index 1.
+Der ursprüngliche Ansatz mit Behälter-Lager-Daten aus SAP ist an der Erkenntnis gescheitert, dass die Daten in SAP im Taqesverlauf nicht aktuell sind (v.a. weil Auftragsdaten erst am Abend BMS→SAP übermittelt werden und danach erst noch im SAP manuelle Datenkontrollen und Rückmeldevorgänge durchlaufen werden).
 
-  LDETAILTABLE = GETDETAILTABLE( PAR_NAME = 'AVV' ).
-  assign LDETAILTABLE->* to <TABLE>.
-  loop at <TABLE> assigning <ITEM>.
-    check <ITEM>-WASTEMODE is initial.
-    <ITEM>-WASTEMODE = LDEFMODE.
-    AVV_CHANGED( PAR_DETAILINDEX = <ITEM>-DETAIL_INDEX ).
-  endloop.
-endmethod.
-4. Activate.
+Dass nun also die Daten vom BMS konsumiert werden sollen, liegt an der Aktualität: die meisten Scans von Behälterdaten werden von den BMS-Tablets “zeitnah” an das BMS-Backend übermittelt.
 
-5. SM34 → /WATP/VCCSSDAVV → row MP100 → Class Waste List = ZCL_BO_CSCABNAVV → Save.
+Wenn ein Disponent nun also die App in SAP aufruft, möchte er die aktuellsten Daten von BMS sehen. Es ist sehr gut, wenn die App auch bei Ausfall von BMS benutzbar bleibt (da das wohl oft vorkommt). Vor allem auch, damit darüber die Sicherheitsbestände trotzdem gepflegt werden können.
 
-6. Test: new contract on MP100, open the popup. Every row shows RE.
-Works → step 8. Nothing changed → step 7.
+ 
 
-7. (only if 6 failed) SE80 → /WATP/CL_BO_CSCABNAVV → method AVV_FILL_UP → Enhance → implicit enhancement at end of method → same code without the SUPER-> line. Activate. Retest.
+Spalten:
 
-8. Open contract 40000275 → its existing 7/RE rows must be unchanged.
+Verstehe ich richtig, dass die angezeigten Spalten für die Behälterdepots fest definiert werden müssen? Die Depots (Lagerorte) sind sowohl im BMS als auch im SAP nur Stammdaten und können jederzeit hinzugefügt, geändert und umbenannt werden. Müsste dann immer das Coding der App angepasst werden? Das wäre schlecht. Könnte man das irgendwie anders lösen?
 
-9. SE80 → include /WATP/LCS_SDWASTEINTERFACECI1 → search WASTEMODE → find the field catalog → implicit enhancement at end of that method:
-
-
-loop at <fieldcat> assigning field-symbol(<LFCAT>)
-     where FIELDNAME = 'WASTEMODE'.
-  <LFCAT>-EDIT = ABAP_FALSE.
-endloop.
+Vom BMS bekommen wir die Werte auch einfach nur als Liste.
