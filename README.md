@@ -1,18 +1,26 @@
-1. Automatisches „Daten aktualisieren" beim Öffnen der App – ja, so bauen wir es
-Beim Start der App wird der Abruf automatisch ausgelöst, damit der Disponent sofort den aktuellsten BMS-Stand sieht. Damit das robust bleibt:
+1. Automatisches Daten-Update beim Öffnen – so machen wir’s
 
-Cache in SAP: Die BMS-Daten werden in SAP zwischengespeichert. Beim Öffnen wird dieser Cache aufgefrischt. Fällt das BMS aus, bleibt der letzte Stand sichtbar und die App voll benutzbar – die Sicherheitsbestände lassen sich weiter pflegen. Genau das war die Anforderung.
-Frische-Wächter mit Customizing-Schwelle: Der Auto-Refresh ruft das BMS nur, wenn der letzte Stand älter als eine eingestellte Schwelle ist – sonst wird direkt der Cache gezeigt. Das verhindert unnötige BMS-Aufrufe, wenn mehrere Disponenten kurz hintereinander die App öffnen.
-Die Schwelle ist Customizing, kein fester Wert im Code (Feld in einer Z-Tabelle). Sie lässt sich jederzeit ohne Programmänderung anpassen:
-0 = immer live (jeder Öffnen-Vorgang holt frisch) – falls das BMS die Last verträgt und maximale Aktualität gewünscht ist,
-1–2 Min. für hohe Aktualität bei geringer Last,
-10–15 Min. möglichst BMS-schonend.
-Zusätzlich: manueller Button „Daten aktualisieren" und ein Nacht-Job als Fallback (falls morgens niemand die App öffnet).
-Den passenden Startwert legt der Fachbereich fest – er hängt davon ab, wie schnell sich die BMS-Daten real ändern. Da er Customizing ist, kann man ohne Weiteres klein anfangen (z. B. 2 Min.) und später nachjustieren.
+Sobald die App startet, holen wir automatisch die neuesten BMS-Daten. Der Disponent sieht immer den aktuellen Stand, ohne was drücken zu müssen. Damit das auch zuverlässig funktioniert:
 
-2. Depot-Spalten – bewusst nicht fest verdrahtet
-Depots sind Stammdaten und ändern sich jederzeit (neu, umbenannt, gelöscht); BMS liefert sie nur als Liste. Feste Spalten würden bei jeder Stammdaten-Änderung eine Coding-Anpassung erzwingen – das vermeiden wir:
+Wir nutzen einen Cache in SAP. Die BMS-Daten lagern da zwischen. Wenn du die App öffnest, aktualisieren wir diesen Cache. Sollte das BMS mal ausfallen, siehst du trotzdem noch die letzten Daten und kannst weiterarbeiten – Sicherheitsbestände lassen sich problemlos pflegen. Genau das wollten wir erreichen.
 
-Übersicht (List Report): nur stabile Kennzahlen je Behältertyp – Gesamtbestand, Sicherheitsbestand, Differenz, Ampel. Diese Spalten ändern sich nie.
-Detail (Object Page): die vollständige Depot-Aufschlüsselung als dynamische Liste, genau wie vom BMS geliefert. Neue oder umbenannte Depots erscheinen automatisch – ohne Codeänderung, ohne Transport.
-Falls einzelne, selten wechselnde Depots doch fest in der Übersicht gewünscht sind, geht das als kleine Zusatzoption; der Rest bleibt dynamisch. Stabiler wäre das mit einer technischen Depot-ID statt des Namens – bitte klären, ob BMS eine solche liefert.
+Frische-Kontrolle mit konfigurierbarem Schwellenwert: Der automatische Refresh fragt das BMS nur ab, wenn die letzten Daten älter sind als der eingestellte Schwellenwert. Ansonsten gibt’s direkt die gecachten Daten. Das spart unnötige BMS-Aufrufe – besonders dann, wenn mehrere Disponenten kurz hintereinander die App öffnen.
+
+Der Schwellenwert liegt im Customizing, nicht im Code (Feld in einer Z-Tabelle). Du kannst ihn jederzeit anpassen, ohne neu programmieren zu müssen:
+0 heißt: Immer live – jedes Öffnen holt frische Daten. Ideal, wenn aktuelle Infos gewünscht sind und das BMS die Last aushält.
+1–2 Minuten: Sehr aktuell, aber etwas entspannter für’s BMS.
+10–15 Minuten: Schont das BMS möglichst, falls wenig Bewegung im Bestand ist.
+
+Außerdem gibt’s einen manuellen Button "Daten aktualisieren" und einen Nacht-Job als Backup – falls morgens niemand die App nutzt.
+
+Den Startwert legt der Fachbereich fest, je nachdem, wie oft sich die BMS-Daten ändern. Da das Customizing ist, kannst du ruhig mit einem kleinen Wert starten (z.B. 2 Minuten) und später anpassen.
+
+2. Depot-Spalten – flexibel statt fest verdrahtet
+
+Depots sind Stammdaten und ständig in Bewegung – neue kommen dazu, andere werden umbenannt oder gelöscht. Das BMS liefert sie nur als Liste, nicht als feste Spalten. Würden wir die Spalten fix kodieren, müsste jedes Mal das Programm angepasst werden. Das vermeiden wir bewusst:
+
+In der Übersicht (List Report) zeigen wir nur stabile Kennzahlen pro Behältertyp – Gesamtbestand, Sicherheitsbestand, Differenz und Ampel. Diese Spalten bleiben immer gleich.
+
+Im Detail (Object Page) gibt’s die komplette Depot-Aufschlüsselung als dynamische Liste – genau wie vom BMS geliefert. Neue oder umbenannte Depots tauchen automatisch auf, ohne dass wir am Code drehen müssen.
+
+Und wenn einzelne, selten wechselnde Depots wirklich fest in die Übersicht sollen, geht das als kleine Zusatzoption. Der Rest bleibt flexibel. Noch robuster wäre das Ganze mit einer technischen Depot-ID statt dem Namen – klärt bitte, ob das BMS so etwas liefert.
