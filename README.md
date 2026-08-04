@@ -1,21 +1,18 @@
-Hi Elvis, das klingt prinzipiell gut!
+1. Automatisches „Daten aktualisieren" beim Öffnen der App – ja, so bauen wir es
+Beim Start der App wird der Abruf automatisch ausgelöst, damit der Disponent sofort den aktuellsten BMS-Stand sieht. Damit das robust bleibt:
 
-Nur eine Frage dazu: Kann man “Daten aktualisieren” zusätzlich trotzdem auch beim/nach Start der App auslösen?
+Cache in SAP: Die BMS-Daten werden in SAP zwischengespeichert. Beim Öffnen wird dieser Cache aufgefrischt. Fällt das BMS aus, bleibt der letzte Stand sichtbar und die App voll benutzbar – die Sicherheitsbestände lassen sich weiter pflegen. Genau das war die Anforderung.
+Frische-Wächter mit Customizing-Schwelle: Der Auto-Refresh ruft das BMS nur, wenn der letzte Stand älter als eine eingestellte Schwelle ist – sonst wird direkt der Cache gezeigt. Das verhindert unnötige BMS-Aufrufe, wenn mehrere Disponenten kurz hintereinander die App öffnen.
+Die Schwelle ist Customizing, kein fester Wert im Code (Feld in einer Z-Tabelle). Sie lässt sich jederzeit ohne Programmänderung anpassen:
+0 = immer live (jeder Öffnen-Vorgang holt frisch) – falls das BMS die Last verträgt und maximale Aktualität gewünscht ist,
+1–2 Min. für hohe Aktualität bei geringer Last,
+10–15 Min. möglichst BMS-schonend.
+Zusätzlich: manueller Button „Daten aktualisieren" und ein Nacht-Job als Fallback (falls morgens niemand die App öffnet).
+Den passenden Startwert legt der Fachbereich fest – er hängt davon ab, wie schnell sich die BMS-Daten real ändern. Da er Customizing ist, kann man ohne Weiteres klein anfangen (z. B. 2 Min.) und später nachjustieren.
 
- 
+2. Depot-Spalten – bewusst nicht fest verdrahtet
+Depots sind Stammdaten und ändern sich jederzeit (neu, umbenannt, gelöscht); BMS liefert sie nur als Liste. Feste Spalten würden bei jeder Stammdaten-Änderung eine Coding-Anpassung erzwingen – das vermeiden wir:
 
-Zur Erklärung, warum das für die Anwender wichtig wäre:
-
-Der ursprüngliche Ansatz mit Behälter-Lager-Daten aus SAP ist an der Erkenntnis gescheitert, dass die Daten in SAP im Taqesverlauf nicht aktuell sind (v.a. weil Auftragsdaten erst am Abend BMS→SAP übermittelt werden und danach erst noch im SAP manuelle Datenkontrollen und Rückmeldevorgänge durchlaufen werden).
-
-Dass nun also die Daten vom BMS konsumiert werden sollen, liegt an der Aktualität: die meisten Scans von Behälterdaten werden von den BMS-Tablets “zeitnah” an das BMS-Backend übermittelt.
-
-Wenn ein Disponent nun also die App in SAP aufruft, möchte er die aktuellsten Daten von BMS sehen. Es ist sehr gut, wenn die App auch bei Ausfall von BMS benutzbar bleibt (da das wohl oft vorkommt). Vor allem auch, damit darüber die Sicherheitsbestände trotzdem gepflegt werden können.
-
- 
-
-Spalten:
-
-Verstehe ich richtig, dass die angezeigten Spalten für die Behälterdepots fest definiert werden müssen? Die Depots (Lagerorte) sind sowohl im BMS als auch im SAP nur Stammdaten und können jederzeit hinzugefügt, geändert und umbenannt werden. Müsste dann immer das Coding der App angepasst werden? Das wäre schlecht. Könnte man das irgendwie anders lösen?
-
-Vom BMS bekommen wir die Werte auch einfach nur als Liste.
+Übersicht (List Report): nur stabile Kennzahlen je Behältertyp – Gesamtbestand, Sicherheitsbestand, Differenz, Ampel. Diese Spalten ändern sich nie.
+Detail (Object Page): die vollständige Depot-Aufschlüsselung als dynamische Liste, genau wie vom BMS geliefert. Neue oder umbenannte Depots erscheinen automatisch – ohne Codeänderung, ohne Transport.
+Falls einzelne, selten wechselnde Depots doch fest in der Übersicht gewünscht sind, geht das als kleine Zusatzoption; der Rest bleibt dynamisch. Stabiler wäre das mit einer technischen Depot-ID statt des Namens – bitte klären, ob BMS eine solche liefert.
