@@ -24,3 +24,7 @@ Akzeptanzkriterien:
 Es werden nur die Urlaubstage vom aktuellen Kunden angezeigt
 Urlaubstage von anderen Kunden werden nicht angezeigt.
 Urlaubstage sollen nach Gültigkeit sortiert sein (neueste zuerst)
+
+
+
+<img width="1870" height="654" alt="image" src="https://github.com/user-attachments/assets/e53354db-6d00-426c-b4a4-d209cd442b50" />
