@@ -1,390 +1,71 @@
-<img width="1719" height="1047" alt="image" src="https://github.com/user-attachments/assets/b34c9e1d-0995-4ff8-9805-872f5654837a" />
-<img width="1909" height="704" alt="image" src="https://github.com/user-attachments/assets/625b6670-f093-485a-9f58-7bbb8b340803" />
-<img width="1871" height="980" alt="image" src="https://github.com/user-attachments/assets/ec7fd9ea-83a4-4b16-843b-c6984edef449" />
-<img width="1493" height="914" alt="image" src="https://github.com/user-attachments/assets/e9962283-db61-4c55-8d3b-91769f80e68a" />
-<?xml version="1.0"?>
-<WebDynProDefinitions version="2">
- <!-- Target BSP-component id (might be used during generation) -->
- <Component id="">
-  <!-- Models, Controllers, and Views section only relevant for a designtime repository used for code generation-->
-  <Models>
-   <!-- Reference to BOL Component Set -->
-   <Model id="EWA"/>
-  </Models>
-  <Controllers>
-   <!-- Declaration of custom controllers -->
-   <Controller id="BSPWDComponent" type="COMPONENT"/>
-  </Controllers>
-  <Views>
-   <!-- Declaration of views -->
-  </Views>
-  <!-- Windows, ViewSets, NavigationalLinks, ComponentInterface, and ComponentUsages are parts necessary for runtime repository -->
-  <Windows>
-   <!-- Declaration of windows -->
-   <Window id="EWA_IC_OV_ACCT/BusinessDataEnvironment">
-    <InboundPlugs/>
-    <OutboundPlugs>
-     <OutboundPlug name="ALLOCATECONTAINER"/>
-     <OutboundPlug name="PLACECONTAINER"/>
-    </OutboundPlugs>
-    <EmbeddedView id="EWA_IC_OV_ACCT/VBusinessDataEnvironment" default="TRUE"/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/ObjectDataEnvironment">
-    <InboundPlugs/>
-    <OutboundPlugs/>
-    <EmbeddedView id="EWA_IC_OV_ACCT/VObjectDataEnvironment" default="TRUE"/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/Contracts">
-    <EmbeddedView id="EWA_IC_OV_ACCT/VContracts" default="TRUE"/>
-    <InboundPlugs/>
-    <OutboundPlugs/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/Quotations">
-    <EmbeddedView id="EWA_IC_OV_ACCT/VQuotations" default="TRUE"/>
-    <InboundPlugs/>
-    <OutboundPlugs/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/Invoices">
-    <InboundPlugs/>
-    <OutboundPlugs/>
-    <EmbeddedView id="EWA_IC_OV_ACCT/VInvoices" default="TRUE"/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/Container">
-    <EmbeddedView id="EWA_IC_OV_ACCT/VContainers" default="TRUE"/>
-    <InboundPlugs/>
-    <OutboundPlugs/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/CleaningObjects">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-    <EmbeddedView id="EWA_IC_OV_ACCT/VCleaningObjects" default="TRUE"/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/Cases">
-    <InboundPlugs/>
-    <OutboundPlugs/>
-    <EmbeddedView id="EWA_IC_OV_ACCT/VCases" default="TRUE"/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/Header">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-    <EmbeddedView id="EWA_IC_OV_ACCT/VHeader" default="TRUE"/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/MainWindow" default="TRUE">
-    <InboundPlugs>
-     <InboundPlug name="DISPLAY" followUpNavigationalLink="MainWindowToFactSheet"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-    <EmbeddedView id="UFactSheet.BSP_DLC_FS/MainWindow" default="TRUE"/>
-    <EmbeddedView id="UServiceAddress.EWA_SERVADDRESS/DAddCleaningObject"/>
-    <EmbeddedView id="UServiceAddress.EWA_SERVADDRESS/DAllocateContainer"/>
-    <EmbeddedView id="UServiceAddress.EWA_SERVADDRESS/DPlaceContainer"/>
-    <EmbeddedView id="UServices.EWA_FREQUENCY/DReoccuringService"/>
-    <EmbeddedView id="UServices.EWA_FREQUENCY/WMask"/>
-    <EmbeddedView id="UServices.EWA_FREQUENCY/DOneTimeService"/>
-    <EmbeddedView id="UServices.EWA_FREQUENCY/DServiceDates"/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/Services">
-    <EmbeddedView id="EWA_IC_OV_ACCT/VServices" default="TRUE"/>
-    <InboundPlugs/>
-    <OutboundPlugs/>
-   </Window>
-   <Window id="EWA_IC_OV_ACCT/SDInvoice">
-    <InboundPlugs/>
-    <OutboundPlugs/>
-    <EmbeddedView id="EWA_IC_OV_ACCT/VSDInvoices" default="TRUE"/>
-   </Window>
-   <Window id="ZWR_IC_OV_ACCT/Qmel">
-    <InboundPlugs/>
-    <OutboundPlugs/>
-    <EmbeddedView id="ZWR_IC_OV_ACCT/QmelData" default="TRUE"/>
-   </Window>
-  </Windows>
-  <ViewSets>
-   <ViewSet id="EWA_IC_OV_ACCT/OVMain">
-    <ViewArea id="OverviewPage">
-     <EmbeddedView id="USelf.EWA_IC_OV_ACCT/BusinessDataEnvironment" default="TRUE"/>
-     <EmbeddedView id="USelf.EWA_IC_OV_ACCT/ObjectDataEnvironment"/>
-     <EmbeddedView id="USelf.EWA_IC_OV_ACCT/Cases"/>
-     <EmbeddedView id="USelf.EWA_IC_OV_ACCT/CleaningObjects"/>
-     <EmbeddedView id="USelf.EWA_IC_OV_ACCT/Container"/>
-     <EmbeddedView id="USelf.EWA_IC_OV_ACCT/Contracts"/>
-     <EmbeddedView id="USelf.EWA_IC_OV_ACCT/Header"/>
-     <EmbeddedView id="USelf.EWA_IC_OV_ACCT/Invoices"/>
-     <EmbeddedView id="USelf.EWA_IC_OV_ACCT/Quotations"/>
-    </ViewArea>
-   </ViewSet>
-   <ViewSet id="EWA_IC_OV_ACCT/VBusinessDataEnvironment">
-    <ViewArea id="CONTENT">
-     <EmbeddedView id="BusinessEnvironmentTree.MainWindow" default="TRUE"/>
-    </ViewArea>
-   </ViewSet>
-   <ViewSet id="EWA_IC_OV_ACCT/VObjectDataEnvironment">
-    <ViewArea id="CONTENT">
-     <EmbeddedView id="ObjectEnvironmentTree.MainWindow" default="TRUE"/>
-    </ViewArea>
-   </ViewSet>
-  </ViewSets>
-  <NavigationalLinks>
-   <NavigationalLink name="BuildTreeBusinessDataEnvironmentTree">
-    <Source outboundPlugRef="" viewRef="EWA_IC_OV_ACCT/BusinessDataEnvironment"/>
-    <Targets>
-     <Target viewRef="BusinessEnvironmentTree.MainWindow" inboundPlugRef="DEFAULT_SELECT_FIRST"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="MainWindowToFactSheet">
-    <Source outboundPlugRef="" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    <Targets>
-     <Target inboundPlugRef="DEFAULT" viewRef="UFactSheet.BSP_DLC_FS/MainWindow"/>
-    </Targets>
-   </NavigationalLink>
-   <!--   <NavigationalLink name="MainWindowToPlaceContainer">
- <Source outboundPlugRef="" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
- <Targets>
-                                                        <Target inboundPlugRef="EDIT" viewRef="UServiceAddress.EWA_SERVADDRESS/DPlaceContainer"/>
- </Targets>
-                                                                                                                                       </NavigationalLink>
- <NavigationalLink name="MainWindowToAllocateContainer">
-                                                                                                   <Source outboundPlugRef="" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
- <Targets>
-                                                                                                                                                          <Target inboundPlugRef="EDIT" viewRef="UServiceAddress.EWA_SERVADDRESS/DAllocateContainer"/>
- </Targets>
-                                                                 </NavigationalLink>
- <NavigationalLink name="MainWindowToAddCleaningObject">
- <Source outboundPlugRef="" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-                                                                                                                                                                                               <Targets>
- <Target inboundPlugRef="EDIT" viewRef="UServiceAddress.EWA_SERVADDRESS/DAddCleaningObject"/>
-                                                                                                                                                         </Targets>
- </NavigationalLink>
- -->
-   <NavigationalLink name="MainWindowToPlaceContainer">
-    <Source outboundPlugRef="TOPLACECONTAINER" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    <Targets>
-     <Target inboundPlugRef="EDIT" viewRef="UServiceAddress.EWA_SERVADDRESS/DPlaceContainer"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="MainWindowToAllocateContainer">
-    <Source outboundPlugRef="TOALLOCATECONTAINER" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    <Targets>
-     <Target inboundPlugRef="EDIT" viewRef="UServiceAddress.EWA_SERVADDRESS/DAllocateContainer"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="MainWindowToAddCleaningObject">
-    <Source outboundPlugRef="TOADDCLEANINGOBJECT" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    <Targets>
-     <Target inboundPlugRef="EDIT" viewRef="UServiceAddress.EWA_SERVADDRESS/DAddCleaningObject"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="FromPlaceContainer">
-    <Source outboundPlugRef="DIALOGDONE" viewRef="UServiceAddress.EWA_SERVADDRESS/DPlaceContainer"/>
-    <Targets>
-     <!--     <Target inboundPlugRef="DEFAULT" viewRef="UFactSheet.BSP_DLC_FS/MainWindow"/>-->
-     <Target inboundPlugRef="FROM_DIALOGDONE" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="FromAllocateContainer">
-    <Source outboundPlugRef="DIALOGDONE" viewRef="UServiceAddress.EWA_SERVADDRESS/DAllocateContainer"/>
-    <Targets>
-     <!--     <Target inboundPlugRef="DEFAULT" viewRef="UFactSheet.BSP_DLC_FS/MainWindow"/>-->
-     <Target inboundPlugRef="FROM_DIALOGDONE" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="FromAddCleaningObject">
-    <Source outboundPlugRef="DIALOGDONE" viewRef="UServiceAddress.EWA_SERVADDRESS/DAddCleaningObject"/>
-    <Targets>
-     <!--     <Target inboundPlugRef="DEFAULT" viewRef="UFactSheet.BSP_DLC_FS/MainWindow"/>-->
-     <Target inboundPlugRef="FROM_DIALOGDONE" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="FromReoccuringService">
-    <Source outboundPlugRef="DIALOGDONE" viewRef="UServices.EWA_FREQUENCY/DReoccuringService"/>
-    <Targets>
-     <!--     <Target inboundPlugRef="DEFAULT" viewRef="UFactSheet.BSP_DLC_FS/MainWindow"/>-->
-     <Target inboundPlugRef="FROM_DIALOGDONE" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="FromService">
-    <Source outboundPlugRef="DIALOGDONE" viewRef="UServices.EWA_FREQUENCY/WMask"/>
-    <Targets>
-     <!--     <Target inboundPlugRef="DEFAULT" viewRef="UFactSheet.BSP_DLC_FS/MainWindow"/>-->
-     <Target inboundPlugRef="FROM_DIALOGDONE" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="ToOneTimeServiceEdit">
-    <Source outboundPlugRef="TOONETIMESERVICEEDIT" viewRef="UServices.EWA_FREQUENCY/WMask"/>
-    <Targets>
-     <Target inboundPlugRef="EDIT" viewRef="UServices.EWA_FREQUENCY/DOneTimeService"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="FromOnetimeService">
-    <Source outboundPlugRef="DIALOGDONE" viewRef="UServices.EWA_FREQUENCY/DOneTimeService"/>
-    <Targets>
-     <!--     <Target inboundPlugRef="DEFAULT" viewRef="UFactSheet.BSP_DLC_FS/MainWindow"/>-->
-     <Target inboundPlugRef="FROM_DIALOGDONE" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="FromFSDefault">
-    <Source outboundPlugRef="DEFAULT" viewRef="UFactSheet.BSP_DLC_FS/MainWindow"/>
-    <Targets>
-     <Target inboundPlugRef="FROM_FS_DEFAULT" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    </Targets>
-   </NavigationalLink>
-   <!--   <NavigationalLink name="MainWindowToFactSheetNoRefresh">
-                                                                                                                                                                                              <Source outboundPlugRef="" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
- <Targets>
-                                                                                                            <Target inboundPlugRef="#INITIAL#" viewRef="UFactSheet.BSP_DLC_FS/MainWindow"/>
- </Targets>
-                                                                      </NavigationalLink>
- -->
-   <NavigationalLink name="MainWindowToReoccurringService">
-    <Source outboundPlugRef="" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    <Targets>
-     <Target inboundPlugRef="NEW" viewRef="UServices.EWA_FREQUENCY/DReoccuringService"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="FromReoccuringServiceToServiceDatesEdit">
-    <Source outboundPlugRef="TOSERVICEDATESEDIT" viewRef="UServices.EWA_FREQUENCY/DReoccuringService"/>
-    <Targets>
-     <Target inboundPlugRef="EDIT" viewRef="UServices.EWA_FREQUENCY/DServiceDates"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="FromServiceDatesToReoccuringService">
-    <Source outboundPlugRef="DIALOGDONE" viewRef="UServices.EWA_FREQUENCY/DServiceDates"/>
-    <Targets>
-     <Target inboundPlugRef="DEFAULT" viewRef="UServices.EWA_FREQUENCY/DReoccuringService"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="MainWindowToOneTimeService">
-    <Source outboundPlugRef="" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    <Targets>
-     <Target inboundPlugRef="NEW" viewRef="UServices.EWA_FREQUENCY/DOneTimeService"/>
-    </Targets>
-   </NavigationalLink>
-   <NavigationalLink name="MainWindowToOneTimeServiceExcpH">
-    <Source outboundPlugRef="" viewRef="EWA_IC_OV_ACCT/MainWindow"/>
-    <Targets>
-     <Target inboundPlugRef="NEW_EXCP_HEAD" viewRef="UServices.EWA_FREQUENCY/DOneTimeService"/>
-    </Targets>
-   </NavigationalLink>
-  </NavigationalLinks>
-  <ComponentInterface id="">
-   <!-- Declaration of Interface views and public parts of the component controller -->
-   <InterfaceController>
-    <Context/>
-    <Events/>
-   </InterfaceController>
-   <InterfaceView id="EWA_IC_OV_ACCT/BusinessDataEnvironment" mappedToWindow="EWA_IC_OV_ACCT/BusinessDataEnvironment">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-   </InterfaceView>
-   <InterfaceView id="EWA_IC_OV_ACCT/ObjectDataEnvironment" mappedToWindow="EWA_IC_OV_ACCT/ObjectDataEnvironment">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-   </InterfaceView>
-   <InterfaceView id="EWA_IC_OV_ACCT/Contracts" mappedToWindow="EWA_IC_OV_ACCT/Contracts">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-   </InterfaceView>
-   <InterfaceView id="EWA_IC_OV_ACCT/Quotations" mappedToWindow="EWA_IC_OV_ACCT/Quotations">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-   </InterfaceView>
-   <InterfaceView id="EWA_IC_OV_ACCT/Invoices" mappedToWindow="EWA_IC_OV_ACCT/Invoices">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-   </InterfaceView>
-   <InterfaceView id="EWA_IC_OV_ACCT/Container" mappedToWindow="EWA_IC_OV_ACCT/Container">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-   </InterfaceView>
-   <InterfaceView id="EWA_IC_OV_ACCT/CleaningObjects" mappedToWindow="EWA_IC_OV_ACCT/CleaningObjects">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-   </InterfaceView>
-   <InterfaceView id="EWA_IC_OV_ACCT/Cases" mappedToWindow="EWA_IC_OV_ACCT/Cases">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-   </InterfaceView>
-   <InterfaceView id="EWA_IC_OV_ACCT/Header" mappedToWindow="EWA_IC_OV_ACCT/Header">
-    <InboundPlugs>
-     <InboundPlug name="DEFAULT"/>
-     <InboundPlug name="FROM_IC"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-   </InterfaceView>
-   <InterfaceView id="EWA_IC_OV_ACCT/MainWindow" mappedToWindow="EWA_IC_OV_ACCT/MainWindow"/>
-   <InterfaceView id="EWA_IC_OV_ACCT/Services" mappedToWindow="EWA_IC_OV_ACCT/Services">
-    <InboundPlugs/>
-    <OutboundPlugs/>
-   </InterfaceView>
-   <InterfaceView id="EWA_IC_OV_ACCT/SDInvoice" mappedToWindow="EWA_IC_OV_ACCT/SDInvoice">
-    <InboundPlugs>
-     <InboundPlug name="FROM_IC"/>
-     <InboundPlug name="DEFAULT"/>
-    </InboundPlugs>
-    <OutboundPlugs/>
-   </InterfaceView>
-  </ComponentInterface>
-  <ComponentUsages>
-   <!-- Declaration of the usage of other components -->
-   <ComponentUsage id="BusinessEnvironmentTree" usedComponent="IUBOTREE">
-    <InterfaceView id="MainWindow">
-     <InboundPlugs/>
-     <OutboundPlugs/>
-    </InterfaceView>
-   </ComponentUsage>
-   <ComponentUsage id="ObjectEnvironmentTree" usedComponent="IUBOTREE">
-    <InterfaceView id="MainWindow"/>
-   </ComponentUsage>
-   <ComponentUsage id="UServices" usedComponent="EWA_FREQUENCY">
-    <InterfaceView id="EWA_FREQUENCY/DOneTimeService"/>
-    <InterfaceView id="EWA_FREQUENCY/DReoccuringService">
-     <InboundPlugs/>
-     <OutboundPlugs/>
-    </InterfaceView>
-    <InterfaceView id="EWA_FREQUENCY/DServiceDates"/>
-    <InterfaceView id="EWA_FREQUENCY/DChangeKeyDate"/>
-   </ComponentUsage>
-   <ComponentUsage id="UServiceAddress" usedComponent="EWA_SERVADDRESS">
-    <InterfaceView id="EWA_SERVADDRESS/DAllocateContainer"/>
-    <InterfaceView id="EWA_SERVADDRESS/DAddCleaningObject"/>
-    <InterfaceView id="EWA_SERVADDRESS/DPlaceContainer"/>
-   </ComponentUsage>
-   <ComponentUsage id="UFactSheet" usedComponent="BSP_DLC_FS">
-    <InterfaceView id="BSP_DLC_FS/MainWindow">
-     <InboundPlugs/>
-     <OutboundPlugs/>
-    </InterfaceView>
-   </ComponentUsage>
-  </ComponentUsages>
- </Component>
-</WebDynProDefinitions>
+Step 0 — Analyse the existing Qmel tab (do this first)
+SE03 → Objekte in Aufträgen suchen → search ZWR_IC_OV_ACCT* and *QMEL*. The transport that delivered the Qualitätsmeldungen tab lists every object that was touched — repository, view classes, configuration, and the fact sheet customizing entry. That last one is what you need for step 6, and it's the only piece I can't determine from the screenshots.
+
+Then SE80 → open ZL_*QMELDATA_IMPL and read DO_PREPARE_OUTPUT / DO_INIT_CONTEXT. You're looking for how it gets the current business partner — you'll reuse that exact code in step 3.
+
+The enhancement set ZWR_ENHSET is already active and the component is already enhanced (ZWR_IC_OV_ACCT exists), so don't press "Enhance Component" again.
+
+Step 1 — DDIC structure
+SE11 → create structure ZWR_S_HDAY_LOG with PARTNER, OXYGENID, START_DATE, END_DATE, ERNAM, ERDAT, ADM_ERTIME, AENAM, AEDAT, ADM_AETIME, LOEVM — same field names and data elements as in ZWR_CTP_OP_HDAY, so a MOVE-CORRESPONDING suffices in step 3. Package ZWR_CLASSIC_CRM_CEWA, activate.
+
+Step 2 — Create the view
+BSP_WD_CMPWB → component EWA_IC_OV_ACCT, enhancement set ZWR_ENHSET → change mode → right-click Views → Anlegen. In the wizard:
+
+View Name HolidayData (the system prefixes ZWR_IC_OV_ACCT/)
+Select Model Nodes → leave empty. There's no BOL object for this table.
+Add Value Nodes → HOLIDAYLOG, structure ZWR_S_HDAY_LOG, cardinality 0..n
+View Type → Table View, table node HOLIDAYLOG
+A value node rather than a GenIL/BOL object is the right call here — building a BOL object for a read-only log is disproportionate.
+
+Step 3 — Fill the node with data
+SE24 on the generated ZL_..._HOLIDAYDATA_IMPL → redefine DO_PREPARE_OUTPUT:
+
+
+lv_partner = me->get_current_partner( ).     " <- Logik aus QmelData
+IF lv_partner IS INITIAL. RETURN. ENDIF.
+
+SELECT * FROM zwr_ctp_op_hday INTO TABLE lt_hday
+  WHERE partner = lv_partner.                " AK 1 + 2
+
+SORT lt_hday BY start_date DESCENDING
+                end_date   DESCENDING.       " AK 3
+
+CREATE OBJECT lr_col.
+LOOP AT lt_hday INTO ls_hday.
+  CREATE DATA lr_data TYPE zwr_s_hday_log.
+  ASSIGN lr_data->* TO <ls_disp>.
+  MOVE-CORRESPONDING ls_hday TO <ls_disp>.
+  CREATE OBJECT lr_vnode EXPORTING iv_data_ref = lr_data.
+  lr_col->add( iv_entity = lr_vnode ).
+ENDLOOP.
+
+me->typed_context->holidaylog->collection_wrapper->set_collection( lr_col ).
+Add a private attribute GV_LAST_PARTNER and skip the re-read when the partner hasn't changed — DO_PREPARE_OUTPUT fires on every round trip. The full method including that guard is in the file.
+
+GET_CURRENT_PARTNER is the one method you should copy rather than write: which context node holds the BP (BUILHEADER, ACCOUNT, …) and which attribute (BP_NUMBER, PARTNER) depends on how the fact sheet passes it through. That's why step 0.3 comes first.
+
+Step 4 — Window in the Runtime Repository
+BSP_WD_CMPWB → Runtime Repository Editor → change mode → right-click Windows → Add Window → Holiday → then add view ZWR_IC_OV_ACCT/HolidayData as default. Save. The editor writes the XML — don't hand-edit the BSP page.
+
+What you leave alone: <Views> (design-time only), the OverviewPage ViewArea (Qmel/Services/SDInvoice aren't there either — it's legacy), <ComponentInterface> (Qmel has no entry and works), <ComponentUsages> (the fact sheet usage ZWR_IC_OV_ACCT0001 is generated at runtime).
+
+Step 5 — Configuration
+View → tab Configuration → New Configuration, role key <DEFAULT> (Qmel: sought /WATP/WAIC, found <DEFAULT>). Move fields to Displayed Fields in this order: Gültig ab, Gültig bis, Geändert von, Geändert am, Geändert um, Angelegt von, Angelegt am, Oxygen-ID. Table Navigation = Both.
+
+Do not implement GET_BUTTONS — the Create button visible on Qualitätsmeldungen must not appear here.
+
+Step 6 — Register the tab in the fact sheet
+Without this the view exists but stays invisible. Take the customizing entry you found in step 0.2, create an analogous one for ZWR_IC_OV_ACCT/Holiday under object type /WATP/EWA_ACCOUNT_FS, with a sequence number higher than Qmel's so it lands to the right of Qualitätsmeldungen. This goes into a customizing request, not the workbench request.
+
+If you didn't find it via SE03: SPRO → CRM → UI Framework → UI Framework Definition → Fact Sheet. Fallback for locating it: search table BSPC_DL_XMLSTRX2 for Qmel.
+
+Step 7 — Tab label
+Maintain where Qualitätsmeldungen is maintained — the F2 popup says Herkunft des Bezeichners: Kundenkonfiguration, so the configuration entry or an OTR text (SOTR_EDIT). Proposed title "Urlaubstage", still to be confirmed.
+
+Step 8 — Test
+BP 1000123 in S4D/110: tab appears right of Qualitätsmeldungen; contents match SE16 on ZWR_CTP_OP_HDAY WHERE PARTNER = 1000123 (AK 1); switch to another BP and confirm no foreign rows (AK 2); newest validity on top (AK 3); Geändert von / Geändert am populated; no Create button. Then retest in S4Q/110 with 0052240024 after transport.
+
+Step 9 — Transport
+Workbench: structure, BSP application, the three generated classes, configuration, OTR texts. Customizing: the fact sheet registration from step 6. Cross-check your object list against Qmel's from step 0.2 — if something's in theirs and not yours, you've missed a registration point.
+
+Steps 3 and 4 are independent and can run in parallel. Everything before step 6 is invisible in the UI, so don't be alarmed when the tab doesn't show up after step 5.
