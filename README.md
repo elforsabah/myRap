@@ -1,56 +1,42 @@
-  METHOD do_prepare_output.
+METHOD do_prepare_output.
 
-    DATA: lcc         TYPE REF TO cl_ewa_ic_o_cc_impl,
-          lbolpartner TYPE REF TO if_bol_bo_property_access,
-          lpartner    TYPE        bu_partner,
-          lkeydate    TYPE        dats.
+  DATA: lcc         TYPE REF TO cl_ewa_ic_o_cc_impl,
+        lbolpartner TYPE REF TO if_bol_bo_property_access,
+        lpartner    TYPE        bu_partner,
+        lt_hday     TYPE STANDARD TABLE OF zwr_s_hday_log.
 
-    CALL METHOD super->do_prepare_output
+  CALL METHOD super->do_prepare_output
+    EXPORTING
+      iv_first_time = iv_first_time.
+
+* Kein add_buttons( ) - der View hat bewusst keine Toolbar
+
+  lcc ?= get_custom_controller( controller_id = 'EWA_IC_OV_ACCT/CC' ).
+  CHECK lcc IS NOT INITIAL.
+  lcc->fill_from_ic( ).
+  lbolpartner = lcc->typed_context->partner->collection_wrapper->get_current( ).
+
+  IF lbolpartner IS NOT INITIAL.
+    lbolpartner->get_property_as_value(
       EXPORTING
-        iv_first_time = iv_first_time.
+        iv_attr_name = 'PARTNER'
+      IMPORTING
+        ev_result    = lpartner ).
+  ENDIF.
 
-    IF iv_first_time IS NOT INITIAL.
-      add_buttons( ).
-    ENDIF.
+  CHECK lpartner IS NOT INITIAL.
 
-    lcc ?= get_custom_controller( controller_id = 'EWA_IC_OV_ACCT/CC' ).
-    CHECK lcc IS NOT INITIAL.
-    lcc->fill_from_ic( ).
-    lbolpartner = lcc->typed_context->partner->collection_wrapper->get_current( ).
+* AK 1 + AK 2: ausschliesslich Urlaubstage des aktuellen Kunden
+  SELECT * FROM zwr_ctp_op_hday
+    INTO CORRESPONDING FIELDS OF TABLE @lt_hday
+    WHERE partner EQ @lpartner.
 
-    IF lbolpartner IS NOT INITIAL.
-      lbolpartner->get_property_as_value(
-        EXPORTING
-          iv_attr_name = 'PARTNER'
-        IMPORTING
-          ev_result    = lpartner ).
-    ENDIF.
+* AK 3: Gueltigkeit absteigend, neueste zuerst
+  SORT lt_hday BY start_date DESCENDING
+                  end_date   DESCENDING.
 
-    IF lpartner IS NOT INITIAL.
-      SELECT * FROM qmel
-        INTO TABLE @DATA(lt_qmel)
-        WHERE kunum EQ @lpartner
-          AND qmart EQ 'Q1'.
-      IF lt_qmel IS NOT INITIAL.
-        DATA(lr_tools_bol) = NEW zcrm_ui_tools_bol( ).
-        DATA(lr_col) = lr_tools_bol->get_collection_from_table( it_table = lt_qmel ).
-        me->typed_context->qmeldata->set_collection( lr_col ).
-      ENDIF.
-    ENDIF.
+  DATA(lr_tools_bol) = NEW zcrm_ui_tools_bol( ).
+  DATA(lr_col) = lr_tools_bol->get_collection_from_table( it_table = lt_hday ).
+  me->typed_context->holidaylog->set_collection( lr_col ).
 
-  ENDMETHOD.
-
-
-    method DO_INIT_CONTEXT.
-
-*   set initial selection mode for all tables
-
-
-
-    TYPED_CONTEXT->QMELDATA->SET_SELECTION_MODE(
-      IV_SELECTION_MODE = CL_BSP_WD_CONTEXT_NODE_TV=>SELMODE_SINGLE
-    ).
-
-
-
-  endmethod.
+ENDMETHOD.
