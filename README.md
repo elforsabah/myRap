@@ -1,1 +1,1 @@
-<img width="871" height="678" alt="image" src="https://github.com/user-attachments/assets/9955488d-c7b6-4299-83cd-c2ee99a9407c" />
+SE16 → BSPC_DL_XMLSTRX2, filter on component BSP_DLC_FS. If a customer configuration for the fact sheet exists, it's there — the F2 popup did say Herkunft der Konfiguration: Kundenkonfiguration.
