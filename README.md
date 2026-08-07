@@ -1,1 +1,1 @@
-SE16 → BSPC_DL_XMLSTRX2, filter on component BSP_DLC_FS. If a customer configuration for the fact sheet exists, it's there — the F2 popup did say Herkunft der Konfiguration: Kundenkonfiguration.
+<img width="1852" height="867" alt="image" src="https://github.com/user-attachments/assets/685dd961-2578-48d4-ab23-a8898d21bbda" />
