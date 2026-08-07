@@ -1,15 +1,12 @@
-<img width="1675" height="550" alt="image" src="https://github.com/user-attachments/assets/eda10ced-d252-4eb2-b719-0a8ab30c76d5" />
-<img width="600" height="797" alt="image" src="https://github.com/user-attachments/assets/666d16db-2e7d-4b27-8e8c-33b1ddda3c80" />
-<img width="634" height="654" alt="image" src="https://github.com/user-attachments/assets/8f1649a9-adb2-416f-b8b5-beec92800e63" />
-<img width="687" height="822" alt="image" src="https://github.com/user-attachments/assets/13b748cc-6bdb-45ea-9d87-8600c2221ef5" />
-<img width="475" height="451" alt="image" src="https://github.com/user-attachments/assets/a132823c-caed-429d-8e65-4b44736801e1" />
-<img width="609" height="347" alt="image" src="https://github.com/user-attachments/assets/52fb9161-5956-476c-ac24-87f74bf87ccc" />
-<img width="495" height="353" alt="image" src="https://github.com/user-attachments/assets/9aa2ab31-a0ae-443b-ae71-35a560ee16d4" />
-<img width="626" height="331" alt="image" src="https://github.com/user-attachments/assets/c31dbbaf-52fa-4fd0-83d3-32a345117c50" />
-<img width="400" height="228" alt="image" src="https://github.com/user-attachments/assets/742262ee-de9c-43a3-8860-008f7749d98c" />
-<img width="457" height="641" alt="image" src="https://github.com/user-attachments/assets/ec0e0e2a-6030-474b-bc7f-6e3b54f9e106" />
-<img width="567" height="151" alt="image" src="https://github.com/user-attachments/assets/926635b9-2ae3-4de9-ba16-bd9ee72eb451" />
-<img width="494" height="521" alt="image" src="https://github.com/user-attachments/assets/b980fc29-e68a-4d44-85b3-644c73190441" />
-<img width="524" height="215" alt="image" src="https://github.com/user-attachments/assets/86470989-c826-45d5-88e3-2296cad9ab5b" />
-<img width="455" height="339" alt="image" src="https://github.com/user-attachments/assets/d727fcb8-f11f-4e9a-84d1-4b9488e582c7" />
-<img width="1250" height="885" alt="image" src="https://github.com/user-attachments/assets/0836724b-6397-4b0c-8c08-07a163974b2d" />
+SM34 → view cluster BSPVC_DLC_FS → Pflegen
+
+Select fact sheet /WATP/EWA_ACCOUNT_FS
+Go to the view assignments and find the row for ZWR_IC_OV_ACCT/Qmel
+Copy it (copy-as, rather than typing a fresh row — it carries the right usage fields)
+Change:
+
+Component Name  : ZWR_IC_OV_ACCT
+Interface View  : ZWR_IC_OV_ACCT/Holiday
+Inbound Plug    : FROM_IC
+Maintain the title in the text table — at least German and English. This is where Qmel's stray "Services" comes from, so set yours properly: Urlaubstage / Holidays
+Save to a customizing request
