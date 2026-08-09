@@ -1,1 +1,3 @@
-<img width="1605" height="818" alt="image" src="https://github.com/user-attachments/assets/b5cb2910-5188-4a76-bb4a-880ca7612c23" />
+Log on to client 110, SE16 → BSPC_DL_FSVASS, FS_ID = /WATP/EWA_ACCOUNT_FS.
+
+The Qmel row must be there (its tab works in 110). If Qmel is present and Holiday isn't, the diagnosis is proven.
