@@ -591,6 +591,10 @@ No Services created for Profile EWACS.
 Waste disposal order 4192 for route 211 with 1 items is issued
 Waste disposal order 4246 for route 211 with 1 items is issued
 Waste disposal order 4284 for route 211 with 1 items is issued
-  INCLUDE aorder_download_status_0100o01.
+INCLUDE aorder_download_status_0100o01.
+
+
+<img width="1382" height="924" alt="image" src="https://github.com/user-attachments/assets/a6a9770b-6b37-49e0-8a9c-2e1a214c7bf9" />
+
 
   INCLUDE aorder_download_user_commani01.
