@@ -1,7 +1,1 @@
-Beim Upload der Aufträge ins Planning and Dispatching über die EWAORDERDOWN wurde festgestellt, dass es relativ dauert bis Aufträge tatsächlich ankommen. 
-
-Der Kunde wünscht sich eine nahezu synchrone Übertragung, daher läuft der Job alle 2 Minuten. 
-
-Bitte einmal herausfinden, wieso der Job so lange läuft.
-
- 
+<img width="1281" height="396" alt="image" src="https://github.com/user-attachments/assets/06fe8057-ed22-40ac-9a66-f998155015f2" />
