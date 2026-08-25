@@ -1,6 +1,8 @@
+TODOs / Offene Punkte heute besprochen:
 
-Name	Text
-P_SVC	Service-UUID
-P_TOUR	Tour-UUID
-P_ROWS	Anzahl Einträge
-P_ERRS	Nur Fehler
+Entwicklungen nach TI4 übernehmen
+Anmeldedaten von ZTOUR_BMS_CFG auslagern in RFC-Destination
+in ZTOUR_BMS_CFG das Feld “active” erweitern auf 3 Werte:
+aktiv
+inaktiv
+testen (= wie inaktiv, aber “OK”-Response simulieren)
