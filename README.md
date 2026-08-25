@@ -1,8 +1,1 @@
-TODOs / Offene Punkte heute besprochen:
-
-Entwicklungen nach TI4 übernehmen
-Anmeldedaten von ZTOUR_BMS_CFG auslagern in RFC-Destination
-in ZTOUR_BMS_CFG das Feld “active” erweitern auf 3 Werte:
-aktiv
-inaktiv
-testen (= wie inaktiv, aber “OK”-Response simulieren)
+<img width="1376" height="168" alt="image" src="https://github.com/user-attachments/assets/31b7b04f-9345-4c09-8004-ef73703eaafc" />
