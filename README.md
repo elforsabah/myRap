@@ -1,9 +1,1 @@
-Name	Text
-P_ORDER	Auftragsnummer
-P_DATE	Geplantes Datum
-P_MOVE	Bewegungsart (new/change/collect)
-P_CTYPE	Containertyp-Bezeichnung
-P_COLD	Behälternummer alt
-P_CNEW	Behälternummer neu
-P_TOUR	Tour-ID (externalSystemID)
-P_SEND	Senden (sonst nur Anzeige)
+<img width="1098" height="708" alt="image" src="https://github.com/user-attachments/assets/d511b1ec-e8cd-4f85-b27c-22b2086261a6" />
