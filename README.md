@@ -1,100 +1,330 @@
-  METHOD get_bms_bearer_token.
-*   IMPORTING iv_destination TYPE rfcdest
-*             iv_username    TYPE string
-*             iv_password    TYPE string
-*   EXPORTING ev_token       TYPE string
-*             ev_error       TYPE string
+METHOD stornobmsservice.
 
-    CLEAR: ev_token, ev_error.
+*----------------------------------------------------------------------*
+* There is no storno endpoint in the BMS API. Cancellation is the SAME
+* create-order-halle call with status "cancelled". The payload is
+* replayed from ZBMS_API_LOG so BMS sees exactly the order it accepted.
+*----------------------------------------------------------------------*
+  TYPES:
+    BEGIN OF ty_svc_storno,
+      service_uuid     TYPE /plce/pdservice_uuid,
+      service_id       TYPE /plce/pdservice_id,
+      reference_id     TYPE char30,
+      reference_int_id TYPE char30,
+    END OF ty_svc_storno,
+    tt_svc_storno TYPE HASHED TABLE OF ty_svc_storno
+                  WITH UNIQUE KEY service_uuid.
 
-    DATA lo_http TYPE REF TO if_http_client.
-    DATA lv_code TYPE i.
+  DATA:
+    lt_services     TYPE tt_svc_storno,
+    ls_svc          TYPE ty_svc_storno,
+    ls_srvcst       TYPE /plce/tpdsrvcst,
+    lv_token        TYPE string,
+    lv_error        TYPE string,
+    lv_http_status  TYPE i,
+    lv_response     TYPE string,
+    lv_json         TYPE string,
+    lv_storno_ok    TYPE i,
+    lv_storno_err   TYPE i,
+    lv_pobjnr       TYPE j_objnr,
+    lv_sto_subrc    TYPE sy-subrc,
+    lv_order_number TYPE aufnr.
 
-    " Serialise rather than concatenate — a password containing " or \
-    " would otherwise produce invalid JSON.
-    DATA: BEGIN OF ls_auth_req,
-            username TYPE string,
-            password TYPE string,
-          END OF ls_auth_req.
+  DATA: BEGIN OF ls_err_body,
+          BEGIN OF error,
+            message   TYPE string,
+            timestamp TYPE string,
+          END OF error,
+        END OF ls_err_body.
 
-    ls_auth_req-username = iv_username.
-    ls_auth_req-password = iv_password.
+*----------------------------------------------------------------------*
+* CONFIG
+*----------------------------------------------------------------------*
+  SELECT SINGLE bms_destination, bms_username, bms_password, active
+    FROM ztour_bms_cfg
+    WHERE config_id = 'DEFAULT'
+    INTO @DATA(ls_cfg).
 
-    DATA(lv_auth_json) = /ui2/cl_json=>serialize(
-      data        = ls_auth_req
-      compress    = abap_false
-      pretty_name = /ui2/cl_json=>pretty_mode-camel_case ).
+  IF sy-subrc <> 0 OR ls_cfg-active <> abap_true
+     OR ls_cfg-bms_destination IS INITIAL.
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ky>).
+      APPEND VALUE #(
+        %tky = <ky>-%tky
+        %msg = new_message(
+                 id       = 'Z_MSG_SVR_TOUR_EXT'
+                 number   = '018'
+                 severity = if_abap_behv_message=>severity-error )
+      ) TO reported-tour.
+      APPEND VALUE #( %tky = <ky>-%tky ) TO failed-tour.
+    ENDLOOP.
+    RETURN.
+  ENDIF.
 
-    cl_http_client=>create_by_destination(
+  DATA(lv_bms_dest)     = ls_cfg-bms_destination.
+  DATA(lv_bms_user)     = ls_cfg-bms_username.
+  DATA(lv_bms_password) = ls_cfg-bms_password.
+
+*----------------------------------------------------------------------*
+* Tours and services
+*----------------------------------------------------------------------*
+  READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+    ENTITY tour
+      FIELDS ( tourid touruuid )
+      WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_tours)
+    FAILED DATA(lt_failed).
+
+  LOOP AT lt_failed-tour ASSIGNING FIELD-SYMBOL(<fail>).
+    APPEND VALUE #(
+      %tky = <fail>-%tky
+      %msg = new_message(
+               id       = 'Z_MSG_SVR_TOUR_EXT'
+               number   = '024'
+               severity = if_abap_behv_message=>severity-error )
+    ) TO reported-tour.
+    APPEND VALUE #( %tky = <fail>-%tky ) TO failed-tour.
+  ENDLOOP.
+
+  IF lt_tours IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+    ENTITY tour BY \_serviceassignments
+      FIELDS ( touruuid serviceuuid removed )
+      WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_asgmts).
+
+  DELETE lt_asgmts WHERE removed IS NOT INITIAL.
+
+  IF lt_asgmts IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  SELECT service_uuid, service_id, reference_id, reference_int_id
+    FROM /plce/tpdsrv
+    FOR ALL ENTRIES IN @lt_asgmts
+    WHERE service_uuid = @lt_asgmts-serviceuuid
+    INTO CORRESPONDING FIELDS OF TABLE @lt_services.
+
+*----------------------------------------------------------------------*
+* Main loop
+*----------------------------------------------------------------------*
+  LOOP AT lt_tours INTO DATA(ls_tour).
+
+    CLEAR: lv_storno_ok, lv_storno_err, lv_token, lv_error.
+
+    DATA(lv_tour_id_out) = condense( |{ ls_tour-tourid ALPHA = OUT }| ).
+
+    zcl_wr_pd_tour_helper=>get_bms_bearer_token(
       EXPORTING
-        destination              = iv_destination
+        iv_destination = lv_bms_dest
+        iv_username    = lv_bms_user
+        iv_password    = lv_bms_password
       IMPORTING
-        client                   = lo_http
-      EXCEPTIONS
-        argument_not_found       = 1
-        destination_not_found    = 2
-        destination_no_authority = 3
-        plugin_not_active        = 4
-        internal_error           = 5
-        OTHERS                   = 6 ).
+        ev_token       = lv_token
+        ev_error       = lv_error ).
 
-    IF sy-subrc <> 0.
-      ev_error = |BMS: Destination { iv_destination } nicht nutzbar (subrc { sy-subrc })|.
-      RETURN.
+    IF lv_error IS NOT INITIAL.
+      APPEND VALUE #(
+        %tky = ls_tour-%tky
+        %msg = new_message_with_text(
+                 severity = if_abap_behv_message=>severity-error
+                 text     = lv_error )
+      ) TO reported-tour.
+      APPEND VALUE #( %tky = ls_tour-%tky ) TO failed-tour.
+      CONTINUE.
     ENDIF.
 
-    " Pfadpräfix in SM59 is empty, so the full path goes here
-    cl_http_utility=>set_request_uri(
-      request = lo_http->request
-      path    = '/BmsApiSapTest/api/user/authenticate/user' ).
+    LOOP AT lt_asgmts INTO DATA(ls_asgmt)
+      WHERE touruuid = ls_tour-touruuid.
 
-    lo_http->request->set_method( if_http_request=>co_request_method_post ).
-    lo_http->request->set_content_type( 'application/json' ).
-    lo_http->request->set_cdata( lv_auth_json ).
+      CLEAR: ls_svc, lv_http_status, lv_response, lv_json,
+             lv_pobjnr, lv_order_number, lv_sto_subrc.
 
-    lo_http->send( EXCEPTIONS OTHERS = 4 ).
-    IF sy-subrc <> 0.
-      lo_http->get_last_error( IMPORTING message = ev_error ).
-      lo_http->close( ).
-      RETURN.
+      READ TABLE lt_services INTO ls_svc
+        WITH TABLE KEY service_uuid = ls_asgmt-serviceuuid.
+
+      IF sy-subrc <> 0.
+        lv_storno_err = lv_storno_err + 1.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '025'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_tour_id_out )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      DATA(lv_svc_ref_out) = condense( |{ ls_svc-reference_id ALPHA = OUT }| ).
+
+      " Only cancel what was actually released
+      SELECT SINGLE zz_bms_status
+        FROM /plce/tpdsrvcst
+        WHERE service_uuid = @ls_asgmt-serviceuuid
+        INTO @DATA(lv_cur_status).
+
+      IF sy-subrc <> 0 OR lv_cur_status <> 'FREIGEGEBEN'.
+        CONTINUE.   " never released, or already cancelled
+      ENDIF.
+
+      " Replay the payload BMS accepted, with the status swapped.
+      " Requires ZBMS_API_LOG-REQUEST_PAYLOAD to be type STRING — at
+      " CHAR 1333 the stored JSON is truncated and replays as invalid.
+      SELECT SINGLE order_number, request_payload
+        FROM zbms_api_log
+        WHERE tour_uuid    = @ls_tour-touruuid
+          AND service_uuid = @ls_asgmt-serviceuuid
+        INTO ( @lv_order_number, @lv_json ).
+
+      IF sy-subrc <> 0 OR lv_json IS INITIAL.
+        lv_storno_err = lv_storno_err + 1.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '027'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_svc_ref_out )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      REPLACE FIRST OCCURRENCE OF '"status":"ok"'
+        IN lv_json WITH '"status":"cancelled"'.
+
+      lv_pobjnr = ls_svc-reference_int_id.
+
+      zcl_wr_pd_tour_helper=>post_bms_order(
+        EXPORTING
+          iv_destination  = lv_bms_dest
+          iv_bearer_token = lv_token
+          iv_json         = lv_json
+        IMPORTING
+          ev_http_status  = lv_http_status
+          ev_response     = lv_response ).
+
+      zcl_wr_pd_tour_helper=>log_bms_call(
+        iv_tour_uuid    = ls_tour-touruuid
+        iv_service_uuid = ls_asgmt-serviceuuid
+        iv_order_number = lv_order_number
+        iv_endpoint     = '/api/container/create-order-halle (CANCEL)'
+        iv_http_status  = lv_http_status
+        iv_request      = lv_json
+        iv_response     = lv_response
+        iv_pobjnr       = lv_pobjnr ).
+
+      IF lv_http_status = 200 OR lv_http_status = 201.
+
+        lv_storno_ok = lv_storno_ok + 1.
+
+        CALL FUNCTION 'ZWR_BMS_UPDATE_SERVICE'
+          DESTINATION 'NONE'
+          EXPORTING
+            service_uuid          = ls_asgmt-serviceuuid
+            pobjnr                = lv_pobjnr
+            zz_bms_status         = 'STORNIERT'
+          IMPORTING
+            ev_subrc              = lv_sto_subrc
+          EXCEPTIONS
+            communication_failure = 1
+            system_failure        = 2
+            OTHERS                = 3.
+
+        IF sy-subrc <> 0 OR lv_sto_subrc <> 0.
+          CLEAR ls_srvcst.
+          ls_srvcst-service_uuid  = ls_asgmt-serviceuuid.
+          ls_srvcst-zz_bms_status = 'STORNIERT'.
+          INSERT /plce/tpdsrvcst FROM ls_srvcst.
+        ENDIF.
+
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '015'
+                   severity = if_abap_behv_message=>severity-success
+                   v1       = lv_order_number )
+        ) TO reported-tour.
+
+      ELSE.
+
+        lv_storno_err = lv_storno_err + 1.
+
+        CLEAR ls_err_body.
+        TRY.
+            /ui2/cl_json=>deserialize(
+              EXPORTING json = lv_response
+              CHANGING  data = ls_err_body ).
+          CATCH cx_root.
+            CLEAR ls_err_body.
+        ENDTRY.
+
+        DATA(lv_bms_msg) = COND string(
+          WHEN ls_err_body-error-message IS NOT INITIAL
+          THEN ls_err_body-error-message
+          WHEN strlen( lv_response ) > 80
+          THEN |HTTP { lv_http_status }: { lv_response(80) }|
+          ELSE |HTTP { lv_http_status }: { lv_response }| ).
+
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '016'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_order_number
+                   v2       = lv_bms_msg )
+        ) TO reported-tour.
+
+      ENDIF.
+
+    ENDLOOP.   " services
+
+*----------------------------------------------------------------------*
+* Nothing was cancelled, but something was attempted.
+*     Both counters zero = no service was in FREIGEGEBEN, a legitimate
+*     no-op that must not be reported as a failure.
+*----------------------------------------------------------------------*
+    IF lv_storno_ok = 0 AND lv_storno_err > 0.
+      APPEND VALUE #( %tky = ls_tour-%tky ) TO failed-tour.
+      CONTINUE.
     ENDIF.
 
-    lo_http->receive( EXCEPTIONS OTHERS = 4 ).
-    IF sy-subrc <> 0.
-      lo_http->get_last_error( IMPORTING message = ev_error ).
-      lo_http->close( ).
-      RETURN.
+    DATA(lv_tour_status) = COND /plce/char20(
+      WHEN lv_storno_ok > 0 AND lv_storno_err = 0 THEN 'STORNIERT'
+      WHEN lv_storno_ok > 0                       THEN 'PARTIAL'
+      WHEN lv_storno_err > 0                      THEN 'ERROR'
+      ELSE                                             'STORNIERT' ).
+
+    MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+      ENTITY extcustom
+        UPDATE FIELDS ( zz_bms_status )
+        WITH VALUE #( ( touruuid      = ls_tour-touruuid
+                        zz_bms_status = lv_tour_status ) )
+      FAILED   DATA(lf_mod)
+      REPORTED DATA(lr_mod).
+
+    IF lf_mod IS NOT INITIAL.
+      MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+        ENTITY tour
+          CREATE BY \_extcustom
+            FIELDS ( zz_bms_status )
+            WITH VALUE #( (
+              %tky    = ls_tour-%tky
+              %target = VALUE #( (
+                %cid          = |BMS_STORNO_TGT_{ ls_tour-touruuid }|
+                zz_bms_status = lv_tour_status ) ) ) )
+        FAILED   DATA(lf_crt)
+        REPORTED DATA(lr_crt).
+
+      IF lf_crt IS NOT INITIAL.
+        APPEND LINES OF lr_crt-tour TO reported-tour.
+      ENDIF.
     ENDIF.
 
-    lo_http->response->get_status( IMPORTING code = lv_code ).
-    DATA(lv_body) = lo_http->response->get_cdata( ).
-    lo_http->close( ).
+  ENDLOOP.   " tours
 
-    IF lv_code <> 200.
-      ev_error = |BMS auth failed — HTTP { lv_code }: { lv_body }|.
-      RETURN.
-    ENDIF.
-
-    TYPES: BEGIN OF ty_auth_data,
-             access_token  TYPE string,
-             refresh_token TYPE string,
-           END OF ty_auth_data.
-    TYPES: BEGIN OF ty_auth_response,
-             data TYPE ty_auth_data,
-           END OF ty_auth_response.
-
-    DATA ls_auth TYPE ty_auth_response.
-
-    /ui2/cl_json=>deserialize(
-      EXPORTING json        = lv_body
-                pretty_name = /ui2/cl_json=>pretty_mode-camel_case
-      CHANGING  data        = ls_auth ).
-
-    IF ls_auth-data-access_token IS INITIAL.
-      ev_error = |BMS auth: no accessToken in response. Body: { lv_body }|.
-      RETURN.
-    ENDIF.
-
-    ev_token = |Bearer { ls_auth-data-access_token }|.
-
-  ENDMETHOD.
+ENDMETHOD.
