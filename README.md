@@ -1,314 +1,1555 @@
-sap.ui.define([
-    "sap/m/MessageToast",
-    "sap/m/MessageBox"
-], function (MessageToast, MessageBox) {
-    "use strict";
+CLASS lhc_tour DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
 
-    var oExtAPI;   // ExtensionAPI (ListReport controller extension context)
-    var oDialog;   // Dialog instance
+    METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
+      IMPORTING REQUEST requested_authorizations FOR tour RESULT result.
 
-    // ============================================================
-    // Helpers: find controls inside dialog by local id
-    // ============================================================
-    function _findControlsInDialogByLocalId(sLocalId) {
-        if (!oDialog) {
-            return [];
-        }
+    METHODS createtour FOR MODIFY
+      IMPORTING keys FOR ACTION tour~createtour RESULT result.
 
-        // Find ANY controls whose id contains the local id
-        // (fragment/view prefixes vary, so we match loosely)
-        var aFound = oDialog.findAggregatedObjects(true, function (o) {
-            try {
-                return o && typeof o.getId === "function" && o.getId().indexOf(sLocalId) !== -1;
-            } catch (e) {
-                return false;
-            }
-        }) || [];
+    METHODS precheck_createtour FOR PRECHECK
+      IMPORTING keys FOR ACTION tour~createtour.
 
-        return aFound;
-    }
+    METHODS assign_earliest_to_latest_date FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR tour~assign_earliest_to_latest_date.
 
-    function _preferBestCandidates(aControls, sLocalId) {
-        // Put likely candidates first:
-        // 1) exact local id endings, 2) macro generated ::Table, 3) anything else
-        function score(o) {
-            var sId = o.getId();
-            var i = 0;
-
-            if (sId.indexOf(sLocalId + "::Table") !== -1) { i += 50; }
-            if (sId.endsWith("--" + sLocalId) || sId.endsWith(sLocalId)) { i += 40; }
-            if (typeof o.getSelectedContexts === "function") { i += 30; }
-            if (o.isA && o.isA("sap.ui.mdc.Table")) { i += 20; }
-            if (o.isA && o.isA("sap.ui.table.Table")) { i += 10; }
-
-            return i;
-        }
-
-        return aControls.sort(function (a, b) {
-            return score(b) - score(a);
-        });
-    }
-
-    // ============================================================
-    // Helpers: selection extraction (works with Macro/MDC/Grid)
-    // ============================================================
-    function _contextsToObjectsAsync(aCtx) {
-        aCtx = aCtx || [];
-        return Promise.all(aCtx.map(function (oCtx) {
-            if (!oCtx) {
-                return Promise.resolve(null);
-            }
-            // OData V4: requestObject() is the safest
-            if (typeof oCtx.requestObject === "function") {
-                return oCtx.requestObject();
-            }
-            // fallback
-            if (typeof oCtx.getObject === "function") {
-                return Promise.resolve(oCtx.getObject());
-            }
-            return Promise.resolve(null);
-        })).then(function (aObjs) {
-            return (aObjs || []).filter(Boolean);
-        });
-    }
-
-    function _tryGetSelectedContexts(oControl) {
-        try {
-            if (oControl && typeof oControl.getSelectedContexts === "function") {
-                return oControl.getSelectedContexts() || [];
-            }
-        } catch (e) { /* ignore */ }
-        return null;
-    }
-
-    function _tryGetSelectedFromGridTable(oControl) {
-        // For sap.ui.table.Table style selection
-        try {
-            if (!oControl) { return null; }
-            if (oControl.isA && !oControl.isA("sap.ui.table.Table")) { return null; }
-
-            var aIdx = (typeof oControl.getSelectedIndices === "function") ? (oControl.getSelectedIndices() || []) : [];
-            if (!aIdx.length) { return []; }
-
-            var oBinding = (typeof oControl.getBinding === "function") ? oControl.getBinding("rows") : null;
-            if (!oBinding || typeof oBinding.getContextByIndex !== "function") { return []; }
-
-            var aCtx = aIdx.map(function (iIndex) {
-                return oBinding.getContextByIndex(iIndex);
-            }).filter(Boolean);
-
-            return aCtx;
-        } catch (e) {
-            return null;
-        }
-    }
-
-    function _getSelectedObjectsFromDialogTableLocalIdAsync(sLocalId) {
-        // Find all possible controls that belong to this table
-        var aControls = _findControlsInDialogByLocalId(sLocalId);
-        aControls = _preferBestCandidates(aControls, sLocalId);
-
-        // Try each candidate until we find one that actually returns selected contexts
-        var aSelectedCtx = null;
-
-        for (var i = 0; i < aControls.length; i++) {
-            var oCandidate = aControls[i];
-
-            // 1) Macro wrapper or MDC table with getSelectedContexts()
-            var aCtx1 = _tryGetSelectedContexts(oCandidate);
-            if (aCtx1 && aCtx1.length) {
-                aSelectedCtx = aCtx1;
-                break;
-            }
-
-            // 2) Grid table fallback (selected indices -> binding contexts)
-            var aCtx2 = _tryGetSelectedFromGridTable(oCandidate);
-            if (aCtx2 && aCtx2.length) {
-                aSelectedCtx = aCtx2;
-                break;
-            }
-
-            // 3) Some macro wrappers expose inner table via getTable()
-            try {
-                if (typeof oCandidate.getTable === "function") {
-                    var oInner = oCandidate.getTable();
-                    var aCtx3 = _tryGetSelectedContexts(oInner);
-                    if (aCtx3 && aCtx3.length) {
-                        aSelectedCtx = aCtx3;
-                        break;
-                    }
-                    var aCtx4 = _tryGetSelectedFromGridTable(oInner);
-                    if (aCtx4 && aCtx4.length) {
-                        aSelectedCtx = aCtx4;
-                        break;
-                    }
-                }
-            } catch (e) { /* ignore */ }
-        }
-
-        // If nothing found, return []
-        if (!aSelectedCtx || !aSelectedCtx.length) {
-            return Promise.resolve([]);
-        }
-
-        return _contextsToObjectsAsync(aSelectedCtx);
-    }
-
-    // ============================================================
-    // Helpers: refresh/rebind macro tables on open
-    // ============================================================
-    function _rebindDialogTableByLocalId(sLocalId) {
-        if (!oDialog) { return; }
-
-        var aControls = _findControlsInDialogByLocalId(sLocalId);
-        aControls = _preferBestCandidates(aControls, sLocalId);
-
-        for (var i = 0; i < aControls.length; i++) {
-            var o = aControls[i];
-
-            // Macro Table API often has rebindTable()
-            if (typeof o.rebindTable === "function") {
-                o.rebindTable();
-                return;
-            }
-
-            // MDC row binding refresh
-            try {
-                if (typeof o.getRowBinding === "function") {
-                    var rb = o.getRowBinding();
-                    if (rb && typeof rb.refresh === "function") {
-                        rb.refresh();
-                        return;
-                    }
-                }
-            } catch (e) { /* ignore */ }
-
-            // If wrapper exposes inner table
-            try {
-                if (typeof o.getTable === "function") {
-                    var inner = o.getTable();
-                    if (inner && typeof inner.getRowBinding === "function") {
-                        var rb2 = inner.getRowBinding();
-                        if (rb2 && typeof rb2.refresh === "function") {
-                            rb2.refresh();
-                            return;
-                        }
-                    }
-                }
-            } catch (e2) { /* ignore */ }
-        }
-    }
-
-    // ============================================================
-    // Controller handlers
-    // ============================================================
-    var oActionHandlers = {
-
-        // ------------------------------------------------------------
-        // Open dialog and bind it to the selected Tour context
-        // ------------------------------------------------------------
-        manualattachments: function (oContext, aSelectedContexts) {
-            oExtAPI = this;
-
-            var oTourCtx = aSelectedContexts && aSelectedContexts[0];
-            if (!oTourCtx) {
-                MessageToast.show("Please select a Tour first.");
-                return;
-            }
-
-            function openDialogForTour() {
-                // Bind dialog to selected Tour -> child tables resolve automatically
-                oDialog.setModel(oTourCtx.getModel());
-                oDialog.setBindingContext(oTourCtx);
-
-                if (!oDialog._afterOpenAttached) {
-                    oDialog._afterOpenAttached = true;
-                    oDialog.attachAfterOpen(function () {
-                        // Rebind both tables when dialog opens
-                        _rebindDialogTableByLocalId("AttachmentTable");
-                        _rebindDialogTableByLocalId("ServiceWRTable");
-                    });
-                }
-
-                oDialog.open();
-            }
-
-            if (oDialog) {
-                openDialogForTour();
-                return;
-            }
-
-            oExtAPI.loadFragment({
-                name: "zpdattachment.ext.fragments.GenerateDocDialog",
-                controller: oActionHandlers
-            }).then(function (oLoadedDialog) {
-                oDialog = oLoadedDialog;
-                oExtAPI.addDependent(oDialog);
-                openDialogForTour();
-            });
-        },
-
-        // ------------------------------------------------------------
-        // Choose: read selected rows from both tables and call action
-        // ------------------------------------------------------------
-        onDialogChoose: function () {
-            if (!oExtAPI) {
-                MessageBox.error("Extension API not available.");
-                return;
-            }
-
-            var oModel = oExtAPI.getModel();
-
-            Promise.all([
-                _getSelectedObjectsFromDialogTableLocalIdAsync("AttachmentTable"),
-                _getSelectedObjectsFromDialogTableLocalIdAsync("ServiceWRTable")
-            ]).then(function (aRes) {
-
-                var aAttachmentItems = aRes[0] || [];
-                var aServiceWRItems = aRes[1] || [];
-
-                if (!aAttachmentItems.length && !aServiceWRItems.length) {
-                    MessageBox.warning("Please select at least one row in both tables.");
-                    return Promise.resolve(null);
-                }
-                
-                var oTourCtx = oDialog.getBindingContext(); // Retrieve the context we set earlier
-                var oActionBinding = oModel.bindContext(
-                    "/Tour/com.sap.gateway.srvd.zsd_pdattacments.v0001.generatedocuments(...)", oTourCtx
-                );
-
-                oActionBinding.setParameter("AttachmentItemsjson", JSON.stringify(aAttachmentItems));
-                oActionBinding.setParameter("ServiceWRItemsjson", JSON.stringify(aServiceWRItems));
-
-                return oActionBinding.execute("$auto");
-
-            }).then(function (oResult) {
-                if (!oResult) { 
-                    return; } // user had no selection
-
-                MessageToast.show("Documents were generated successfully.");
-                oModel.refresh();
-
-                if (oDialog) {
-                    oDialog.close();
-                }
-            }).catch(function (oError) {
-                MessageBox.error(
-                    (oError && (oError.message || oError.toString())) || "Error while generating documents."
-                );
-            });
-        },
-
-        onDialogCancel: function () {
-            if (oDialog) {
-                oDialog.close();
-            }
-        }
-    };
-
-    return oActionHandlers;
-});
+    METHODS touranbmsfreigeben FOR MODIFY
+      IMPORTING keys FOR ACTION tour~touranbmsfreigeben RESULT result.
+    METHODS stornobmsservice FOR MODIFY
+      IMPORTING keys FOR ACTION tour~stornobmsservice RESULT result.
+    METHODS tourgeneratedocument FOR MODIFY
+      IMPORTING keys FOR ACTION tour~tourgeneratedocument RESULT result.
 
 
+ENDCLASS.
+
+CLASS lhc_tour IMPLEMENTATION.
+
+  METHOD assign_earliest_to_latest_date.
+
+    READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+      ENTITY tour
+        FIELDS ( startdate enddate )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_tour).
+
+    MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+      ENTITY tour
+        UPDATE FIELDS ( enddate )
+        WITH VALUE #(
+          FOR ls IN lt_tour
+          WHERE ( startdate IS NOT INITIAL AND enddate IS INITIAL )
+          ( %tky    = ls-%tky
+            enddate = ls-startdate )
+        )
+      FAILED   DATA(lt_fai)
+      REPORTED DATA(lt_rep).
+
+  ENDMETHOD.
+
+  METHOD get_global_authorizations.
+  ENDMETHOD.
+
+  METHOD createtour.
+
+    DATA lv_first_date   TYPE /plce/date.
+    DATA lv_last_date    TYPE /plce/date.
+    DATA lv_current_date TYPE /plce/date.
+    DATA lv_exists       TYPE abap_bool.
+
+    TYPES: BEGIN OF ty_msg_sort,
+             date TYPE /plce/date,
+             msg  TYPE REF TO if_abap_behv_message,
+           END OF ty_msg_sort.
+    DATA lt_msg_sort TYPE STANDARD TABLE OF ty_msg_sort.
+
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<key>)
+         GROUP BY ( template   = <key>-%param-tour_template
+                    first_date = <key>-%param-start_date
+                    last_date  = <key>-%param-end_date )
+         ASSIGNING FIELD-SYMBOL(<group>).
+
+      lv_first_date = <group>-first_date.
+      lv_last_date  = COND /plce/date(
+                        WHEN <group>-last_date IS INITIAL
+                        THEN lv_first_date
+                        ELSE <group>-last_date ).
+
+      IF lv_last_date < lv_first_date.
+        DATA(lv_tmp)  = lv_first_date.
+        lv_first_date = lv_last_date.
+        lv_last_date  = lv_tmp.
+      ENDIF.
+
+      lv_current_date = lv_first_date.
+
+      WHILE lv_current_date <= lv_last_date.
+
+        CLEAR lv_exists.
+
+        SELECT SINGLE @abap_true
+          FROM /plce/r_pdtour
+          WHERE tourtemplate = @<group>-template
+            AND startdate    = @lv_current_date
+          INTO @lv_exists.
+
+        IF lv_exists = abap_true.
+
+          APPEND VALUE #( date = lv_current_date
+                          msg  = new_message(
+                                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                                   number   = '008'
+                                   severity = if_abap_behv_message=>severity-information
+                                   v1       = |{ lv_current_date DATE = USER }|
+                                   v2       = <group>-template )
+                        ) TO lt_msg_sort.
+
+        ELSE.
+
+          DATA(lv_internal_cid) = cl_system_uuid=>create_uuid_x16_static( ).
+
+          MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+            ENTITY tour
+              EXECUTE createtourwithtemplate
+              FROM VALUE #(
+                ( %cid                 = lv_internal_cid
+                  %param-without_draft = 'X'
+                  %param-tour_template = <group>-template
+                  %param-start_date    = lv_current_date ) )
+            MAPPED   DATA(mapped_tour)
+            FAILED   DATA(failed_tour)
+            REPORTED DATA(reported_tour).
+
+          READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+            ENTITY tour
+              ALL FIELDS
+              WITH CORRESPONDING #( mapped_tour-tour )
+            RESULT DATA(tours).
+
+          IF lines( tours ) > 0.
+            APPEND VALUE #( date = lv_current_date
+                            msg  = new_message(
+                                     id       = 'Z_MSG_SVR_TOUR_EXT'
+                                     number   = '007'
+                                     severity = if_abap_behv_message=>severity-success
+                                     v1       = |{ lv_current_date DATE = USER }|
+                                     v2       = |{ tours[ 1 ]-tourid ALPHA = OUT }| )
+                          ) TO lt_msg_sort.
+
+            result = VALUE #( BASE result
+                              FOR tour IN tours
+                              ( %cid   = lv_internal_cid
+                                %param = tour ) ).
+          ENDIF.
+        ENDIF.
+
+        lv_current_date = lv_current_date + 1.
+
+      ENDWHILE.
+    ENDLOOP.
+
+    SORT lt_msg_sort BY date DESCENDING.
+
+    LOOP AT lt_msg_sort INTO DATA(ls_msg_sort).
+      INSERT ls_msg_sort-msg INTO reported-%other INDEX 1.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD precheck_createtour.
+
+    DATA(lv_today) = cl_abap_context_info=>get_system_date( ).
+
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<key>).
+
+      DATA lv_failed   TYPE abap_bool VALUE abap_false.
+      DATA lv_start    TYPE /plce/date.
+      DATA lv_end      TYPE /plce/date.
+      DATA lv_template TYPE /plce/pdtour_template.
+
+      lv_start    = <key>-%param-start_date.
+      lv_end      = <key>-%param-end_date.
+      lv_template = <key>-%param-tour_template.
+
+      DATA(lv_cid) = cl_system_uuid=>create_uuid_x16_static( ).
+
+      IF lv_start IS INITIAL.
+        APPEND VALUE #(
+          %cid = <key>-%cid
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '003'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = |{ lv_start DATE = USER }| )
+        ) TO reported-tour.
+        lv_failed = abap_true.
+      ENDIF.
+
+      IF lv_end IS NOT INITIAL AND lv_end < lv_start.
+        APPEND VALUE #(
+          %cid = <key>-%cid
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '002'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = |{ lv_start DATE = USER }|
+                   v2       = |{ lv_end DATE = USER }| )
+        ) TO reported-tour.
+        lv_failed = abap_true.
+      ENDIF.
+
+      IF lv_template IS INITIAL.
+        APPEND VALUE #(
+          %cid = <key>-%cid
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '001'
+                   severity = if_abap_behv_message=>severity-error )
+        ) TO reported-tour.
+        lv_failed = abap_true.
+      ENDIF.
+
+      IF lv_failed = abap_true.
+        APPEND VALUE #( %cid = <key>-%cid ) TO failed-tour.
+      ENDIF.
+
+    ENDLOOP.
+  ENDMETHOD.
+
+METHOD touranbmsfreigeben.
+
+*----------------------------------------------------------------------*
+* TYPES — mirror of InputOrder (BMS API v1, openapi 3.0.4)
+*         additionalProperties: false — every component must exist in
+*         the spec and nothing may be added.
+*----------------------------------------------------------------------*
+  TYPES:
+    " InputContact — placeOfDelivery, location
+    BEGIN OF ty_contact,
+      street        TYPE string,
+      street_number TYPE string,
+      zip_code      TYPE string,
+      city          TYPE string,
+    END OF ty_contact,
+
+    " InputContactWithName — recycler (no number)
+    BEGIN OF ty_contact_name,
+      name1         TYPE string,
+      name2         TYPE string,
+      street        TYPE string,
+      street_number TYPE string,
+      zip_code      TYPE string,
+      city          TYPE string,
+    END OF ty_contact_name,
+
+    " InputContactWithNameAndNumber — customer, producer, carrier
+    BEGIN OF ty_contact_name_num,
+      number        TYPE string,
+      name1         TYPE string,
+      name2         TYPE string,
+      street        TYPE string,
+      street_number TYPE string,
+      zip_code      TYPE string,
+      city          TYPE string,
+    END OF ty_contact_name_num,
+
+    " InputContainer — containerTypeNumber no longer exists
+    BEGIN OF ty_container,
+      container_number_old TYPE string,
+      container_number_new TYPE string,
+      movement_type        TYPE string,   " new | change | collect
+      customer_owned       TYPE abap_bool,
+      container_type_name  TYPE string,
+      internal_remark      TYPE string,
+    END OF ty_container,
+    tt_containers TYPE STANDARD TABLE OF ty_container WITH EMPTY KEY,
+
+    BEGIN OF ty_bms_order,
+      status                     TYPE string,   " ok | cancelled
+      external_system_id         TYPE string,
+      sort_number                TYPE i,
+      order_number               TYPE string,
+      order_sheet                TYPE string,
+      order_sheet_type           TYPE string,   " LS | ÜS | BS
+      customer                   TYPE ty_contact_name_num,
+      place_of_delivery          TYPE ty_contact,
+      location                   TYPE ty_contact,
+      estimated_duration         TYPE i,
+      planned_date               TYPE string,
+      execution_time_frame_start TYPE string,   " date-span, HH:MM:SS
+      execution_time_frame_end   TYPE string,
+      notes                      TYPE string,
+      special_notes              TYPE string,
+      producer                   TYPE ty_contact_name_num,
+      recycler                   TYPE ty_contact_name,
+      carrier                    TYPE ty_contact_name_num,
+      garbage_key                TYPE string,
+      garbage_name               TYPE string,
+      " ABAP caps component names at 30 chars — patched after serialisation
+      coll_consignment_note_nr   TYPE string,
+      team                       TYPE string,
+      signature_required         TYPE abap_bool,
+      containers                 TYPE tt_containers,
+    END OF ty_bms_order,
+
+    BEGIN OF ty_ewaobj,
+      pobjnr         TYPE j_objnr,
+      ordernr        TYPE eordernr,
+      smaufnr        TYPE aufnr,
+      ordertxt       TYPE text255,
+      servloc        TYPE servloc,
+      kunnr          TYPE kunnr,
+      kunwe          TYPE kunwe,
+      beh_type       TYPE beh_type,
+      beh_anzahl     TYPE cont_count,
+      container      TYPE behaelter,
+      gernr          TYPE gernr,
+      order_type     TYPE eorder_type,
+      transporter    TYPE ehs_partner,
+      disposer       TYPE ehs_partner,
+      intappno       TYPE ewa_ehs_appnoint,
+      appno          TYPE ewa_ehs_appno,
+      planned_time   TYPE pldtim,
+      planned_durt   TYPE servdur,
+      old_order_date TYPE eorder_date,
+      zz_order_date  TYPE dats,
+      watp_avvcode   TYPE /watp/davvcode,
+      watp_notenr    TYPE /watp/dnotenr,
+      watp_noteintnr TYPE /watp/dnoteintnr,
+      sdaufnr        TYPE vbeln_va,
+      sdposnr        TYPE posnr,
+    END OF ty_ewaobj,
+    tt_ewaobj TYPE HASHED TABLE OF ty_ewaobj WITH UNIQUE KEY pobjnr,
+
+    BEGIN OF ty_pobj,
+      pobjnr TYPE j_objnr,
+    END OF ty_pobj,
+    tt_pobj TYPE SORTED TABLE OF ty_pobj WITH UNIQUE KEY pobjnr,
+
+    BEGIN OF ty_service,
+      service_uuid              TYPE /plce/pdservice_uuid,
+      service_id                TYPE /plce/pdservice_id,
+      reference_id              TYPE char30,
+      reference_internal_id     TYPE char30,
+      action                    TYPE /plce/pdaction,
+      requested_date            TYPE /plce/date,
+      earliest_date             TYPE /plce/date,
+      latest_date               TYPE /plce/date,
+      service_window_start_time TYPE /plce/time,
+      service_window_end_time   TYPE /plce/time,
+      service_window            TYPE /plce/pdservice_window,
+      additional_text           TYPE /plce/pdadditional_text,
+      functional_location       TYPE char30,
+    END OF ty_service,
+    tt_services TYPE HASHED TABLE OF ty_service WITH UNIQUE KEY service_uuid,
+
+    BEGIN OF ty_srvwr,
+      service_uuid          TYPE /plce/pdservice_uuid,
+      container_atloc_tidnr TYPE char30,
+      container_new_tidnr   TYPE char30,
+    END OF ty_srvwr,
+    tt_srvwr TYPE SORTED TABLE OF ty_srvwr WITH NON-UNIQUE KEY service_uuid,
+
+    BEGIN OF ty_bp_addr,
+      partner    TYPE bu_partner,
+      addrnumber TYPE ad_addrnum,
+      name1      TYPE ad_name1,
+      name2      TYPE ad_name2,
+      street     TYPE ad_street,
+      house_num1 TYPE ad_hsnm1,
+      post_code1 TYPE ad_pstcd1,
+      city1      TYPE ad_city1,
+    END OF ty_bp_addr,
+    tt_bp_addr TYPE SORTED TABLE OF ty_bp_addr
+               WITH NON-UNIQUE KEY partner addrnumber,
+
+    BEGIN OF ty_bp_key,
+      partner TYPE bu_partner,
+    END OF ty_bp_key,
+    tt_bp_key TYPE SORTED TABLE OF ty_bp_key WITH UNIQUE KEY partner.
+
+*----------------------------------------------------------------------*
+* DATA
+*----------------------------------------------------------------------*
+  DATA:
+    lt_services      TYPE tt_services,
+    lt_srvwr         TYPE tt_srvwr,
+    lt_pobj          TYPE tt_pobj,
+    lt_ewaobj        TYPE tt_ewaobj,
+    lt_bp_keys       TYPE tt_bp_key,
+    lt_bp_addr       TYPE tt_bp_addr,
+    lt_containers    TYPE tt_containers,
+    ls_svc           TYPE ty_service,
+    ls_ewa           TYPE ty_ewaobj,
+    ls_cust_bp       TYPE ty_bp_addr,
+    ls_kunwe_bp      TYPE ty_bp_addr,
+    ls_carrier_bp    TYPE ty_bp_addr,
+    ls_recycler_bp   TYPE ty_bp_addr,
+    ls_srvcst        TYPE /plce/tpdsrvcst,
+    lv_pobjnr        TYPE j_objnr,
+    lv_bearer_token  TYPE string,
+    lv_auth_error    TYPE string,
+    lv_movement_type TYPE string,
+    lv_ctype_name    TYPE string,
+    lv_cont_old      TYPE string,
+    lv_cont_new      TYPE string,
+    lv_material_desc TYPE maktx,
+    lv_http_status   TYPE i,
+    lv_response      TYPE string,
+    lv_json          TYPE string,
+    lv_upd_subrc     TYPE sy-subrc,
+    lv_count_ok      TYPE i,
+    lv_count_error   TYPE i.
+
+  " ErrorResponse: { "error": { "message": ..., "timestamp": ... } }
+  DATA: BEGIN OF ls_err_body,
+          BEGIN OF error,
+            message   TYPE string,
+            timestamp TYPE string,
+          END OF error,
+        END OF ls_err_body.
+
+*----------------------------------------------------------------------*
+* CONFIG — endpoint now comes from an SM59 destination, not a URL
+*----------------------------------------------------------------------*
+  SELECT SINGLE bms_destination, bms_username, bms_password,
+                active, default_carrier, default_recycler
+    FROM ztour_bms_cfg
+    WHERE config_id = 'DEFAULT'
+    INTO @DATA(ls_cfg).
+
+  IF sy-subrc <> 0 OR ls_cfg-active <> abap_true.
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ky>).
+      APPEND VALUE #(
+        %tky = <ky>-%tky
+        %msg = new_message(
+                 id       = 'Z_MSG_SVR_TOUR_EXT'
+                 number   = '018'
+                 severity = if_abap_behv_message=>severity-error )
+      ) TO reported-tour.
+      APPEND VALUE #( %tky = <ky>-%tky ) TO failed-tour.
+    ENDLOOP.
+    RETURN.
+  ENDIF.
+
+  DATA lv_bms_dest      type RFCDEST.
+  DATA(lv_bms_user)     = ls_cfg-bms_username.
+  DATA(lv_bms_password) = ls_cfg-bms_password.
+  DATA(lv_def_carrier)  = ls_cfg-default_carrier.
+  DATA(lv_def_recycler) = ls_cfg-default_recycler.
+
+  IF lv_bms_dest IS INITIAL.
+    LOOP AT keys ASSIGNING <ky>.
+      APPEND VALUE #(
+        %tky = <ky>-%tky
+        %msg = new_message(
+                 id       = 'Z_MSG_SVR_TOUR_EXT'
+                 number   = '018'
+                 severity = if_abap_behv_message=>severity-error )
+      ) TO reported-tour.
+      APPEND VALUE #( %tky = <ky>-%tky ) TO failed-tour.
+    ENDLOOP.
+    RETURN.
+  ENDIF.
+
+*----------------------------------------------------------------------*
+* STEP 1 — tours
+*----------------------------------------------------------------------*
+  READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+    ENTITY tour
+      FIELDS ( tourid tourtemplate tourstatus startdate )
+      WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_tours)
+    FAILED DATA(lt_failed).
+
+  LOOP AT lt_failed-tour ASSIGNING FIELD-SYMBOL(<fail>).
+    APPEND VALUE #(
+      %tky = <fail>-%tky
+      %msg = new_message(
+               id       = 'Z_MSG_SVR_TOUR_EXT'
+               number   = '024'
+               severity = if_abap_behv_message=>severity-error )
+    ) TO reported-tour.
+    APPEND VALUE #( %tky = <fail>-%tky ) TO failed-tour.
+  ENDLOOP.
+
+  IF lt_tours IS INITIAL.
+    RETURN.
+  ENDIF.
+
+*----------------------------------------------------------------------*
+* STEP 2 — service assignments
+*----------------------------------------------------------------------*
+  READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+    ENTITY tour BY \_serviceassignments
+      FIELDS ( touruuid serviceuuid toursequence removed )
+      WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_asgmts).
+
+  DELETE lt_asgmts WHERE removed IS NOT INITIAL.
+  SORT lt_asgmts BY touruuid ASCENDING toursequence ASCENDING.
+
+  IF lt_asgmts IS INITIAL.
+    RETURN.
+  ENDIF.
+
+*----------------------------------------------------------------------*
+* STEP 3 — services and containers
+*----------------------------------------------------------------------*
+  SELECT s~service_uuid,
+         s~service_id,
+         s~reference_id,
+         s~reference_int_id     AS reference_internal_id,
+         s~action,
+         s~requested_date,
+         s~earliest_date,
+         s~latest_date,
+         s~service_window_start AS service_window_start_time,
+         s~service_window_end   AS service_window_end_time,
+         s~service_window,
+         s~additional_text,
+         s~functional_location
+    FROM /plce/tpdsrv AS s
+    FOR ALL ENTRIES IN @lt_asgmts
+    WHERE s~service_uuid = @lt_asgmts-serviceuuid
+    INTO CORRESPONDING FIELDS OF TABLE @lt_services.
+
+  SELECT w~service_uuid,
+         w~container_atloc_tidnr,
+         w~container_new_tidnr
+    FROM /plce/tpdsrvwr AS w
+    FOR ALL ENTRIES IN @lt_asgmts
+    WHERE w~service_uuid = @lt_asgmts-serviceuuid
+    INTO CORRESPONDING FIELDS OF TABLE @lt_srvwr.
+
+*----------------------------------------------------------------------*
+* STEP 4 — EWA order objects
+*          POBJNR is CHAR 22, REFERENCE_INTERNAL_ID is CHAR 30 and
+*          FOR ALL ENTRIES needs identical type and length.
+*----------------------------------------------------------------------*
+  LOOP AT lt_services ASSIGNING FIELD-SYMBOL(<s>).
+    IF <s>-reference_internal_id IS NOT INITIAL.
+      INSERT VALUE #( pobjnr = <s>-reference_internal_id ) INTO TABLE lt_pobj.
+    ENDIF.
+  ENDLOOP.
+
+  IF lt_pobj IS NOT INITIAL.
+    SELECT pobjnr, ordernr, smaufnr, ordertxt, servloc,
+           kunnr, kunwe, beh_type, beh_anzahl, container, order_type,
+           transporter, disposer, intappno, appno,
+           planned_time, planned_durt, old_order_date, zz_order_date,
+           /watp/avvcode   AS watp_avvcode,
+           /watp/notenr    AS watp_notenr,
+           /watp/noteintnr AS watp_noteintnr,
+           sdaufnr, sdposnr
+      FROM ewa_order_object
+      FOR ALL ENTRIES IN @lt_pobj
+      WHERE pobjnr = @lt_pobj-pobjnr
+      INTO CORRESPONDING FIELDS OF TABLE @lt_ewaobj.
+  ENDIF.
+
+*----------------------------------------------------------------------*
+* STEP 5 — business partner addresses
+*          Validity dates live in ADRC, not BUT020.
+*----------------------------------------------------------------------*
+  LOOP AT lt_ewaobj ASSIGNING FIELD-SYMBOL(<e>).
+    INSERT VALUE #( partner = <e>-kunnr )       INTO TABLE lt_bp_keys.
+    INSERT VALUE #( partner = <e>-kunwe )       INTO TABLE lt_bp_keys.
+    INSERT VALUE #( partner = <e>-transporter ) INTO TABLE lt_bp_keys.
+    INSERT VALUE #( partner = <e>-disposer )    INTO TABLE lt_bp_keys.
+  ENDLOOP.
+
+  INSERT VALUE #( partner = lv_def_carrier )  INTO TABLE lt_bp_keys.
+  INSERT VALUE #( partner = lv_def_recycler ) INTO TABLE lt_bp_keys.
+  DELETE lt_bp_keys WHERE partner IS INITIAL.
+
+  IF lt_bp_keys IS NOT INITIAL.
+    SELECT ba~partner, ba~addrnumber,
+           adr~name1, adr~name2, adr~street,
+           adr~house_num1, adr~post_code1, adr~city1
+      FROM but020 AS ba
+      INNER JOIN adrc AS adr ON  adr~addrnumber = ba~addrnumber
+                             AND adr~nation     = @space
+      FOR ALL ENTRIES IN @lt_bp_keys
+      WHERE ba~partner     = @lt_bp_keys-partner
+        AND adr~date_from <= @sy-datum
+        AND adr~date_to   >= @sy-datum
+      INTO CORRESPONDING FIELDS OF TABLE @lt_bp_addr.
+  ENDIF.
+
+*----------------------------------------------------------------------*
+* STEP 6 — main loop
+*----------------------------------------------------------------------*
+  LOOP AT lt_tours INTO DATA(ls_tour).
+
+    CLEAR: lv_count_ok, lv_count_error.
+
+    DATA(lv_tour_id_out) = condense( |{ ls_tour-tourid ALPHA = OUT }| ).
+
+    " --- 6a Kolonne -----------------------------------------------------
+    SELECT SINGLE bms_team
+      FROM ztour_bms_kolonn
+      WHERE tour_template = @ls_tour-tourtemplate
+      INTO @DATA(lv_team).
+
+    IF sy-subrc <> 0.
+      APPEND VALUE #(
+        %tky = ls_tour-%tky
+        %msg = new_message(
+                 id       = 'Z_MSG_SVR_TOUR_EXT'
+                 number   = '019'
+                 severity = if_abap_behv_message=>severity-warning
+                 v1       = lv_tour_id_out
+                 v2       = ls_tour-tourtemplate )
+      ) TO reported-tour.
+      CLEAR lv_team.
+    ENDIF.
+
+    " --- 6b Authentication ----------------------------------------------
+    CLEAR: lv_bearer_token, lv_auth_error.
+
+    zcl_wr_pd_tour_helper=>get_bms_bearer_token(
+      EXPORTING
+        iv_destination = lv_bms_dest
+        iv_username    = lv_bms_user
+        iv_password    = lv_bms_password
+      IMPORTING
+        ev_token       = lv_bearer_token
+        ev_error       = lv_auth_error ).
+
+    IF lv_auth_error IS NOT INITIAL.
+      APPEND VALUE #(
+        %tky = ls_tour-%tky
+        %msg = new_message_with_text(
+                 severity = if_abap_behv_message=>severity-error
+                 text     = lv_auth_error )
+      ) TO reported-tour.
+
+      MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+        ENTITY extcustom
+          UPDATE FIELDS ( zz_bms_status )
+          WITH VALUE #( ( touruuid      = ls_tour-touruuid
+                          zz_bms_status = 'ERROR' ) )
+        FAILED   DATA(lf_auth_mod)
+        REPORTED DATA(lr_auth_mod).
+
+      IF lf_auth_mod IS NOT INITIAL.
+        MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+          ENTITY tour
+            CREATE BY \_extcustom
+              FIELDS ( zz_bms_status )
+              WITH VALUE #( (
+                %tky    = ls_tour-%tky
+                %target = VALUE #( (
+                  %cid          = |BMS_AUTH_TGT_{ ls_tour-touruuid }|
+                  zz_bms_status = 'ERROR' ) ) ) )
+          FAILED   DATA(lf_auth_crt)
+          REPORTED DATA(lr_auth_crt).
+
+        IF lf_auth_crt IS NOT INITIAL.
+          APPEND LINES OF lr_auth_crt-tour TO reported-tour.
+        ENDIF.
+      ENDIF.
+
+      APPEND VALUE #( %tky = ls_tour-%tky ) TO failed-tour.
+      CONTINUE.
+    ENDIF.
+
+    " --- service loop ---------------------------------------------------
+    LOOP AT lt_asgmts INTO DATA(ls_asgmt)
+      WHERE touruuid = ls_tour-touruuid.
+
+      CLEAR: ls_svc, ls_ewa, lt_containers,
+             ls_cust_bp, ls_kunwe_bp, ls_carrier_bp, ls_recycler_bp,
+             lv_movement_type, lv_ctype_name, lv_cont_old, lv_cont_new,
+             lv_material_desc, lv_http_status, lv_response, lv_json,
+             lv_pobjnr.
+
+      READ TABLE lt_services INTO ls_svc
+        WITH TABLE KEY service_uuid = ls_asgmt-serviceuuid.
+
+      IF sy-subrc <> 0.
+        lv_count_error = lv_count_error + 1.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '025'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_tour_id_out )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      DATA(lv_svc_ref_out) = condense( |{ ls_svc-reference_id ALPHA = OUT }| ).
+      DATA(lv_svc_id_out)  = condense( |{ ls_svc-service_id   ALPHA = OUT }| ).
+
+      lv_pobjnr = ls_svc-reference_internal_id.
+
+      READ TABLE lt_ewaobj INTO ls_ewa
+        WITH TABLE KEY pobjnr = lv_pobjnr.
+
+      IF sy-subrc <> 0.
+        lv_count_error = lv_count_error + 1.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '012'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_svc_ref_out )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      " --- 6c Movement type: new | change | collect -----------------------
+      SELECT SINGLE bms_movement_type
+        FROM zwrtwaalaprctp
+        WHERE service_type = @ls_svc-action
+        INTO @lv_movement_type.
+
+      lv_movement_type = condense( lv_movement_type ).
+
+      IF sy-subrc <> 0 OR lv_movement_type IS INITIAL.
+        lv_count_error = lv_count_error + 1.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '026'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = ls_svc-action
+                   v2       = lv_svc_ref_out
+                   v3       = lv_tour_id_out )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      " --- 6c2 Container type — only containerTypeName exists now ---------
+      IF ls_ewa-beh_type IS INITIAL.
+        lv_count_error = lv_count_error + 1.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '023'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_svc_ref_out )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      lv_ctype_name = condense( ls_ewa-beh_type ).
+
+      DATA(lv_is_express) = xsdbool( ls_ewa-order_type = '02' ).
+
+      " --- 6d Containers ---------------------------------------------------
+      " Spec rules:
+      "   new     (Aufstellung) — old empty, new filled
+      "   collect (Einzug)      — old filled, new empty
+      "   change  (Wechsel)     — both
+      DATA(lv_cont_fallback) = COND string(
+        WHEN ls_ewa-container IS NOT INITIAL
+        THEN condense( |{ ls_ewa-container ALPHA = OUT }| )
+        ELSE condense( |{ ls_ewa-gernr     ALPHA = OUT }| ) ).
+
+      READ TABLE lt_srvwr INTO DATA(ls_wr)
+        WITH KEY service_uuid = ls_svc-service_uuid.
+
+      IF sy-subrc = 0.
+        lv_cont_old = condense( ls_wr-container_atloc_tidnr ).
+        lv_cont_new = condense( ls_wr-container_new_tidnr ).
+      ENDIF.
+
+      IF lv_cont_new IS INITIAL.
+        lv_cont_new = lv_cont_fallback.
+      ENDIF.
+
+      CASE lv_movement_type.
+        WHEN 'new'.
+          CLEAR lv_cont_old.
+        WHEN 'collect'.
+          IF lv_cont_old IS INITIAL.
+            lv_cont_old = lv_cont_fallback.
+          ENDIF.
+          CLEAR lv_cont_new.
+        WHEN OTHERS.       " change — both stay
+      ENDCASE.
+
+      APPEND VALUE #(
+        container_number_old = lv_cont_old
+        container_number_new = lv_cont_new
+        movement_type        = lv_movement_type
+        container_type_name  = lv_ctype_name
+        customer_owned       = abap_false
+      ) TO lt_containers.
+
+      " --- 6e Service window — date-span, HH:MM:SS ------------------------
+      DATA(lv_win_start) = COND string(
+        WHEN ls_svc-service_window_start_time IS NOT INITIAL
+        THEN |{ ls_svc-service_window_start_time+0(2) }:| &&
+             |{ ls_svc-service_window_start_time+2(2) }:| &&
+             |{ ls_svc-service_window_start_time+4(2) }| ).
+
+      DATA(lv_win_end) = COND string(
+        WHEN ls_svc-service_window_end_time IS NOT INITIAL
+        THEN |{ ls_svc-service_window_end_time+0(2) }:| &&
+             |{ ls_svc-service_window_end_time+2(2) }:| &&
+             |{ ls_svc-service_window_end_time+4(2) }| ).
+
+      " --- 6f Signature ----------------------------------------------------
+      DATA(lv_sig_req) = xsdbool(
+        to_upper( ls_ewa-ordertxt )        CS 'UNTERSCHR' OR
+        to_upper( ls_svc-additional_text ) CS 'UNTERSCHR' ).
+
+      " --- 6g Notes ---------------------------------------------------------
+      DATA(lv_notes) = CONV string( ls_ewa-ordertxt ).
+
+      " TODO: hardcoded KVV rule — business rule, left unchanged.
+      "       KUNWE is numeric, so KUNWE CS 'IS'/'RKT' can never be true.
+      IF ls_ewa-smaufnr CS 'IS'  OR ls_ewa-kunwe CS 'IS'
+      OR ls_ewa-smaufnr CS 'RKT' OR ls_ewa-kunwe CS 'RKT'
+      OR ls_ewa-kunnr = '0000113840'
+      OR ls_ewa-kunnr = '0000125669'.
+        lv_notes &&= ' AUFTRAG ZU KVV'.
+      ENDIF.
+
+      IF ls_ewa-smaufnr IS NOT INITIAL.
+        lv_notes &&= | Bestellnummer: { ls_ewa-smaufnr ALPHA = OUT }|.
+      ENDIF.
+
+      IF lv_is_express = abap_true.
+        lv_notes &&= ' EXPRESSAUFTRAG'.
+      ENDIF.
+
+      DATA(lv_cert_nr) = COND string(
+        WHEN ls_ewa-appno    IS NOT INITIAL THEN ls_ewa-appno
+        WHEN ls_ewa-intappno IS NOT INITIAL THEN ls_ewa-intappno ).
+      IF lv_cert_nr IS NOT INITIAL.
+        lv_notes &&= | Entsorgungsnachweis: { lv_cert_nr }|.
+      ENDIF.
+
+      " --- 6h Business partners --------------------------------------------
+      DATA(lv_carrier_bp_no) = COND bu_partner(
+        WHEN ls_ewa-transporter IS NOT INITIAL THEN ls_ewa-transporter
+        ELSE lv_def_carrier ).
+
+      DATA(lv_recycler_bp_no) = COND bu_partner(
+        WHEN ls_ewa-disposer IS NOT INITIAL THEN ls_ewa-disposer
+        ELSE lv_def_recycler ).
+
+      READ TABLE lt_bp_addr INTO ls_cust_bp
+        WITH KEY partner = ls_ewa-kunnr.
+      READ TABLE lt_bp_addr INTO ls_kunwe_bp
+        WITH KEY partner = ls_ewa-kunwe.
+      READ TABLE lt_bp_addr INTO ls_carrier_bp
+        WITH KEY partner = lv_carrier_bp_no.
+      READ TABLE lt_bp_addr INTO ls_recycler_bp
+        WITH KEY partner = lv_recycler_bp_no.
+
+      DATA(lv_kunnr_out)    = condense( |{ ls_ewa-kunnr ALPHA = OUT }| ).
+      DATA(lv_kunwe_out)    = condense( |{ ls_ewa-kunwe ALPHA = OUT }| ).
+      DATA(lv_carrier_out)  = condense( |{ lv_carrier_bp_no  ALPHA = OUT }| ).
+      DATA(lv_recycler_out) = condense( |{ lv_recycler_bp_no ALPHA = OUT }| ).
+
+      " Every contact field has minLength: 1 — an empty string fails
+      " validation exactly like a missing one. Optional contacts are
+      " therefore filled ONLY when complete; incomplete ones are omitted.
+      DATA(lv_cust_ok) = xsdbool(
+        lv_kunnr_out          IS NOT INITIAL AND
+        ls_cust_bp-name1      IS NOT INITIAL AND
+        ls_cust_bp-street     IS NOT INITIAL AND
+        ls_cust_bp-house_num1 IS NOT INITIAL AND
+        ls_cust_bp-post_code1 IS NOT INITIAL AND
+        ls_cust_bp-city1      IS NOT INITIAL ).
+
+      IF lv_cust_ok = abap_false.
+        lv_count_error = lv_count_error + 1.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '030'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_svc_ref_out
+                   v2       = lv_kunnr_out )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      DATA(lv_kunwe_ok) = xsdbool(
+        ls_kunwe_bp-street     IS NOT INITIAL AND
+        ls_kunwe_bp-house_num1 IS NOT INITIAL AND
+        ls_kunwe_bp-post_code1 IS NOT INITIAL AND
+        ls_kunwe_bp-city1      IS NOT INITIAL ).
+
+      DATA(lv_carrier_ok) = xsdbool(
+        lv_carrier_out           IS NOT INITIAL AND
+        ls_carrier_bp-name1      IS NOT INITIAL AND
+        ls_carrier_bp-street     IS NOT INITIAL AND
+        ls_carrier_bp-house_num1 IS NOT INITIAL AND
+        ls_carrier_bp-post_code1 IS NOT INITIAL AND
+        ls_carrier_bp-city1      IS NOT INITIAL ).
+
+      DATA(lv_recycler_ok) = xsdbool(
+        ls_recycler_bp-name1      IS NOT INITIAL AND
+        ls_recycler_bp-street     IS NOT INITIAL AND
+        ls_recycler_bp-house_num1 IS NOT INITIAL AND
+        ls_recycler_bp-post_code1 IS NOT INITIAL AND
+        ls_recycler_bp-city1      IS NOT INITIAL ).
+
+      " --- 6i Waste description ---------------------------------------------
+      IF ls_ewa-watp_avvcode IS NOT INITIAL.
+        SELECT SINGLE maktx
+          FROM makt
+          WHERE matnr = @ls_ewa-watp_avvcode
+            AND spras = @sy-langu
+          INTO @lv_material_desc.
+      ENDIF.
+
+      " --- 6j Duration HHMMSS -> minutes ------------------------------------
+      DATA(lv_duration_min) = COND i(
+        WHEN ls_ewa-planned_durt CO ' 0123456789'
+        THEN ls_ewa-planned_durt(2) * 60 + ls_ewa-planned_durt+2(2)
+        ELSE 0 ).
+
+      " --- 6k Order number — required, minLength 1 --------------------------
+      DATA(lv_smaufnr_clean) = condense( |{ ls_ewa-smaufnr ALPHA = OUT }| ).
+      DATA(lv_ordernr_clean) = condense( |{ ls_ewa-ordernr ALPHA = OUT }| ).
+      DATA(lv_sdaufnr_clean) = condense( |{ ls_ewa-sdaufnr ALPHA = OUT }| ).
+
+      DATA lv_order_number TYPE aufnr.
+
+      lv_order_number = COND string(
+        WHEN lv_smaufnr_clean IS NOT INITIAL THEN lv_smaufnr_clean
+        WHEN lv_ordernr_clean IS NOT INITIAL THEN lv_ordernr_clean
+        WHEN lv_sdaufnr_clean IS NOT INITIAL THEN lv_sdaufnr_clean
+        WHEN lv_svc_ref_out   IS NOT INITIAL THEN lv_svc_ref_out
+        ELSE                                      lv_svc_id_out ).
+
+      " --- 6l plannedDate — required, date-time -----------------------------
+      DATA(lv_planned_date) = COND string(
+        WHEN ls_svc-earliest_date  IS NOT INITIAL
+        THEN |{ ls_svc-earliest_date DATE = ISO }T00:00:00.000Z|
+        WHEN ls_svc-requested_date IS NOT INITIAL
+        THEN |{ ls_svc-requested_date DATE = ISO }T00:00:00.000Z|
+        WHEN ls_ewa-zz_order_date  IS NOT INITIAL
+        THEN |{ ls_ewa-zz_order_date DATE = ISO }T00:00:00.000Z|
+        WHEN ls_ewa-old_order_date IS NOT INITIAL
+        THEN |{ ls_ewa-old_order_date DATE = ISO }T00:00:00.000Z|
+        WHEN ls_tour-startdate     IS NOT INITIAL
+        THEN |{ ls_tour-startdate DATE = ISO }T00:00:00.000Z| ).
+
+      IF lv_planned_date IS INITIAL.
+        lv_count_error = lv_count_error + 1.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '028'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_svc_ref_out )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      " --- 6m Assemble payload ----------------------------------------------
+      DATA(ls_order) = VALUE ty_bms_order(
+        status             = 'ok'
+        external_system_id = lv_tour_id_out
+        sort_number        = ls_asgmt-toursequence
+        order_number       = lv_order_number
+        order_sheet        = condense( ls_ewa-watp_notenr )
+        order_sheet_type   = COND string( WHEN ls_ewa-watp_notenr IS NOT INITIAL
+                                          THEN 'LS' )
+
+        customer = VALUE #(
+          number        = lv_kunnr_out
+          name1         = condense( ls_cust_bp-name1 )
+          name2         = condense( ls_cust_bp-name2 )
+          street        = condense( ls_cust_bp-street )
+          street_number = condense( ls_cust_bp-house_num1 )
+          zip_code      = condense( ls_cust_bp-post_code1 )
+          city          = condense( ls_cust_bp-city1 ) )
+
+        place_of_delivery = COND #( WHEN lv_kunwe_ok = abap_true
+          THEN VALUE #(
+            street        = condense( ls_kunwe_bp-street )
+            street_number = condense( ls_kunwe_bp-house_num1 )
+            zip_code      = condense( ls_kunwe_bp-post_code1 )
+            city          = condense( ls_kunwe_bp-city1 ) ) )
+
+        location = COND #( WHEN lv_kunwe_ok = abap_true
+          THEN VALUE #(
+            street        = condense( ls_kunwe_bp-street )
+            street_number = condense( ls_kunwe_bp-house_num1 )
+            zip_code      = condense( ls_kunwe_bp-post_code1 )
+            city          = condense( ls_kunwe_bp-city1 ) ) )
+
+        estimated_duration         = lv_duration_min
+        planned_date               = lv_planned_date
+        execution_time_frame_start = lv_win_start
+        execution_time_frame_end   = lv_win_end
+        notes                      = lv_notes
+
+        special_notes = COND string(
+          WHEN lv_is_express = abap_true
+          THEN |EXPRESSAUFTRAG| &&
+               COND string( WHEN ls_svc-additional_text IS NOT INITIAL
+                            THEN | - | && ls_svc-additional_text )
+          ELSE ls_svc-additional_text )
+
+        " producer = Auftraggeber, same data as customer
+        producer = VALUE #(
+          number        = lv_kunnr_out
+          name1         = condense( ls_cust_bp-name1 )
+          name2         = condense( ls_cust_bp-name2 )
+          street        = condense( ls_cust_bp-street )
+          street_number = condense( ls_cust_bp-house_num1 )
+          zip_code      = condense( ls_cust_bp-post_code1 )
+          city          = condense( ls_cust_bp-city1 ) )
+
+        recycler = COND #( WHEN lv_recycler_ok = abap_true
+          THEN VALUE #(
+            name1         = condense( ls_recycler_bp-name1 )
+            name2         = condense( ls_recycler_bp-name2 )
+            street        = condense( ls_recycler_bp-street )
+            street_number = condense( ls_recycler_bp-house_num1 )
+            zip_code      = condense( ls_recycler_bp-post_code1 )
+            city          = condense( ls_recycler_bp-city1 ) ) )
+
+        carrier = COND #( WHEN lv_carrier_ok = abap_true
+          THEN VALUE #(
+            number        = lv_carrier_out
+            name1         = condense( ls_carrier_bp-name1 )
+            name2         = condense( ls_carrier_bp-name2 )
+            street        = condense( ls_carrier_bp-street )
+            street_number = condense( ls_carrier_bp-house_num1 )
+            zip_code      = condense( ls_carrier_bp-post_code1 )
+            city          = condense( ls_carrier_bp-city1 ) ) )
+
+        garbage_key  = condense( ls_ewa-watp_avvcode )
+        garbage_name = condense( lv_material_desc )
+
+        coll_consignment_note_nr = condense( ls_ewa-watp_noteintnr )
+
+        team               = condense( lv_team )
+        signature_required = lv_sig_req
+        containers         = lt_containers ).
+
+*----------------------------------------------------------------------*
+* STEP 7 — Serialize
+*          compress = abap_true: optional contacts left initial must be
+*          OMITTED, not sent as {} or with empty strings — every field
+*          in them has minLength: 1.
+*----------------------------------------------------------------------*
+      lv_json = /ui2/cl_json=>serialize(
+        data        = ls_order
+        compress    = abap_true
+        pretty_name = /ui2/cl_json=>pretty_mode-camel_case ).
+
+      " ABAP component names cap at 30 chars, so this one needs patching
+      REPLACE ALL OCCURRENCES OF '"collConsignmentNoteNr"'
+        IN lv_json WITH '"collectiveConsignmentNoteNumber"'.
+
+      " Safety net: an empty object would fail required-field validation.
+      " Check the logged payload — if these never fire, delete them.
+      REPLACE ALL OCCURRENCES OF '"placeOfDelivery":{},' IN lv_json WITH ``.
+      REPLACE ALL OCCURRENCES OF ',"placeOfDelivery":{}' IN lv_json WITH ``.
+      REPLACE ALL OCCURRENCES OF '"location":{},'        IN lv_json WITH ``.
+      REPLACE ALL OCCURRENCES OF ',"location":{}'        IN lv_json WITH ``.
+      REPLACE ALL OCCURRENCES OF '"recycler":{},'        IN lv_json WITH ``.
+      REPLACE ALL OCCURRENCES OF ',"recycler":{}'        IN lv_json WITH ``.
+      REPLACE ALL OCCURRENCES OF '"carrier":{},'         IN lv_json WITH ``.
+      REPLACE ALL OCCURRENCES OF ',"carrier":{}'         IN lv_json WITH ``.
+
+*----------------------------------------------------------------------*
+* STEP 8 — POST via the SM59 destination
+*----------------------------------------------------------------------*
+      zcl_wr_pd_tour_helper=>post_bms_order(
+        EXPORTING
+          iv_destination  = lv_bms_dest
+          iv_bearer_token = lv_bearer_token
+          iv_json         = lv_json
+        IMPORTING
+          ev_http_status  = lv_http_status
+          ev_response     = lv_response ).
+
+      zcl_wr_pd_tour_helper=>log_bms_call(
+        iv_tour_uuid    = ls_tour-touruuid
+        iv_service_uuid = ls_asgmt-serviceuuid
+        iv_order_number = lv_order_number
+        iv_endpoint     = '/api/container/create-order-halle'
+        iv_http_status  = lv_http_status
+        iv_request      = lv_json
+        iv_response     = lv_response
+        iv_pobjnr       = ls_ewa-pobjnr ).
+
+*----------------------------------------------------------------------*
+* STEP 9 — Evaluate response
+*----------------------------------------------------------------------*
+      IF lv_http_status = 200 OR lv_http_status = 201.
+
+        lv_count_ok = lv_count_ok + 1.
+
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '021'
+                   severity = if_abap_behv_message=>severity-success
+                   v1       = lv_svc_ref_out
+                   v2       = lv_order_number )
+        ) TO reported-tour.
+
+      ELSE.
+
+        lv_count_error = lv_count_error + 1.
+
+        CLEAR ls_err_body.
+        TRY.
+            /ui2/cl_json=>deserialize(
+              EXPORTING json = lv_response
+              CHANGING  data = ls_err_body ).
+          CATCH cx_root.
+            CLEAR ls_err_body.
+        ENDTRY.
+
+        DATA(lv_bms_msg) = COND string(
+          WHEN ls_err_body-error-message IS NOT INITIAL
+          THEN ls_err_body-error-message
+          WHEN strlen( lv_response ) > 80
+          THEN |HTTP { lv_http_status }: { lv_response(80) }|
+          WHEN lv_response IS NOT INITIAL
+          THEN |HTTP { lv_http_status }: { lv_response }|
+          ELSE |HTTP { lv_http_status }| ).
+
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '022'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_svc_ref_out
+                   v2       = lv_bms_msg ) ) TO reported-tour.
+
+      ENDIF.
+
+      " --- per-service status -----------------------------------------------
+      " Writes /PLCE/TPDSRVCST and EWA_ORDER_OBJECT in one separate LUW
+      DATA(lv_svc_bms_status) = COND string(
+        WHEN lv_http_status = 200 OR lv_http_status = 201
+        THEN 'FREIGEGEBEN'
+        ELSE 'ERROR' ).
+
+      CLEAR lv_upd_subrc.
+
+      CALL FUNCTION 'ZWR_BMS_UPDATE_SERVICE'
+        DESTINATION 'NONE'
+        EXPORTING
+          service_uuid          = ls_asgmt-serviceuuid
+          pobjnr                = ls_ewa-pobjnr
+          zz_bms_status         = lv_svc_bms_status
+        IMPORTING
+          ev_subrc              = lv_upd_subrc
+        EXCEPTIONS
+          communication_failure = 1
+          system_failure        = 2
+          OTHERS                = 3.
+
+      IF sy-subrc <> 0 OR lv_upd_subrc <> 0.
+        CLEAR ls_srvcst.
+        ls_srvcst-service_uuid  = ls_asgmt-serviceuuid.
+        ls_srvcst-zz_bms_status = lv_svc_bms_status.
+        INSERT /plce/tpdsrvcst FROM ls_srvcst.
+      ENDIF.
+
+    ENDLOOP.   " services
+
+*----------------------------------------------------------------------*
+* Nothing went out for this tour
+*     RAP downgrades an error in REPORTED to a warning when the key is
+*     not also in FAILED — that is what produced the "proceed anyway"
+*     dialog instead of a plain error list.
+*----------------------------------------------------------------------*
+    IF lv_count_ok = 0.
+      APPEND VALUE #( %tky = ls_tour-%tky ) TO failed-tour.
+      CONTINUE.
+    ENDIF.
+
+*----------------------------------------------------------------------*
+* STEP 10 — Tour status
+*----------------------------------------------------------------------*
+    DATA(lv_bms_status) = COND /plce/char20(
+      WHEN lv_count_ok > 0 AND lv_count_error = 0 THEN 'SENT'
+      WHEN lv_count_ok > 0                        THEN 'PARTIAL'
+      ELSE                                             'ERROR' ).
+
+    MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+      ENTITY extcustom
+        UPDATE FIELDS ( zz_bms_status )
+        WITH VALUE #( ( touruuid      = ls_tour-touruuid
+                        zz_bms_status = lv_bms_status ) )
+      FAILED   DATA(lf_mod)
+      REPORTED DATA(lr_mod).
+
+    IF lf_mod IS NOT INITIAL.
+      MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+        ENTITY tour
+          CREATE BY \_extcustom
+            FIELDS ( zz_bms_status )
+            WITH VALUE #( (
+              %tky    = ls_tour-%tky
+              %target = VALUE #( (
+                %cid          = |BMS_STAT_TGT_{ ls_tour-touruuid }|
+                zz_bms_status = lv_bms_status ) ) ) )
+        FAILED   DATA(lf_crt)
+        REPORTED DATA(lr_crt).
+
+      IF lf_crt IS NOT INITIAL.
+        APPEND LINES OF lr_crt-tour TO reported-tour.
+      ENDIF.
+    ENDIF.
+
+  ENDLOOP.   " tours
+
+ENDMETHOD.
+
+METHOD stornobmsservice.
+
+*----------------------------------------------------------------------*
+* There is no storno endpoint in the BMS API. Cancellation is the SAME
+* create-order-halle call with status "cancelled". The payload is
+* replayed from ZBMS_API_LOG so BMS sees exactly the order it accepted.
+*----------------------------------------------------------------------*
+  TYPES:
+    BEGIN OF ty_svc_storno,
+      service_uuid     TYPE /plce/pdservice_uuid,
+      service_id       TYPE /plce/pdservice_id,
+      reference_id     TYPE char30,
+      reference_int_id TYPE char30,
+    END OF ty_svc_storno,
+    tt_svc_storno TYPE HASHED TABLE OF ty_svc_storno
+                  WITH UNIQUE KEY service_uuid.
+
+  DATA:
+    lt_services     TYPE tt_svc_storno,
+    ls_svc          TYPE ty_svc_storno,
+    ls_srvcst       TYPE /plce/tpdsrvcst,
+    lv_token        TYPE string,
+    lv_error        TYPE string,
+    lv_http_status  TYPE i,
+    lv_response     TYPE string,
+    lv_json         TYPE string,
+    lv_storno_ok    TYPE i,
+    lv_storno_err   TYPE i,
+    lv_pobjnr       TYPE j_objnr,
+    lv_sto_subrc    TYPE sy-subrc,
+    lv_order_number TYPE aufnr.
+
+  DATA: BEGIN OF ls_err_body,
+          BEGIN OF error,
+            message   TYPE string,
+            timestamp TYPE string,
+          END OF error,
+        END OF ls_err_body.
+
+*----------------------------------------------------------------------*
+* CONFIG
+*----------------------------------------------------------------------*
+  SELECT SINGLE bms_destination, bms_username, bms_password, active
+    FROM ztour_bms_cfg
+    WHERE config_id = 'DEFAULT'
+    INTO @DATA(ls_cfg).
+
+  IF sy-subrc <> 0 OR ls_cfg-active <> abap_true
+     OR ls_cfg-bms_destination IS INITIAL.
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ky>).
+      APPEND VALUE #(
+        %tky = <ky>-%tky
+        %msg = new_message(
+                 id       = 'Z_MSG_SVR_TOUR_EXT'
+                 number   = '018'
+                 severity = if_abap_behv_message=>severity-error )
+      ) TO reported-tour.
+      APPEND VALUE #( %tky = <ky>-%tky ) TO failed-tour.
+    ENDLOOP.
+    RETURN.
+  ENDIF.
+
+ data lv_bms_dest     type RFCDEST.
+  DATA(lv_bms_user)     = ls_cfg-bms_username.
+  DATA(lv_bms_password) = ls_cfg-bms_password.
+
+*----------------------------------------------------------------------*
+* Tours and services
+*----------------------------------------------------------------------*
+  READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+    ENTITY tour
+      FIELDS ( tourid touruuid )
+      WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_tours)
+    FAILED DATA(lt_failed).
+
+  LOOP AT lt_failed-tour ASSIGNING FIELD-SYMBOL(<fail>).
+    APPEND VALUE #(
+      %tky = <fail>-%tky
+      %msg = new_message(
+               id       = 'Z_MSG_SVR_TOUR_EXT'
+               number   = '024'
+               severity = if_abap_behv_message=>severity-error )
+    ) TO reported-tour.
+    APPEND VALUE #( %tky = <fail>-%tky ) TO failed-tour.
+  ENDLOOP.
+
+  IF lt_tours IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+    ENTITY tour BY \_serviceassignments
+      FIELDS ( touruuid serviceuuid removed )
+      WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_asgmts).
+
+  DELETE lt_asgmts WHERE removed IS NOT INITIAL.
+
+  IF lt_asgmts IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  SELECT service_uuid, service_id, reference_id, reference_int_id
+    FROM /plce/tpdsrv
+    FOR ALL ENTRIES IN @lt_asgmts
+    WHERE service_uuid = @lt_asgmts-serviceuuid
+    INTO CORRESPONDING FIELDS OF TABLE @lt_services.
+
+*----------------------------------------------------------------------*
+* Main loop
+*----------------------------------------------------------------------*
+  LOOP AT lt_tours INTO DATA(ls_tour).
+
+    CLEAR: lv_storno_ok, lv_storno_err, lv_token, lv_error.
+
+    DATA(lv_tour_id_out) = condense( |{ ls_tour-tourid ALPHA = OUT }| ).
+
+    zcl_wr_pd_tour_helper=>get_bms_bearer_token(
+      EXPORTING
+        iv_destination = lv_bms_dest
+        iv_username    = lv_bms_user
+        iv_password    = lv_bms_password
+      IMPORTING
+        ev_token       = lv_token
+        ev_error       = lv_error ).
+
+    IF lv_error IS NOT INITIAL.
+      APPEND VALUE #(
+        %tky = ls_tour-%tky
+        %msg = new_message_with_text(
+                 severity = if_abap_behv_message=>severity-error
+                 text     = lv_error )
+      ) TO reported-tour.
+      APPEND VALUE #( %tky = ls_tour-%tky ) TO failed-tour.
+      CONTINUE.
+    ENDIF.
+
+    LOOP AT lt_asgmts INTO DATA(ls_asgmt)
+      WHERE touruuid = ls_tour-touruuid.
+
+      CLEAR: ls_svc, lv_http_status, lv_response, lv_json,
+             lv_pobjnr, lv_order_number, lv_sto_subrc.
+
+      READ TABLE lt_services INTO ls_svc
+        WITH TABLE KEY service_uuid = ls_asgmt-serviceuuid.
+
+      IF sy-subrc <> 0.
+        lv_storno_err = lv_storno_err + 1.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '025'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_tour_id_out )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      DATA(lv_svc_ref_out) = condense( |{ ls_svc-reference_id ALPHA = OUT }| ).
+
+      " Only cancel what was actually released
+      SELECT SINGLE zz_bms_status
+        FROM /plce/tpdsrvcst
+        WHERE service_uuid = @ls_asgmt-serviceuuid
+        INTO @DATA(lv_cur_status).
+
+      IF sy-subrc <> 0 OR lv_cur_status <> 'FREIGEGEBEN'.
+        CONTINUE.   " never released, or already cancelled
+      ENDIF.
+
+      " Replay the payload BMS accepted, with the status swapped.
+      " Requires ZBMS_API_LOG-REQUEST_PAYLOAD to be type STRING — at
+      " CHAR 1333 the stored JSON is truncated and replays as invalid.
+      SELECT SINGLE order_number, request_payload
+        FROM zbms_api_log
+        WHERE tour_uuid    = @ls_tour-touruuid
+          AND service_uuid = @ls_asgmt-serviceuuid
+        INTO ( @lv_order_number, @lv_json ).
+
+      IF sy-subrc <> 0 OR lv_json IS INITIAL.
+        lv_storno_err = lv_storno_err + 1.
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '027'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_svc_ref_out )
+        ) TO reported-tour.
+        CONTINUE.
+      ENDIF.
+
+      REPLACE FIRST OCCURRENCE OF '"status":"ok"'
+        IN lv_json WITH '"status":"cancelled"'.
+
+      lv_pobjnr = ls_svc-reference_int_id.
+
+      zcl_wr_pd_tour_helper=>post_bms_order(
+        EXPORTING
+          iv_destination  = lv_bms_dest
+          iv_bearer_token = lv_token
+          iv_json         = lv_json
+        IMPORTING
+          ev_http_status  = lv_http_status
+          ev_response     = lv_response ).
+
+      zcl_wr_pd_tour_helper=>log_bms_call(
+        iv_tour_uuid    = ls_tour-touruuid
+        iv_service_uuid = ls_asgmt-serviceuuid
+        iv_order_number = lv_order_number
+        iv_endpoint     = '/api/container/create-order-halle (CANCEL)'
+        iv_http_status  = lv_http_status
+        iv_request      = lv_json
+        iv_response     = lv_response
+        iv_pobjnr       = lv_pobjnr ).
+
+      IF lv_http_status = 200 OR lv_http_status = 201.
+
+        lv_storno_ok = lv_storno_ok + 1.
+
+        CALL FUNCTION 'ZWR_BMS_UPDATE_SERVICE'
+          DESTINATION 'NONE'
+          EXPORTING
+            service_uuid          = ls_asgmt-serviceuuid
+            pobjnr                = lv_pobjnr
+            zz_bms_status         = 'STORNIERT'
+          IMPORTING
+            ev_subrc              = lv_sto_subrc
+          EXCEPTIONS
+            communication_failure = 1
+            system_failure        = 2
+            OTHERS                = 3.
+
+        IF sy-subrc <> 0 OR lv_sto_subrc <> 0.
+          CLEAR ls_srvcst.
+          ls_srvcst-service_uuid  = ls_asgmt-serviceuuid.
+          ls_srvcst-zz_bms_status = 'STORNIERT'.
+          INSERT /plce/tpdsrvcst FROM ls_srvcst.
+        ENDIF.
+
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '015'
+                   severity = if_abap_behv_message=>severity-success
+                   v1       = lv_order_number )
+        ) TO reported-tour.
+
+      ELSE.
+
+        lv_storno_err = lv_storno_err + 1.
+
+        CLEAR ls_err_body.
+        TRY.
+            /ui2/cl_json=>deserialize(
+              EXPORTING json = lv_response
+              CHANGING  data = ls_err_body ).
+          CATCH cx_root.
+            CLEAR ls_err_body.
+        ENDTRY.
+
+        DATA(lv_bms_msg) = COND string(
+          WHEN ls_err_body-error-message IS NOT INITIAL
+          THEN ls_err_body-error-message
+          WHEN strlen( lv_response ) > 80
+          THEN |HTTP { lv_http_status }: { lv_response(80) }|
+          ELSE |HTTP { lv_http_status }: { lv_response }| ).
+
+        APPEND VALUE #(
+          %tky = ls_tour-%tky
+          %msg = new_message(
+                   id       = 'Z_MSG_SVR_TOUR_EXT'
+                   number   = '016'
+                   severity = if_abap_behv_message=>severity-error
+                   v1       = lv_order_number
+                   v2       = lv_bms_msg )
+        ) TO reported-tour.
+
+      ENDIF.
+
+    ENDLOOP.   " services
+
+*----------------------------------------------------------------------*
+* Nothing was cancelled, but something was attempted.
+*     Both counters zero = no service was in FREIGEGEBEN, a legitimate
+*     no-op that must not be reported as a failure.
+*----------------------------------------------------------------------*
+    IF lv_storno_ok = 0 AND lv_storno_err > 0.
+      APPEND VALUE #( %tky = ls_tour-%tky ) TO failed-tour.
+      CONTINUE.
+    ENDIF.
+
+    DATA(lv_tour_status) = COND /plce/char20(
+      WHEN lv_storno_ok > 0 AND lv_storno_err = 0 THEN 'STORNIERT'
+      WHEN lv_storno_ok > 0                       THEN 'PARTIAL'
+      WHEN lv_storno_err > 0                      THEN 'ERROR'
+      ELSE                                             'STORNIERT' ).
+
+    MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+      ENTITY extcustom
+        UPDATE FIELDS ( zz_bms_status )
+        WITH VALUE #( ( touruuid      = ls_tour-touruuid
+                        zz_bms_status = lv_tour_status ) )
+      FAILED   DATA(lf_mod)
+      REPORTED DATA(lr_mod).
+
+    IF lf_mod IS NOT INITIAL.
+      MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
+        ENTITY tour
+          CREATE BY \_extcustom
+            FIELDS ( zz_bms_status )
+            WITH VALUE #( (
+              %tky    = ls_tour-%tky
+              %target = VALUE #( (
+                %cid          = |BMS_STORNO_TGT_{ ls_tour-touruuid }|
+                zz_bms_status = lv_tour_status ) ) ) )
+        FAILED   DATA(lf_crt)
+        REPORTED DATA(lr_crt).
+
+      IF lf_crt IS NOT INITIAL.
+        APPEND LINES OF lr_crt-tour TO reported-tour.
+      ENDIF.
+    ENDIF.
+
+  ENDLOOP.   " tours
+
+ENDMETHOD.
+
+METHOD tourgenerateDocument.
 
 
+
+  ENDMETHOD.
+
+ENDCLASS.
