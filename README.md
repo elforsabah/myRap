@@ -1,34 +1,20 @@
-Warum der Knopf allein nicht reicht
+Laufzeit: Ablauf zur Zeit — vom Klick bis zum fertigen Dokument
+1. Auslösung.
+Der Disponent wählt eine oder mehrere Touren an und klickt auf „Dokumente drucken". Es wird kein Fenster geöffnet, die Verarbeitung erfolgt im Hintergrund.
 
-Vor der Drucksuche muss das System wissen, was es drucken muss.
+2. Daten lesen.
+Das System liest die markierten Touren und die eingeplanten Aufträge auf diesen Touren. Aufträge, die bereits weg sind, werden ausgeschlossen.
 
-Es gibt zwar eine Tabelle mit den Formularen, die zur Verfügung stehen, aber heutzutage. Es ist dort aber nicht programmed, was für welches Tourart und welche Auftragsart man einlöst.
+3. Formulare ermitteln.
+Die Konfigurationstabelle bestimmt, welche Dokumente zu erzeugen sind – auf Tourebene nach der Tourart, auf Auftragsebene nach der Auftragsart. Wenn nichts hinterlegt ist, dann bekommt der Disponent einen entsprechenden Hinweis – dies ist kein Fehler.
 
-Diese Zuordnung wollen wir ergänzen. Sobald dies der Fall ist, kann der Button sicherstellen, welches Dokument für den jeweiligen Auftrag zu erzeugen ist.
+4. Dokumente erzeugen.
+Für jedes ermittelte Formular wird ein Dokument erzeugt und mit den Daten des jeweiligen Auftrags gefüllt. 4 Aufträge = 4 Lieferscheine. Die Auftragsnummer ist in den Namen des Dokuments enthalten, so dass es sich in der Anhangsliste eindeutig identifizieren lässt.
 
-Die Löschung von sicheren Dateien erledigt sich auch mit „Aktualisieren“.
+5. Vorherige Dokumente entfernen.
+Erst wenn die Dokumente einer bestimmten Formulare erfolgreich erzeugt wurden, werden sie vom System gelöscht. Diese werden erkannt durch ein internes Labeling, manuell hochgeladene Dateien bleiben davon unbetroffen. Scheitert die Erzeugung, unterbleibt das Löschen und der bisherige Stand bleibt erhalten.
 
-Es ist nicht nur "Dokument erzeugen", sondern auch "alte Dokumente entfernen und neu erzeugen".
+6. Ablegen und anzeigen.
+Die neuen Dokumente werden automatisch an Tour oder Auftrag angehängt und werden im Cockpit sofort angezeigt – keine manuelle Aktualisierung ist nötig. Der Disponent bekommt nach jeder Tour eine Rückmeldung, wie viele Dokumente er oder sie erzeugt hat.
 
-Möglich ist dabei aber nicht das unselective Löschen aller Anhänge. Lagepläne oder Fotos, die manuell hochgeladen wurden, können auch an derselben Tour hängen.
-
-Daher markiert das System die von ihm selbst erstellten Dokumente eindeutig und löscht nur diese Dokumente. Das ist so, dass zuerst das Neuerzeugte Dokument erfolgreich ist und dann die alte Version gelöscht wird. So bleibt bei einem Fehler der bisherige Stand erhalten.
-
-Dies ist eine sichere Aktualisierungslogik, die einen nicht zu vernachlässigenden Teil der Arbeit verursacht.
-
-### 3. In any case, no new application comes into existence.
-
-Die neue Druckfunktion wird in den bestehenden PROLOGA-Cockpit integriert – an ebendiesem Ort, an dem es heute zur Verfügung ist: Aktion „An BMS freigeben“.
-
-Der Button fügt sich in die vorhandene Konfiguration ein. Der PROLOGA-Standardanwendung selbst wird dabei in keiner Weise geändert und kann so weiter upgrade-wartig weiterentwickelt werden.
-
-Es entsteht also:
-
-* keine zusätzliche Anwendung,
-* kein zusätzlicher Launchpad-Eintrag,
-* keine separate Oberfläche,
-- kein zweites, zu pflegende Programm.
-
-In der bereits existierenden BMS-Freigabe im selben Cockpit beweist sich, dass dieser Ansatz funktioniert.
-
-Der Aufwand des Button selbst ist aber nur ein kleiner Teil der Arbeit: Die eigentliche Arbeit ist es, dem System zuverlässig beizubringen, was es drucken soll und wie bestehende Dokumente sicher ersetzt werden können, ohne fremde Anhänge anzutasten.
+Bei mehreren markierten Touren wiederholt sich der Ablauf je Tour. Falls eine Tour nicht geschafft wird, wird der Tour nie gelöscht und der Rest der Tour verarbeitet, nur die Tour, die nicht geschafft wurde ist gesondert gemeldet.
