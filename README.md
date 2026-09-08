@@ -89,7 +89,6 @@ METHOD touranbmsfreigeben.
       beh_type       TYPE beh_type,
       beh_anzahl     TYPE cont_count,
       container      TYPE behaelter,
-      gernr          TYPE gernr,
       order_type     TYPE eorder_type,
       transporter    TYPE ehs_partner,
       disposer       TYPE ehs_partner,
@@ -129,15 +128,16 @@ METHOD touranbmsfreigeben.
     END OF ty_service,
     tt_services TYPE HASHED TABLE OF ty_service WITH UNIQUE KEY service_uuid,
 
+    " MATERIAL + EWC_CODE feed garbageKey; the container fields feed the
+    " container array.
     BEGIN OF ty_srvwr,
       service_uuid          TYPE /plce/pdservice_uuid,
       container_atloc_tidnr TYPE char30,
       container_new_tidnr   TYPE char30,
-
-      containertype_atloc TYPE char30,
-      containertype_new   TYPE char30,
-
-
+      containertype_atloc   TYPE char30,
+      containertype_new     TYPE char30,
+      material              TYPE matnr,
+      ewc_code              TYPE char20,
     END OF ty_srvwr,
     tt_srvwr TYPE SORTED TABLE OF ty_srvwr WITH NON-UNIQUE KEY service_uuid,
 
@@ -172,6 +172,7 @@ METHOD touranbmsfreigeben.
     lt_containers    TYPE tt_containers,
     ls_svc           TYPE ty_service,
     ls_ewa           TYPE ty_ewaobj,
+    ls_wr            TYPE ty_srvwr,
     ls_cust_bp       TYPE ty_bp_addr,
     ls_kunwe_bp      TYPE ty_bp_addr,
     ls_carrier_bp    TYPE ty_bp_addr,
@@ -216,7 +217,7 @@ METHOD touranbmsfreigeben.
 
   IF sy-subrc <> 0.
     lv_cfg_error = 'kein Eintrag CONFIG_ID = DEFAULT in ZTOUR_BMS_CFG'.
-  ELSEIF ls_cfg-active is INITIAL.
+  ELSEIF ls_cfg-active IS INITIAL.
     lv_cfg_error = 'Kennzeichen ACTIVE ist nicht gesetzt'.
   ELSEIF ls_cfg-bms_destination IS INITIAL.
     lv_cfg_error = 'BMS_DESTINATION ist nicht gepflegt'.
@@ -242,8 +243,8 @@ METHOD touranbmsfreigeben.
   " typed local — the DDIC field may not be type-compatible with RFCDEST
   lv_dest = ls_cfg-bms_destination.
 
-  DATA(lv_bms_user)     = ls_cfg-bms_username .
-  DATA(lv_bms_password) =  ls_cfg-bms_password .
+  DATA(lv_bms_user)     = ls_cfg-bms_username.
+  DATA(lv_bms_password) = ls_cfg-bms_password.
   DATA(lv_def_carrier)  = ls_cfg-default_carrier.
   DATA(lv_def_recycler) = ls_cfg-default_recycler.
 
@@ -289,7 +290,7 @@ METHOD touranbmsfreigeben.
   ENDIF.
 
 *----------------------------------------------------------------------*
-* STEP 3 — services and containers
+* STEP 3 — services and waste extension
 *----------------------------------------------------------------------*
   SELECT s~service_uuid,
          s~service_id,
@@ -312,8 +313,10 @@ METHOD touranbmsfreigeben.
   SELECT w~service_uuid,
          w~container_atloc_tidnr,
          w~container_new_tidnr,
-         w~CONTAINERTYPE_ATLOC,
-         w~CONTAINERTYPE_New
+         w~containertype_atloc,
+         w~containertype_new,
+         w~material,
+         w~ewc_code
     FROM /plce/tpdsrvwr AS w
     FOR ALL ENTRIES IN @lt_asgmts
     WHERE w~service_uuid = @lt_asgmts-serviceuuid
@@ -454,7 +457,10 @@ METHOD touranbmsfreigeben.
     LOOP AT lt_asgmts INTO DATA(ls_asgmt)
       WHERE touruuid = ls_tour-touruuid.
 
-      CLEAR: ls_svc, ls_ewa, lt_containers,
+      " ls_wr MUST be cleared: READ TABLE ... INTO leaves the work area
+      " unchanged when nothing is found, so a service without a
+      " /PLCE/TPDSRVWR row would inherit the previous service's data.
+      CLEAR: ls_svc, ls_ewa, ls_wr, lt_containers,
              ls_cust_bp, ls_kunwe_bp, ls_carrier_bp, ls_recycler_bp,
              lv_movement_type, lv_ctype_name, lv_cont_old, lv_cont_new,
              lv_material_desc, lv_http_status, lv_response, lv_json,
@@ -496,6 +502,9 @@ METHOD touranbmsfreigeben.
         ) TO reported-tour.
         CONTINUE.
       ENDIF.
+
+      READ TABLE lt_srvwr INTO ls_wr
+        WITH KEY service_uuid = ls_svc-service_uuid.
 
       " --- 6c Movement type: new | change | collect -----------------------
       "     CONDENSE matters — a CHAR column with trailing blanks sends
@@ -540,30 +549,23 @@ METHOD touranbmsfreigeben.
 
       DATA(lv_is_express) = xsdbool( ls_ewa-order_type = '02' ).
 
-
       " --- 6d Containers ---------------------------------------------------
       " Spec + runtime rules:
       "   new     (Aufstellung) — containerNumberNew required, old empty
       "   collect (Einzug)      — containerNumberOld required, new empty
       "   change  (Wechsel)     — BOTH required
-      " EWA CONTAINER / GERNR is the container standing at the customer,
-      " so it is the OLD one — it only fills "new" for an Aufstellung.
-      DATA(lv_cont_fallback) = COND string(
-        WHEN ls_ewa-container IS NOT INITIAL
-        THEN condense( |{ ls_ewa-container ALPHA = OUT }| )
-        ELSE condense( |{ ls_ewa-gernr     ALPHA = OUT }| ) ).
+      " EWA CONTAINER is the container standing at the customer, so it is
+      " the OLD one — it only fills "new" for an Aufstellung.
+      DATA(lv_cont_fallback) = condense( |{ ls_ewa-container ALPHA = OUT }| ).
 
-      READ TABLE lt_srvwr INTO DATA(ls_wr)
-        WITH KEY service_uuid = ls_svc-service_uuid.
+      lv_cont_old = condense( ls_wr-container_atloc_tidnr ).
+      lv_cont_new = condense( ls_wr-container_new_tidnr ).
 
-      IF sy-subrc = 0.
-*        lv_cont_old = condense( ls_wr-container_atloc_tidnr ).
-*        lv_cont_new = condense( ls_wr-container_new_tidnr ).
-
-        lv_cont_old = condense( ls_wr-containertype_atloc ).
-        lv_cont_new = condense( ls_wr-containertype_new ).
-
-      ENDIF.
+      " TEST ONLY — sends the container TYPE where the ident number belongs.
+      " Makes message 034 stop firing, but the driver then has no barcode
+      " to scan. Enable deliberately, never leave active in production.
+*      lv_cont_old = condense( ls_wr-containertype_atloc ).
+*      lv_cont_new = condense( ls_wr-containertype_new ).
 
       CASE lv_movement_type.
         WHEN 'new'.
@@ -582,8 +584,8 @@ METHOD touranbmsfreigeben.
           ENDIF.
       ENDCASE.
 
-      " Fail here with a readable message rather than letting BMS
-      " reject the request for a field we know is missing.
+      " Fail here with a readable message rather than letting BMS reject
+      " the request for a field we already know is missing.
       DATA(lv_cont_missing) = xsdbool(
         ( lv_movement_type = 'new'     AND lv_cont_new IS INITIAL ) OR
         ( lv_movement_type = 'collect' AND lv_cont_old IS INITIAL ) OR
@@ -604,9 +606,6 @@ METHOD touranbmsfreigeben.
         CONTINUE.
       ENDIF.
 
-
-
-
       " containerMovementTypeInfo is shown to the driver in the order
       " overview. It and internalRemark are required by the running API
       " and [Required] rejects empty strings, so both always carry content.
@@ -620,10 +619,6 @@ METHOD touranbmsfreigeben.
         THEN condense( CONV string( ls_svc-additional_text ) )
         ELSE 'keine' ).
 
-      if lv_cont_old is INITIAL.
-          lv_cont_old = lv_cont_new.
-      ENDIF.
-
       APPEND VALUE #(
         container_number_old         = lv_cont_old
         container_number_new         = lv_cont_new
@@ -633,8 +628,6 @@ METHOD touranbmsfreigeben.
         internal_remark              = lv_internal_remark
         customer_owned               = abap_false
       ) TO lt_containers.
-
-
 
       " --- 6e Service window — date-span, HH:MM:SS ------------------------
       DATA(lv_win_start) = COND string(
@@ -753,11 +746,28 @@ METHOD touranbmsfreigeben.
         ls_recycler_bp-post_code1 IS NOT INITIAL AND
         ls_recycler_bp-city1      IS NOT INITIAL ).
 
-      " --- 6i Waste description ---------------------------------------------
-      IF ls_ewa-watp_avvcode IS NOT INITIAL.
+      " --- 6i Waste key and description --------------------------------------
+      " garbageKey = Materialnummer + "#" + AVV-Code, e.g. ABK_AZB#200301
+      DATA(lv_matnr_out) = condense( |{ ls_wr-material ALPHA = OUT }| ).
+      DATA(lv_avv_out)   = condense( |{ ls_wr-ewc_code }| ).
+
+      " fall back to the EWA AVV code when the service carries none
+      IF lv_avv_out IS INITIAL.
+        lv_avv_out = condense( ls_ewa-watp_avvcode ).
+      ENDIF.
+
+      " one part missing → send that part alone, never a dangling "#"
+      DATA(lv_garbage_key) = COND string(
+        WHEN lv_matnr_out IS NOT INITIAL AND lv_avv_out IS NOT INITIAL
+        THEN |{ lv_matnr_out }#{ lv_avv_out }|
+        WHEN lv_avv_out   IS NOT INITIAL THEN lv_avv_out
+        ELSE                                  lv_matnr_out ).
+
+      " the description belongs to the MATERIAL, not to the AVV code
+      IF ls_wr-material IS NOT INITIAL.
         SELECT SINGLE maktx
           FROM makt
-          WHERE matnr = @ls_ewa-watp_avvcode
+          WHERE matnr = @ls_wr-material
             AND spras = @sy-langu
           INTO @lv_material_desc.
       ENDIF.
@@ -883,7 +893,7 @@ METHOD touranbmsfreigeben.
             zip_code      = condense( ls_carrier_bp-post_code1 )
             city          = condense( ls_carrier_bp-city1 ) ) )
 
-        garbage_key  = condense( ls_ewa-watp_avvcode )
+        garbage_key  = lv_garbage_key
         garbage_name = condense( lv_material_desc )
 
         coll_consignment_note_nr = condense( ls_ewa-watp_noteintnr )
@@ -1072,369 +1082,3 @@ METHOD touranbmsfreigeben.
   ENDLOOP.   " tours
 
 ENDMETHOD.
-
-
-
-
-METHOD stornobmsservice.
-
-*----------------------------------------------------------------------*
-* There is no storno endpoint in the BMS API. Cancellation is the SAME
-* create-order-halle call with status "cancelled". The payload is
-* replayed from ZBMS_API_LOG so BMS sees exactly the order it accepted.
-*
-* Prerequisite: ZBMS_API_LOG-REQUEST_PAYLOAD must be type STRING.
-* At CHAR 1333 the stored JSON is truncated and replays as invalid.
-*----------------------------------------------------------------------*
-  TYPES:
-    BEGIN OF ty_svc_storno,
-      service_uuid     TYPE /plce/pdservice_uuid,
-      service_id       TYPE /plce/pdservice_id,
-      reference_id     TYPE char30,
-      reference_int_id TYPE char30,
-    END OF ty_svc_storno,
-    tt_svc_storno TYPE HASHED TABLE OF ty_svc_storno
-                  WITH UNIQUE KEY service_uuid.
-
-  DATA:
-    lt_services     TYPE tt_svc_storno,
-    ls_svc          TYPE ty_svc_storno,
-    ls_srvcst       TYPE /plce/tpdsrvcst,
-    lv_dest         TYPE rfcdest,
-    lv_token        TYPE string,
-    lv_error        TYPE string,
-    lv_http_status  TYPE i,
-    lv_response     TYPE string,
-    lv_json         TYPE string,
-    lv_storno_ok    TYPE i,
-    lv_storno_err   TYPE i,
-    lv_pobjnr       TYPE j_objnr,
-    lv_sto_subrc    TYPE sy-subrc,
-    lv_order_number TYPE aufnr.
-
-  DATA: BEGIN OF ls_err_body,
-          BEGIN OF error,
-            message   TYPE string,
-            timestamp TYPE string,
-          END OF error,
-        END OF ls_err_body.
-
-*----------------------------------------------------------------------*
-* CONFIG — endpoint comes from an SM59 destination
-*----------------------------------------------------------------------*
-  SELECT SINGLE bms_destination, bms_username, bms_password, active
-    FROM ztour_bms_cfg
-    WHERE config_id = 'DEFAULT'
-    INTO @DATA(ls_cfg).
-
-  IF sy-subrc <> 0 OR ls_cfg-active is  INITIAL
-     OR ls_cfg-bms_destination IS INITIAL.
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(<ky>).
-      APPEND VALUE #(
-        %tky = <ky>-%tky
-        %msg = new_message(
-                 id       = 'Z_MSG_SVR_TOUR_EXT'
-                 number   = '020'
-                 severity = if_abap_behv_message=>severity-error )
-      ) TO reported-tour.
-      APPEND VALUE #( %tky = <ky>-%tky ) TO failed-tour.
-    ENDLOOP.
-    RETURN.
-  ENDIF.
-
-  lv_dest = ls_cfg-bms_destination.
-
-  DATA(lv_bms_user)     = ls_cfg-bms_username .
-  DATA(lv_bms_password) =  ls_cfg-bms_password .
-
-*----------------------------------------------------------------------*
-* Tours
-*----------------------------------------------------------------------*
-  READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
-    ENTITY tour
-      FIELDS ( tourid touruuid )
-      WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_tours)
-    FAILED DATA(lt_failed).
-
-  LOOP AT lt_failed-tour ASSIGNING FIELD-SYMBOL(<fail>).
-    APPEND VALUE #(
-      %tky = <fail>-%tky
-      %msg = new_message(
-               id       = 'Z_MSG_SVR_TOUR_EXT'
-               number   = '024'
-               severity = if_abap_behv_message=>severity-error )
-    ) TO reported-tour.
-    APPEND VALUE #( %tky = <fail>-%tky ) TO failed-tour.
-  ENDLOOP.
-
-  IF lt_tours IS INITIAL.
-    RETURN.
-  ENDIF.
-
-*----------------------------------------------------------------------*
-* Service assignments
-*----------------------------------------------------------------------*
-  READ ENTITIES OF /plce/r_pdtour IN LOCAL MODE
-    ENTITY tour BY \_serviceassignments
-      FIELDS ( touruuid serviceuuid removed )
-      WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_asgmts).
-
-  DELETE lt_asgmts WHERE removed IS NOT INITIAL.
-
-  IF lt_asgmts IS INITIAL.
-    RETURN.
-  ENDIF.
-
-  SELECT service_uuid, service_id, reference_id, reference_int_id
-    FROM /plce/tpdsrv
-    FOR ALL ENTRIES IN @lt_asgmts
-    WHERE service_uuid = @lt_asgmts-serviceuuid
-    INTO CORRESPONDING FIELDS OF TABLE @lt_services.
-
-*----------------------------------------------------------------------*
-* Main loop
-*----------------------------------------------------------------------*
-  LOOP AT lt_tours INTO DATA(ls_tour).
-
-    CLEAR: lv_storno_ok, lv_storno_err, lv_token, lv_error.
-
-    DATA(lv_tour_id_out) = condense( |{ ls_tour-tourid ALPHA = OUT }| ).
-
-    zcl_wr_pd_tour_helper=>get_bms_bearer_token(
-      EXPORTING
-        iv_destination = lv_dest
-        iv_username    = lv_bms_user
-        iv_password    = lv_bms_password
-      IMPORTING
-        ev_token       = lv_token
-        ev_error       = lv_error ).
-
-    IF lv_error IS NOT INITIAL.
-      APPEND VALUE #(
-        %tky = ls_tour-%tky
-        %msg = new_message_with_text(
-                 severity = if_abap_behv_message=>severity-error
-                 text     = lv_error )
-      ) TO reported-tour.
-      APPEND VALUE #( %tky = ls_tour-%tky ) TO failed-tour.
-      CONTINUE.
-    ENDIF.
-
-    LOOP AT lt_asgmts INTO DATA(ls_asgmt)
-      WHERE touruuid = ls_tour-touruuid.
-
-      CLEAR: ls_svc, lv_http_status, lv_response, lv_json,
-             lv_pobjnr, lv_order_number, lv_sto_subrc.
-
-      READ TABLE lt_services INTO ls_svc
-        WITH TABLE KEY service_uuid = ls_asgmt-serviceuuid.
-
-      IF sy-subrc <> 0.
-        lv_storno_err = lv_storno_err + 1.
-        APPEND VALUE #(
-          %tky = ls_tour-%tky
-          %msg = new_message(
-                   id       = 'Z_MSG_SVR_TOUR_EXT'
-                   number   = '025'
-                   severity = if_abap_behv_message=>severity-error
-                   v1       = lv_tour_id_out )
-        ) TO reported-tour.
-        CONTINUE.
-      ENDIF.
-
-      DATA(lv_svc_ref_out) = condense( |{ ls_svc-reference_id ALPHA = OUT }| ).
-
-      " Only cancel what was actually released
-      SELECT SINGLE zz_bms_status
-        FROM /plce/tpdsrvcst
-        WHERE service_uuid = @ls_asgmt-serviceuuid
-        INTO @DATA(lv_cur_status).
-
-      IF sy-subrc <> 0 OR lv_cur_status <> 'FREIGEGEBEN'.
-        CONTINUE.   " never released, or already cancelled — nothing to do
-      ENDIF.
-
-      " Replay the payload BMS accepted
-      SELECT SINGLE order_number, request_payload
-        FROM zbms_api_log
-        WHERE tour_uuid    = @ls_tour-touruuid
-          AND service_uuid = @ls_asgmt-serviceuuid
-        INTO ( @lv_order_number, @lv_json ).
-
-      IF sy-subrc <> 0 OR lv_json IS INITIAL.
-        lv_storno_err = lv_storno_err + 1.
-        APPEND VALUE #(
-          %tky = ls_tour-%tky
-          %msg = new_message(
-                   id       = 'Z_MSG_SVR_TOUR_EXT'
-                   number   = '027'
-                   severity = if_abap_behv_message=>severity-error
-                   v1       = lv_svc_ref_out )
-        ) TO reported-tour.
-        CONTINUE.
-      ENDIF.
-
-      " Switch the status. This check is critical: if the pattern does not
-      " match, the payload still says "ok" and posting it would CREATE the
-      " order again instead of cancelling it.
-      REPLACE FIRST OCCURRENCE OF '"status":"ok"'
-        IN lv_json WITH '"status":"cancelled"'.
-
-      IF sy-subrc <> 0.
-        lv_storno_err = lv_storno_err + 1.
-        APPEND VALUE #(
-          %tky = ls_tour-%tky
-          %msg = new_message(
-                   id       = 'Z_MSG_SVR_TOUR_EXT'
-                   number   = '031'
-                   severity = if_abap_behv_message=>severity-error
-                   v1       = lv_svc_ref_out )
-        ) TO reported-tour.
-        CONTINUE.
-      ENDIF.
-
-      lv_pobjnr = ls_svc-reference_int_id.
-
-      zcl_wr_pd_tour_helper=>post_bms_order(
-        EXPORTING
-          iv_destination  = lv_dest
-          iv_bearer_token = lv_token
-          iv_json         = lv_json
-        IMPORTING
-          ev_http_status  = lv_http_status
-          ev_response     = lv_response ).
-
-      zcl_wr_pd_tour_helper=>log_bms_call(
-        iv_tour_uuid    = ls_tour-touruuid
-        iv_service_uuid = ls_asgmt-serviceuuid
-        iv_order_number = lv_order_number
-        iv_endpoint     = '/api/container/create-order-halle (CANCEL)'
-        iv_http_status  = lv_http_status
-        iv_request      = lv_json
-        iv_response     = lv_response
-        iv_pobjnr       = lv_pobjnr ).
-
-      IF lv_http_status = 200 OR lv_http_status = 201.
-
-        lv_storno_ok = lv_storno_ok + 1.
-
-        CALL FUNCTION 'ZWR_BMS_UPDATE_SERVICE'
-          DESTINATION 'NONE'
-          EXPORTING
-            service_uuid          = ls_asgmt-serviceuuid
-            pobjnr                = lv_pobjnr
-            zz_bms_status         = 'STORNIERT'
-          IMPORTING
-            ev_subrc              = lv_sto_subrc
-          EXCEPTIONS
-            communication_failure = 1
-            system_failure        = 2
-            OTHERS                = 3.
-
-        IF sy-subrc <> 0 OR lv_sto_subrc <> 0.
-          CLEAR ls_srvcst.
-          ls_srvcst-service_uuid  = ls_asgmt-serviceuuid.
-          ls_srvcst-zz_bms_status = 'STORNIERT'.
-          INSERT /plce/tpdsrvcst FROM ls_srvcst.
-        ENDIF.
-
-        APPEND VALUE #(
-          %tky = ls_tour-%tky
-          %msg = new_message(
-                   id       = 'Z_MSG_SVR_TOUR_EXT'
-                   number   = '032'
-                   severity = if_abap_behv_message=>severity-success
-                   v1       = lv_order_number )
-        ) TO reported-tour.
-
-      ELSE.
-
-        lv_storno_err = lv_storno_err + 1.
-
-        CLEAR ls_err_body.
-        TRY.
-            /ui2/cl_json=>deserialize(
-              EXPORTING json = lv_response
-              CHANGING  data = ls_err_body ).
-          CATCH cx_root.
-            CLEAR ls_err_body.
-        ENDTRY.
-
-        DATA(lv_bms_msg) = COND string(
-          WHEN ls_err_body-error-message IS NOT INITIAL
-          THEN ls_err_body-error-message
-          WHEN strlen( lv_response ) > 80
-          THEN |HTTP { lv_http_status }: { lv_response(80) }|
-          WHEN lv_response IS NOT INITIAL
-          THEN |HTTP { lv_http_status }: { lv_response }|
-          ELSE |HTTP { lv_http_status }| ).
-
-        APPEND VALUE #(
-          %tky = ls_tour-%tky
-          %msg = new_message(
-                   id       = 'Z_MSG_SVR_TOUR_EXT'
-                   number   = '033'
-                   severity = if_abap_behv_message=>severity-error
-                   v1       = lv_order_number
-                   v2       = lv_bms_msg )
-        ) TO reported-tour.
-
-      ENDIF.
-
-    ENDLOOP.   " services
-
-*----------------------------------------------------------------------*
-* Nothing was cancelled, but something was attempted.
-*     Both counters zero = no service was in FREIGEGEBEN, a legitimate
-*     no-op that must not be reported as a failure.
-*----------------------------------------------------------------------*
-    IF lv_storno_ok = 0 AND lv_storno_err > 0.
-      APPEND VALUE #( %tky = ls_tour-%tky ) TO failed-tour.
-      CONTINUE.
-    ENDIF.
-
-    DATA(lv_tour_status) = COND /plce/char20(
-      WHEN lv_storno_ok > 0 AND lv_storno_err = 0 THEN 'STORNIERT'
-      WHEN lv_storno_ok > 0                       THEN 'PARTIAL'
-      WHEN lv_storno_err > 0                      THEN 'ERROR'
-      ELSE                                             'STORNIERT' ).
-
-    MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
-      ENTITY extcustom
-        UPDATE FIELDS ( zz_bms_status )
-        WITH VALUE #( ( touruuid      = ls_tour-touruuid
-                        zz_bms_status = lv_tour_status ) )
-      FAILED   DATA(lf_mod)
-      REPORTED DATA(lr_mod).
-
-    IF lf_mod IS NOT INITIAL.
-      MODIFY ENTITIES OF /plce/r_pdtour IN LOCAL MODE
-        ENTITY tour
-          CREATE BY \_extcustom
-            FIELDS ( zz_bms_status )
-            WITH VALUE #( (
-              %tky    = ls_tour-%tky
-              %target = VALUE #( (
-                %cid          = |BMS_STORNO_TGT_{ ls_tour-touruuid }|
-                zz_bms_status = lv_tour_status ) ) ) )
-        FAILED   DATA(lf_crt)
-        REPORTED DATA(lr_crt).
-
-      IF lf_crt IS NOT INITIAL.
-        APPEND LINES OF lr_crt-tour TO reported-tour.
-      ENDIF.
-    ENDIF.
-
-  ENDLOOP.   " tours
-
-ENDMETHOD.
-
-
-
-METHOD tourgenerateDocument.
-
-
-
-  ENDMETHOD.
