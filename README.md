@@ -1,2 +1,9 @@
-<img width="1227" height="362" alt="image" src="https://github.com/user-attachments/assets/cf242b0c-503e-4fc5-9eaf-3eb6e932ffab" />
-<img width="1348" height="388" alt="image" src="https://github.com/user-attachments/assets/1e3a1d8c-9429-4800-b25b-ee5d27126c0e" />
+    METHODS remove_obsolete_tour
+      IMPORTING iv_touruuid       TYPE /plce/pdtour_uuid
+                it_new            TYPE zcl_wr_misc_pd=>tty_attach
+      RETURNING VALUE(rv_removed) TYPE i.
+
+    METHODS remove_obsolete_service
+      IMPORTING iv_serviceuuid    TYPE /plce/pdservice_uuid
+                it_new            TYPE zcl_wr_misc_pd=>tty_attach
+      RETURNING VALUE(rv_removed) TYPE i.
