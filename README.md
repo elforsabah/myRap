@@ -1,10 +1,3 @@
-    rs_tour = VALUE ty_tour_with_attachments(
-      tour_uuid     = is_tour-TourUuid
-      tour_id       = is_tour-TourId
-      tour_template = is_tour-TourTemplate
-      attachments   = VALUE #( FOR c IN lt_attachments
-                               ( field             = c-field
-                                 printform         = c-printform
-                                 formtype          = c-formtype
-                                 parameter_in      = c-parameterin
-                                 filenameteemplate = c-filenameteemplate ) ) ).
+        ls_attachment-attachment = lr_printresult->pdfdata.
+        ls_attachment-mimetype   = 'APPLICATION/PDF'.
+        ls_attachment-comments   = |ZWRPRT/{ ir_config->printform }|.
