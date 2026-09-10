@@ -1,7 +1,52 @@
-Innerhalb dieser Formulare werden unterschiedliche Tourarten und Auftragsarten unterschieden, aber im selben Formular. Der Disponent muss also zum drucken/generieren nicht erst das “richtige” Formular auswählen.
+extend view entity /PLCE/R_PDServiceExtCustom with
+  association [0..1] to ZI_WR_SERVICE_EXTCUSTOM as _ExtCustomHelper
+    on _ExtCustomHelper.ServiceUUID = $projection.ServiceUUID
+{
+  /plce/tpdsrvcst.zz_tech_fachbe,
+  /plce/tpdsrvcst.zz_discrepancy,
+  /plce/tpdsrvcst.zz_reactiontime,
+  /plce/tpdsrvcst.zz_vehicleinfo,
+  /plce/tpdsrvcst.zz_order_date,
+  /plce/tpdsrvcst.zz_timeadjustment,
+  _ExtCustomHelper.zz_pobjnr_main,
+  /plce/tpdsrvcst.wdplantnr,
+  
+  _ExtCustomHelper.wdplantnr as order_wdplantnr
+}
 
-Das heißt wir können in der Konfigurationstabelle die Formulare je Tour und je Service hinterlegen und mit Klick auf “Dokumente drucken” werden alle erzeugt, für die etwas hinterlegt ist.
 
-Einzige Ausnahme/Überlegung: es gibt einen Fachbereich (TEB), der im Normalfall keine Lieferscheine benötigt, sondern nur die Tourliste. Dort sind in der Realität auch immer sehr viele Services in einer Tour (~100). Vielleicht gibt es einen “einfachen” Weg die nicht automatisch immer unnötig zu generieren.
+extend view entity /PLCE/C_PDMNLServiceWR with
+  association [0..1] to /PLCE/C_PDMNLTourWR as _TourForRefresh 
+    on $projection.TourId = _TourForRefresh.TourId
+      
+{
+  /PLCE/R_PDService._ExtCustom.zz_tech_fachbe,
+  /PLCE/R_PDService._ExtCustom.zz_discrepancy,
+   
+  @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_SERVICE_EXTEND_CALC'
+  virtual service_criticality : abap.int1,
+  
+  /PLCE/R_PDService._ExtCustom.zz_reactiontime,
+  /PLCE/R_PDService._ExtCustom.zz_vehicleinfo,
+  
+  @UI.hidden: true
+  /PLCE/R_PDService._ExtCustom.zz_timeadjustment,
+   
+  @ObjectModel.virtualElement: true
+  @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_SERVICE_EXTEND_CALC'
+  @EndUserText.label: 'Zeitanpassung in Min'
+  virtual zz_timeadjust_display : abap.char(35),
+  
+  @ObjectModel.virtualElement: true
+  @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_WR_SERVICE_EXTEND_CALC'
+  @EndUserText.label: 'Hauptposition Kritikalität'
+  virtual zz_main_pos_criticality : abap.int1,
+  
+  @EndUserText.label: 'Hauptposition'
+  /PLCE/R_PDService._ExtCustom.zz_pobjnr_main,
 
-Idee A: Spalte “tech.Fachbereich” in der Konfigurationstabelle und die Formulare je Bereich hinterlegen. Dann lassen wir dort für TEB den Lieferschein einfach weg.
+  @EndUserText.label: 'Entsorgungsanlage'
+  @UI.lineItem: [{ position: 132, importance: #HIGH }]
+  /PLCE/R_PDService._ExtCustom.order_wdplantnr,
+  _TourForRefresh
+}
